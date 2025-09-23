@@ -1,0 +1,8 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block body %}
+    {% for ctx in rendered_blocks %}
+        {% include ctx.block.template_name with ctx=ctx %}
+    {% endfor %}
+{% endblock %}

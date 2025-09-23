@@ -1,0 +1,13 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="work_profile step city">
+            {{ wizard.management_form }}
+            {{ form.as_p }}
+            <button type="submit">{% trans 'Continue' %}</button>
+        </div>
+    </form>
+{% endblock %}

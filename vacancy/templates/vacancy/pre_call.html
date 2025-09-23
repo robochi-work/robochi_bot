@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block body %}
+
+    <div class="info">Увага!<br>Почався робочий час, але працівників<br>недостатньо!</div>
+    <a href="{% url 'vacancy:refind' pk=pk %}">ПРОДОЛЖИТИ ПОШУК ПРАЦІВНИКІВ</a>
+    <br>
+    {% if members_count %}
+        <a href="{% url 'vacancy:call' pk=pk call_type=call_type %}">НЕ ТРЕБА</a>
+    {% endif %}
+
+{% endblock %}

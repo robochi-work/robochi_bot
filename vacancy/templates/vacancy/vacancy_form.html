@@ -1,0 +1,81 @@
+{% load i18n %}
+<form method="post" action="{% url 'vacancy:create' %}">
+    {% csrf_token %}
+
+    <div class="column">
+        <label for="{{ form.date_choice.id_for_label }}">{% trans "When are employees needed?" %}:</label>
+        <div class="date-choice">
+            {% for radio in form.date_choice %}
+                <div class="option option-{{ forloop.counter }}">
+                    {{ radio.tag }}
+                    <label for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+                </div>
+            {% endfor %}
+        </div>
+        {{ form.date_choice.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.gender.id_for_label }}">{% trans "Preferred gender of employee" %}:</label>
+        {{ form.gender }}
+        {{ form.gender.errors }}
+    </div>
+    <div class="column">
+        <label for="{{ form.start_time.id_for_label }}">{% trans "Start Time" %}:</label>
+        {{ form.start_time }}
+        {{ form.start_time.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.end_time.id_for_label }}">{% trans "End Time" %}:</label>
+        {{ form.end_time }}
+        {{ form.end_time.errors }}
+    </div>
+    <div class="column">
+        <label for="{{ form.people_count.id_for_label }}">{% trans "Number of People" %}:</label>
+        {{ form.people_count }}
+        {{ form.people_count.errors }}
+    </div>
+    <div class="column">
+        <label for="{{ form.skills.id_for_label }}">{% trans "What will they do" %}:</label>
+        {{ form.skills }}
+        {{ form.skills.errors }}
+    </div>
+    <div class="column" style="align-items: start;">
+        <label for="{{ form.has_passport.id_for_label }}">{% trans "Has Passport" %}:</label>
+        {{ form.has_passport }}
+        {{ form.has_passport.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.address.id_for_label }}">{% trans "Address" %}:</label>
+        {{ form.address }}
+        {{ form.address.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.map_link.id_for_label }}">{% trans "Address on Google maps (is not required)" %}:</label>
+        {{ form.map_link }}
+        {{ form.map_link.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.payment_amount.id_for_label }}">{% trans "Payment Amount" %} (грн):</label>
+        {{ form.payment_amount }}
+        {{ form.payment_amount.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.payment_unit.id_for_label }}">{% trans "Payment Type" %}:</label>
+        {{ form.payment_unit }}
+        {{ form.payment_unit.errors }}
+    </div>
+
+    <div class="column">
+        <label for="{{ form.payment_method.id_for_label }}">{% trans "Payment method" %}:</label>
+        {{ form.payment_method }}
+        {{ form.payment_method.errors }}
+    </div>
+
+    <button type="submit" style="width: 100%; background-color: blue;">{% trans "Create vacancy" %}</button>
+</form>

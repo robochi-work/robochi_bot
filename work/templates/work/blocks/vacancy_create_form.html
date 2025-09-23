@@ -1,0 +1,10 @@
+{% load i18n %}
+{% if work_profile.role == 'employer' %}
+    {% with form=ctx.form %}
+        <div class="page-block">
+            <h2>{% trans "Create a Vacancy" %}</h2>
+            {% include 'vacancy/vacancy_form.html' %}
+        </div>
+    {% endwith %}
+{% endif %}
+

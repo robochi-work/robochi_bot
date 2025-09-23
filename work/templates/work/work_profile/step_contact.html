@@ -1,0 +1,17 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="work_profile step contact">
+            <div class="info">
+                {% trans "To facilitate communication, please provide some information about yourself." %}
+            </div>
+            {{ wizard.management_form }}
+            {{ form.as_p }}
+            {% include 'includes/terms_link.html' %}
+            <button type="submit">{% trans 'Confirm' %}</button>
+        </div>
+    </form>
+{% endblock %}

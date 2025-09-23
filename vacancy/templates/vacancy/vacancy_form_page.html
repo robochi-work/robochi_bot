@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block body %}
+    <div class="page-block">
+        <h2>{% trans "Create a Vacancy" %}</h2>
+        {% include 'vacancy/vacancy_form.html' %}
+    </div>
+
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+    <form method="post">
+        {% csrf_token %}
+        <div class="work_profile step city">
+            {{ wizard.management_form }}
+            {{ form.as_p }}
+            <button type="submit">{% trans 'Continue' %}</button>
+        </div>
+        <a href="https://t.me/robochi_work_admin/" class="info">{% trans 'If your city is not on the list, write to the administrator' %}</a>
+    </form>
+{% endblock %}

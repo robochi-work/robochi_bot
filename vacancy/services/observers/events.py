@@ -1,0 +1,21 @@
+from vacancy.choices import STATUS_APPROVED, STATUS_REJECTED, STATUS_CREATED
+
+VACANCY_CREATED = f'vacancy_event_{STATUS_CREATED}'
+VACANCY_APPROVED = f'vacancy_event_{STATUS_APPROVED}'
+VACANCY_REJECTED = f'vacancy_event_{STATUS_REJECTED}'
+
+VACANCY_NEW_MEMBER = f'vacancy_event_new_member'
+VACANCY_LEFT_MEMBER = f'vacancy_event_left_member'
+VACANCY_AFTER_START_CALL = f'vacancy_event_after_start_call'
+VACANCY_AFTER_START_CALL_FAIL = f'vacancy_event_after_start_call_fail'
+VACANCY_REFIND = f'vacancy_refind'
+VACANCY_START_CALL = f'vacancy_event_start_call'
+VACANCY_START_CALL_FAIL = f'vacancy_event_start_call_fail'
+VACANCY_BEFORE_CALL = f'vacancy_event_before_call'
+VACANCY_AFTER_START_CALL_SUCCESS = f'vacancy_after_start_call_success'
+VACANCY_BEFORE_CALL_FAIL = f'vacancy_event_before_call_fail'
+VACANCY_CLOSE = f'vacancy_close'
+VACANCY_CLOSE_FORCIBLY = f'vacancy_close_forcibly'
+VACANCY_CLOSE_PAYMENT_DOES_NOT_EXIST = f'vacancy_close_fail'
+VACANCY_NEW_FEEDBACK = 'vacancy_new_feedback'
+VACANCY_DELETE = f'vacancy_delete'

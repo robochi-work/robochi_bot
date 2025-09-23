@@ -1,0 +1,13 @@
+{% load i18n %}
+{% if channel %}
+    <div class="channel preview">
+        <div class="title">{{ channel.title }}</div>
+
+        <a href="{{ channel.invite_link }}" target="_blank">
+            <button class="open">
+                {% trans 'Open' %}
+            </button>
+        </a>
+
+    </div>
+{% endif %}
