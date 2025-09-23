@@ -1,0 +1,28 @@
+{% load static %}
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="{% get_current_language as LANGUAGE_CODE %}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>{{ title|default:'' }}</title>
+    <script src="https://telegram.org/js/telegram-web-app.js?56"></script>
+    <script src="{% static 'js/telegram.js' %}" defer></script>
+    <script src="{% static 'js/menu.js' %}" defer></script>
+    <link href="{% static 'css/styles.css' %}" rel="stylesheet">
+</head>
+<body>
+    {% block header %}
+        {% include 'work/includes/header.html' %}
+    {% endblock %}
+
+    {% block body_messages %}
+        {% include 'includes/messages.html' %}
+    {% endblock %}
+
+    {% block body %}
+    {% endblock %}
+</body>
+</html>

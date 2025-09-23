@@ -1,0 +1,14 @@
+{% load i18n %}
+<header>
+    {% if work_profile.role == 'employer' %}
+        <div class="left">
+            <a href="{% url 'vacancy:create' %}">{% trans 'Create vacancy' %}</a>
+        </div>
+    {% endif %}
+    <div class="right">
+        <div class="menu" onclick="toggleMenu()">{% trans 'Menu' %}</div>
+    </div>
+</header>
+<div id="menu">
+    <a href="{% url 'work:anketa' %}">{% trans 'User data' %}</a>
+</div>

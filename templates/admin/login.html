@@ -1,0 +1,24 @@
+{% extends "admin/login.html" %}
+{% load i18n %}
+
+{% block content %}
+    {{ block.super }}
+
+    {% if user.is_authenticated %}
+        <div id="custom-submit-block" class="submit-row" style="display: none;">
+            <a href="{% url 'admin:logout' %}">{% trans 'Log out' %}</a>
+        </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const loginForm = document.getElementById('login-form');
+                const customBlock = document.getElementById('custom-submit-block');
+
+                if (loginForm && customBlock) {
+                    loginForm.appendChild(customBlock);
+                    customBlock.style.display = '';
+                }
+            });
+        </script>
+    {% endif %}
+
+{% endblock %}

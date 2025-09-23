@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block body %}
+  <h1>{{ vacancy.title }}</h1>
+
+  <form method="post" class="mb-4">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {{ form.vacancy }}
+    {{ form.users }}
+    <div class="mb-3">
+      {{ form.text.errors }}
+      {{ form.text }}
+    </div>
+    <button type="submit" class="btn btn-primary">{% trans "Submit" %}</button>
+  </form>
+{% endblock %}

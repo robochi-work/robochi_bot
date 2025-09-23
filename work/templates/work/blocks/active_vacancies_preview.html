@@ -1,0 +1,17 @@
+{% if ctx.vacancies %}
+    <div class="page-block active-vacancies-preview">
+        <ul>
+            {% for vacancy in ctx.vacancies %}
+                <li>
+                    {{ vacancy.date }}
+                    {{ vacancy.people_count }}
+                    ({{ vacancy.get_gender_display }})
+                    {{ vacancy.start_time }} - {{ vacancy.end_time }}
+                    {% if vacancy.group %}
+                    	<a href="{{ vacancy.group.invite_link }}">(Группа)</a>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}

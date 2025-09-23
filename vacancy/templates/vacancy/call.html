@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block body %}
+    <div class="call">
+        <h2>{% trans "Confirm availability of workers" %}</h2>
+
+        <form action="" method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit">{% trans 'Confirm' %}</button>
+        </form>
+
+    </div>
+
+{% endblock %}

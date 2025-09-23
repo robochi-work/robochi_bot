@@ -1,0 +1,973 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-08-25 14:27+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: uk\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=4; plural=(n % 1 == 0 && n % 10 == 1 && n % 100 != "
+"11 ? 0 : n % 1 == 0 && n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % "
+"100 > 14) ? 1 : n % 1 == 0 && (n % 10 ==0 || (n % 10 >=5 && n % 10 <=9) || "
+"(n % 100 >=11 && n % 100 <=14 )) ? 2: 3);\n"
+
+#: city/apps.py:8 city/models.py:15 telegram/models.py:17 work/forms.py:41
+#: work/forms.py:58 work/models.py:8
+msgid "City"
+msgstr "Місто"
+
+#: city/models.py:8
+msgid "City name"
+msgstr "Назва міста"
+
+#: city/models.py:16
+msgid "Cities"
+msgstr "Міста"
+
+#: telegram/admin.py:14
+msgid "Configured"
+msgstr "Налаштовано"
+
+#: telegram/admin_actions.py:18
+#, python-format
+msgid "✅ Deleted: %(count)s message(s)."
+msgstr "✅ Вилучено: %(count)s повідомлень."
+
+#: telegram/admin_actions.py:20
+#, python-format
+msgid "⚠️ Failed to delete: %(count)s message(s)."
+msgstr "⚠️ Не вдалося вилучити: %(count)s повідомлень."
+
+#: telegram/admin_actions.py:22
+msgid "ℹ️ No messages to delete."
+msgstr "ℹ️ Немає повідомлень для вилучення."
+
+#: telegram/admin_actions.py:25 telegram/admin_actions.py:34
+msgid "Delete messages in Telegram"
+msgstr "Вилучити повідомлення в Телеграмі"
+
+#: telegram/admin_actions.py:42
+msgid "Update group invite link"
+msgstr "Оновити запрошувальне посилання групи"
+
+#: telegram/admin_actions.py:47 telegram/admin_actions.py:56
+msgid "Updated invite link"
+msgstr "Запрошувальне посилання оновлено"
+
+#: telegram/admin_actions.py:49
+#, python-format
+msgid "⚠️ Failed to update invite link in %(group)s"
+msgstr "⚠️ Не вдалося оновити запрошувальне посилання в %(group)s"
+
+#: telegram/admin_actions.py:51
+msgid "Update channel invite link"
+msgstr "Оновити запрошувальне посилання каналу"
+
+#: telegram/admin_actions.py:58
+#, python-format
+msgid "⚠️ Failed to update invite link in %(channel)s"
+msgstr "⚠️ Не вдалося оновити запрошувальне посилання в %(channel)s"
+
+#: telegram/admin_actions.py:60
+msgid "Kick users from groups"
+msgstr "Видалити користувачів із груп"
+
+#: telegram/admin_actions.py:65
+#, fuzzy
+#| msgid "Set default owner group permissions"
+msgid "Set default permissions"
+msgstr "Встановити дозволи групи власника за замовчуванням"
+
+#: telegram/apps.py:8
+msgid "Telegram"
+msgstr "Телеграм"
+
+#: telegram/choices.py:6
+msgid "Creator"
+msgstr "Творець"
+
+#: telegram/choices.py:7
+msgid "Administrator"
+msgstr "Адміністратор"
+
+#: telegram/choices.py:8 vacancy/models.py:23
+msgid "Owner"
+msgstr "Власник"
+
+#: telegram/choices.py:9
+msgid "Member"
+msgstr "Учасник"
+
+#: telegram/choices.py:10
+msgid "Restricted"
+msgstr "Обмежений"
+
+#: telegram/choices.py:11
+msgid "Left"
+msgstr "Вийшов"
+
+#: telegram/choices.py:12
+msgid "Kicked"
+msgstr "Видалений"
+
+#: telegram/choices.py:13
+msgid "Ban"
+msgstr "Заблокувати"
+
+#: telegram/choices.py:14
+msgid "Unban"
+msgstr "Розблокувати"
+
+#: telegram/choices.py:17
+msgid "Created"
+msgstr "Створено"
+
+#: telegram/choices.py:18
+msgid "Sent"
+msgstr "Надіслано"
+
+#: telegram/choices.py:19 vacancy/templates/vacancy/call.html:11
+#: work/templates/work/work_profile/step_contact.html:14
+msgid "Confirm"
+msgstr "Підтвердити"
+
+#: telegram/choices.py:20
+msgid "Reject"
+msgstr "Відхилено"
+
+#: telegram/choices.py:23
+msgid "Before start"
+msgstr "До початку"
+
+#: telegram/choices.py:24
+msgid "Start"
+msgstr "Час початку"
+
+#: telegram/choices.py:25
+msgid "After start"
+msgstr "Після початку"
+
+#: telegram/choices.py:29
+msgid "Received"
+msgstr "Отримано"
+
+#: telegram/choices.py:30
+msgid "Deleted"
+msgstr "Вилучено"
+
+#: telegram/choices.py:31
+msgid "Delete failed"
+msgstr "Помилка вилучення"
+
+#: telegram/choices.py:37
+msgid "Available"
+msgstr "Доступно"
+
+#: telegram/choices.py:38
+msgid "Process"
+msgstr "Обробка"
+
+#: telegram/handlers/callback/call.py:41
+msgid "Answer saved"
+msgstr "Відповідь збережено"
+
+#: telegram/handlers/callback/call.py:46
+msgid "You are no longer a participant in this vacancy."
+msgstr "Ви більше не берете участі в цій вакансії."
+
+#: telegram/handlers/callback/work_role.py:26
+#: telegram/handlers/messages/commands.py:38
+msgid "Fill out the form"
+msgstr "Заповнити анкету"
+
+#: telegram/handlers/callback/work_role.py:29
+msgid "You can change the role only through the administrator"
+msgstr "Змінити роль можна лише через адміністратора"
+
+#: telegram/handlers/callback/work_role.py:37
+msgid "Unknown role"
+msgstr "Невідома роль"
+
+#: telegram/handlers/common.py:27 telegram/handlers/common.py:28
+msgid "Main page"
+msgstr "Головна сторінка"
+
+#: telegram/handlers/common.py:29 user/models.py:39
+msgid "Language"
+msgstr "Мова"
+
+#: telegram/handlers/common.py:31
+msgid "Open the app"
+msgstr "Відкрити застосунок"
+
+#: telegram/handlers/contact/user_phone_number.py:24
+msgid "Phone number saved"
+msgstr "Номер телефону збережено"
+
+#: telegram/handlers/messages/commands.py:39
+msgid "You must fill out a work form"
+msgstr "Ви повинні заповнити робочу форму"
+
+#: telegram/handlers/messages/commands.py:44
+msgid "Send phone number"
+msgstr "Надіслати номер телефону"
+
+#: telegram/handlers/messages/commands.py:49
+msgid "It is necessary to send your phone number, use the button below"
+msgstr "Потрібно надіслати свій номер телефону, скористайтеся кнопкою нижче"
+
+#: telegram/handlers/messages/commands.py:57
+msgid "Info"
+msgstr "Інформація"
+
+#: telegram/handlers/messages/commands.py:62
+msgid "Admin panel"
+msgstr "Адмінпанель"
+
+#: telegram/handlers/messages/commands.py:66
+msgid "Hello"
+msgstr "Вітаю"
+
+#: telegram/handlers/messages/commands.py:94
+#: work/templates/work/blocks/channel_preview.html:8
+#: work/templates/work/includes/channel_preview.html:8
+msgid "Open"
+msgstr "Відкрити"
+
+#: telegram/handlers/messages/commands.py:100
+msgid "Send feedback"
+msgstr "Надіслати відгук"
+
+#: telegram/handlers/utils.py:57
+msgid "Access Denied. Your account has been blocked."
+msgstr "Доступ заборонено. Ваш обліковий запис заблоковано."
+
+#: telegram/models.py:7
+msgid "ID"
+msgstr "ID"
+
+#: telegram/models.py:8
+msgid "title"
+msgstr "Заголовок"
+
+#: telegram/models.py:9
+msgid "is active"
+msgstr "Активний"
+
+#: telegram/models.py:13
+msgid "Chat"
+msgstr "Чат"
+
+#: telegram/models.py:14
+msgid "Chats"
+msgstr "Чати"
+
+#: telegram/models.py:18 telegram/models.py:47
+msgid "has bot administrator"
+msgstr "Бот є адміністратором"
+
+#: telegram/models.py:19 telegram/models.py:60
+msgid "Invite link"
+msgstr "Запрошувальне посилання"
+
+#: telegram/models.py:22 telegram/models.py:26
+msgid "Channel"
+msgstr "Канал"
+
+#: telegram/models.py:23
+msgid "Channels"
+msgstr "Канали"
+
+#: telegram/models.py:27 telegram/models.py:72
+msgid "Content type"
+msgstr "Тип вмісту"
+
+#: telegram/models.py:28 telegram/models.py:73
+msgid "Message ID"
+msgstr "ID повідомлення"
+
+#: telegram/models.py:29 telegram/models.py:74
+msgid "Content"
+msgstr "Вміст"
+
+#: telegram/models.py:34 telegram/models.py:58 telegram/models.py:79
+#: telegram/models.py:98 vacancy/admin.py:58 vacancy/admin.py:126
+#: vacancy/models.py:52 vacancy/models.py:91
+msgid "Status"
+msgstr "Статус"
+
+#: telegram/models.py:36 telegram/models.py:81 user/models.py:69
+#: vacancy/models.py:94 vacancy/models.py:114 work/models.py:13
+msgid "Created at"
+msgstr "Створено"
+
+#: telegram/models.py:43
+msgid "Channel message"
+msgstr "Повідомлення в каналі"
+
+#: telegram/models.py:44
+msgid "Channel messages"
+msgstr "Повідомлення в каналі"
+
+#: telegram/models.py:52 user/models.py:49
+msgid "Users"
+msgstr "Користувачі"
+
+#: telegram/models.py:66 telegram/models.py:70 telegram/models.py:93
+msgid "Group"
+msgstr "Група"
+
+#: telegram/models.py:67
+msgid "Groups"
+msgstr "Групи"
+
+#: telegram/models.py:71
+msgid "User ID"
+msgstr "ID користувача"
+
+#: telegram/models.py:88
+msgid "Group message"
+msgstr "Повідомлення в групі"
+
+#: telegram/models.py:89
+msgid "Group messages"
+msgstr "Повідомлення в групі"
+
+#: telegram/models.py:92 user/apps.py:8 user/models.py:48 vacancy/models.py:85
+#: work/models.py:7
+msgid "User"
+msgstr "Користувач"
+
+#: telegram/models.py:103
+msgid "User in group"
+msgstr "Користувач у групі"
+
+#: telegram/models.py:104
+msgid "User in groups"
+msgstr "Користувач у групах"
+
+#: telegram/models.py:121
+msgid "Successful"
+msgstr "Успішно"
+
+#: templates/admin/login.html:9
+msgid "Log out"
+msgstr "Вийти"
+
+#: templates/includes/terms_link.html:2
+msgid "Terms of Use of Personal Data"
+msgstr "Умови використання персональних даних"
+
+#: user/choices.py:7 vacancy/choices.py:15
+msgid "Male"
+msgstr "Чоловічий"
+
+#: user/choices.py:8 vacancy/choices.py:16
+msgid "Female"
+msgstr "Жіночий"
+
+#: user/models.py:25
+msgid "Username"
+msgstr "Ім'я користувача"
+
+#: user/models.py:28
+msgid "Full name"
+msgstr "Повне ім'я"
+
+#: user/models.py:29 work/models.py:10
+msgid "Phone number"
+msgstr "Номер телефону"
+
+#: user/models.py:31
+msgid "Birth year"
+msgstr "Рік народження"
+
+#: user/models.py:41 work/forms.py:67
+msgid "Gender"
+msgstr "Стать"
+
+#: user/models.py:60
+msgid "Feedback author"
+msgstr "Автор відгуку"
+
+#: user/models.py:66
+msgid "Feedback recipient"
+msgstr "Отримувач відгуку"
+
+#: user/models.py:74
+msgid "User feedback"
+msgstr "Відгук користувача"
+
+#: user/models.py:75
+msgid "User feedbacks"
+msgstr "Відгуки користувачів"
+
+#: user/models.py:81 work/models.py:20
+msgid "User work profile"
+msgstr "Робочий профіль користувача"
+
+#: user/models.py:82 work/models.py:21
+msgid "User work profiles"
+msgstr "Робочі профілі користувачів"
+
+#: vacancy/admin.py:46 vacancy/services/vacancy_formatter.py:24
+#: vacancy/services/vacancy_formatter.py:49
+msgid "Payment"
+msgstr "Оплата"
+
+#: vacancy/admin.py:47
+msgid "Payments"
+msgstr "Платежі"
+
+#: vacancy/admin.py:49
+msgid "Сумма"
+msgstr "Сума"
+
+#: vacancy/admin.py:66 vacancy/admin.py:73
+#, python-brace-format
+msgid "{label} ({count})"
+msgstr "{label} ({count})"
+
+#: vacancy/admin.py:66
+msgid "All"
+msgstr "Всі"
+
+#: vacancy/admin.py:117
+msgid "Vacancy Info"
+msgstr "Інформація про вакансію"
+
+#: vacancy/admin.py:120
+msgid "Location and Time"
+msgstr "Місцезнаходження та час"
+
+#: vacancy/admin.py:123
+msgid "Payment and Skills"
+msgstr "Оплата та навички"
+
+#: vacancy/admin.py:155
+#, python-format
+msgid ""
+"Status was not updated to ‘%(status)s’: no available group. Other changes "
+"were saved."
+msgstr ""
+"Статус не було оновлено на «%(status)s»: немає доступної групи. Інші зміни "
+"було збережено."
+
+#: vacancy/admin.py:156 vacancy/choices.py:41
+msgid "Approved"
+msgstr "Схвалено"
+
+#: vacancy/admin.py:175
+msgid "Send notification about create the vacancy to owner"
+msgstr "Надіслати сповіщення власнику про створення вакансії"
+
+#: vacancy/admin.py:181
+msgid "Notification sent to owner(s)."
+msgstr "Сповіщення надіслано власнику(ам)."
+
+#: vacancy/admin.py:185
+msgid "Update message in channel - vacancy is full"
+msgstr "Оновити повідомлення в каналі — вакансія заповнена"
+
+#: vacancy/admin.py:191
+msgid "Updated."
+msgstr "Оновлено"
+
+#: vacancy/admin.py:195
+msgid "Send notification about creation to admins"
+msgstr "Надіслати сповіщення адміністраторам"
+
+#: vacancy/admin.py:201
+msgid "Notification sent to admin(s)."
+msgstr "Сповіщення надіслано адміністратору(ам)."
+
+#: vacancy/admin.py:204
+msgid "Before start call to owner"
+msgstr "Опитування перед початком"
+
+#: vacancy/admin.py:209 vacancy/admin.py:218 vacancy/admin.py:228
+#: vacancy/admin.py:237
+msgid "call."
+msgstr "Відправлено"
+
+#: vacancy/admin.py:212
+msgid "start call to owner"
+msgstr "Початкове опитування — власнику"
+
+#: vacancy/admin.py:222
+msgid "final call for owner"
+msgstr "Фінальне опитування — власнику"
+
+#: vacancy/admin.py:232
+msgid "After first call check"
+msgstr "Перевірка після першого опитування"
+
+#: vacancy/admin.py:241
+msgid "Send vacancies to channel (if not closed)"
+msgstr "Надіслати вакансії в канал (якщо не закриті)"
+
+#: vacancy/admin.py:250
+msgid "The vacancy group does not have a invite link"
+msgstr "У групи вакансії немає запрошувального посилання"
+
+#: vacancy/admin.py:256
+msgid "The vacancy does not have a group"
+msgstr "Вакансія не має групи"
+
+#: vacancy/admin.py:261
+msgid "Vacancies sent to channel(s)."
+msgstr "Вакансії надіслано в канал(и)."
+
+#: vacancy/admin.py:265
+msgid "Check calls before start (20 min after first call)"
+msgstr ""
+"Перевірити опитування перед початком (через 20 хв після першого опитування)"
+
+#: vacancy/admin.py:272
+msgid "Vacancies sent check to members."
+msgstr "Перевірка: вакансії надіслано учасникам."
+
+#: vacancy/admin.py:275
+msgid "Send start call for owner (if dont sent in)"
+msgstr "Надіслати початкове опитування власнику (якщо не надіслано)"
+
+#: vacancy/admin.py:281 vacancy/admin.py:290 vacancy/admin.py:301
+#: vacancy/admin.py:313 vacancy/admin.py:325 vacancy/admin.py:340
+msgid "sent."
+msgstr "Надіслано"
+
+#: vacancy/admin.py:284
+msgid "Send final call for owner (if dont sent in)"
+msgstr "Надіслати фінальне опитування власнику (якщо не надіслано)"
+
+#: vacancy/admin.py:294
+msgid "Close vacancies check"
+msgstr "Закрити перевірку вакансій"
+
+#: vacancy/admin.py:305
+msgid "Close vacancies forcibly"
+msgstr "Закрити вакансії примусово"
+
+#: vacancy/admin.py:317
+msgid "Send vacancy invoice"
+msgstr "Надіслати рахунок за вакансію"
+
+#: vacancy/admin.py:328
+msgid "Set default owner group permissions"
+msgstr "Встановити дозволи групи власника за замовчуванням"
+
+#: vacancy/apps.py:8 vacancy/models.py:81 vacancy/models.py:86
+#: vacancy/models.py:122
+msgid "Vacancy"
+msgstr "Вакансія"
+
+#: vacancy/choices.py:8 vacancy/forms.py:100
+msgid "Today"
+msgstr "Сьогодні"
+
+#: vacancy/choices.py:9 vacancy/forms.py:101
+msgid "Tomorrow"
+msgstr "Завтра"
+
+#: vacancy/choices.py:17
+msgid "Any"
+msgstr "Будь-який"
+
+#: vacancy/choices.py:23
+msgid "Per hour"
+msgstr "За годину"
+
+#: vacancy/choices.py:24
+msgid "Per shift"
+msgstr "За зміну"
+
+#: vacancy/choices.py:29
+msgid "Cash"
+msgstr "Готівка"
+
+#: vacancy/choices.py:30
+msgid "Card"
+msgstr "Картка"
+
+#: vacancy/choices.py:40
+msgid "Pending"
+msgstr "Очікує розгляду"
+
+#: vacancy/choices.py:42
+msgid "Rejected"
+msgstr "Відхилено"
+
+#: vacancy/choices.py:43
+msgid "Active"
+msgstr "Активна"
+
+#: vacancy/choices.py:44
+msgid "Closed"
+msgstr "Закрита"
+
+#: vacancy/forms.py:27 vacancy/forms.py:80 vacancy/models.py:34
+#: vacancy/templates/vacancy/vacancy_form.html:24
+msgid "Start Time"
+msgstr "Час початку роботи"
+
+#: vacancy/forms.py:31 vacancy/forms.py:81 vacancy/models.py:35
+#: vacancy/templates/vacancy/vacancy_form.html:30
+msgid "End Time"
+msgstr "Час закінчення роботы"
+
+#: vacancy/forms.py:38
+msgid "Number of people must be between 1 and 20."
+msgstr "Кількість людей повинна бути від одного до двадцяти."
+
+#: vacancy/forms.py:58
+msgid "Preferred Date"
+msgstr "Бажана дата"
+
+#: vacancy/forms.py:64 vacancy/models.py:26
+msgid "Preferred Gender"
+msgstr "Бажана стать"
+
+#: vacancy/forms.py:69 vacancy/models.py:28
+#: vacancy/services/vacancy_formatter.py:20
+#: vacancy/services/vacancy_formatter.py:46
+#: vacancy/templates/vacancy/vacancy_form.html:35
+msgid "Number of People"
+msgstr "Кількість людей"
+
+#: vacancy/forms.py:73 vacancy/models.py:29
+#: vacancy/templates/vacancy/vacancy_form.html:45
+msgid "Has Passport"
+msgstr "Наявність паспорта"
+
+#: vacancy/forms.py:77 vacancy/models.py:30
+#: vacancy/templates/vacancy/vacancy_form.html:51
+msgid "Address"
+msgstr "Адреса зустрічі працівників"
+
+#: vacancy/forms.py:79 vacancy/models.py:31
+msgid "Map Link (is not required)"
+msgstr "Посилання на карту (необов'язково)"
+
+#: vacancy/forms.py:82 vacancy/models.py:36
+#: vacancy/templates/vacancy/vacancy_form.html:63
+msgid "Payment Amount"
+msgstr "Сума оплати"
+
+#: vacancy/forms.py:85 vacancy/models.py:41
+#: vacancy/templates/vacancy/vacancy_form.html:69
+msgid "Payment Type"
+msgstr "Тип оплати"
+
+#: vacancy/forms.py:90 vacancy/models.py:44
+#: vacancy/templates/vacancy/vacancy_form.html:75
+msgid "Payment method"
+msgstr "Спосіб оплати"
+
+#: vacancy/forms.py:93 vacancy/templates/vacancy/vacancy_form.html:40
+msgid "What will they do"
+msgstr "Що вони робитимуть?"
+
+#: vacancy/forms.py:111
+msgid "The map link must start with https://maps.app"
+msgstr "Посилання на карту повинно починатися з https://maps.app"
+
+#: vacancy/forms.py:126
+msgid "Invalid date format"
+msgstr "Неприпустимий формат дати"
+
+#: vacancy/models.py:33
+msgid "Date"
+msgstr "Дата"
+
+#: vacancy/models.py:38
+msgid "Date choices"
+msgstr "Вибір дати"
+
+#: vacancy/models.py:46
+msgid "Skills Description"
+msgstr "Опис навичок"
+
+#: vacancy/models.py:82
+msgid "Vacancies"
+msgstr "Вакансії"
+
+#: vacancy/models.py:93 vacancy/models.py:113
+msgid "Updated at"
+msgstr "Дата оновлення"
+
+#: vacancy/models.py:97
+msgid "User in vacancy"
+msgstr "Користувач у вакансії"
+
+#: vacancy/models.py:98
+msgid "Users in vacancy"
+msgstr "Користувачі у вакансії"
+
+#: vacancy/models.py:101
+msgid "Vacancy user"
+msgstr "Користувач вакансії"
+
+#: vacancy/models.py:106
+msgid "Call status"
+msgstr "Статус опитування"
+
+#: vacancy/models.py:111
+msgid "Call type"
+msgstr "Тип опитування"
+
+#: vacancy/models.py:117
+msgid "User call in vacancy"
+msgstr "Опитування користувача у вакансії"
+
+#: vacancy/models.py:118
+msgid "User calls in vacancy"
+msgstr "Опитування користувачів у вакансії"
+
+#: vacancy/models.py:123
+msgid "New status"
+msgstr "Новий статус"
+
+#: vacancy/models.py:124
+msgid "Changed by"
+msgstr "Змінено користувачем"
+
+#: vacancy/models.py:125
+msgid "Changed at"
+msgstr "Дата зміни"
+
+#: vacancy/models.py:126
+msgid "Comment"
+msgstr "Коментар"
+
+#: vacancy/models.py:132 vacancy/models.py:133
+msgid "Status history"
+msgstr "Історія статусів"
+
+#: vacancy/services/call_formatter.py:21
+msgid "Work will start soon, confirm readiness within 20 minutes."
+msgstr "Робота скоро почнеться, підтвердьте готовність протягом 20 хвилин."
+
+#: vacancy/services/call_formatter.py:28
+msgid "Please indicate the employees who showed up."
+msgstr "Будь ласка, вкажіть працівників, які прийшли."
+
+#: vacancy/services/call_formatter.py:36
+msgid "Payment for services to find manufacturers"
+msgstr "Оплата за послуги з пошуку працівників"
+
+#: vacancy/services/call_formatter.py:41
+msgid "Your employer marked you as a no-show for roll call."
+msgstr "Ваш роботодавець зазначив, що ви не прийшли на опитування."
+
+#: vacancy/services/call_formatter.py:52
+msgid "The workers did not show up"
+msgstr "Працівники не з'явилися"
+
+#: vacancy/services/call_markup.py:26
+msgid "Confirm first call"
+msgstr "Підтвердити перше опитування"
+
+#: vacancy/services/call_markup.py:36
+msgid "Confirm second call"
+msgstr "Підтвердити друге опитування"
+
+#: vacancy/services/call_markup.py:45
+msgid "Pay"
+msgstr "Сплатити"
+
+#: vacancy/services/observers/approved_user_observer.py:19
+msgid "Your vacancy has been moderated successfully"
+msgstr "Ваша вакансія успішно пройшла модерацію"
+
+#: vacancy/services/observers/created_user_observer.py:35
+msgid "Your vacancy has been successfully created and sent for moderation!"
+msgstr "Ваша вакансія була успішно створена та надіслана на модерацію!"
+
+#: vacancy/services/observers/rejected_user_observer.py:18
+msgid "Your application has been rejected"
+msgstr "Ваша заявка була відхилена"
+
+#: vacancy/services/vacancy_formatter.py:18
+#: vacancy/services/vacancy_formatter.py:44
+msgid "Sex"
+msgstr "Стать"
+
+#: vacancy/services/vacancy_formatter.py:19
+#: vacancy/services/vacancy_formatter.py:45
+msgid "Work time"
+msgstr "Робочий час"
+
+#: vacancy/services/vacancy_formatter.py:19
+#: vacancy/services/vacancy_formatter.py:45
+msgid "from"
+msgstr "з"
+
+#: vacancy/services/vacancy_formatter.py:19
+#: vacancy/services/vacancy_formatter.py:45
+msgid "to"
+msgstr "до"
+
+#: vacancy/services/vacancy_formatter.py:23
+#: vacancy/services/vacancy_formatter.py:48
+msgid "Need passport"
+msgstr "Потрібен паспорт"
+
+#: vacancy/services/vacancy_formatter.py:24
+#: vacancy/services/vacancy_formatter.py:49
+msgid "uah"
+msgstr "грн"
+
+#: vacancy/services/vacancy_formatter.py:28
+msgid "Your request has been created and is being moderated"
+msgstr "Ваш запит було створено та відправлено на модерацію"
+
+#: vacancy/services/vacancy_formatter.py:34
+msgid "Additional search for workers has been launched"
+msgstr "Запущено додатковий пошук працівників"
+
+#: vacancy/services/vacancy_formatter.py:37
+msgid "New feedback"
+msgstr "Новий відгук"
+
+#: vacancy/services/vacancy_formatter.py:50
+msgid "Vacancy is close"
+msgstr "Вакансію закрито"
+
+#: vacancy/templates/vacancy/call.html:6
+msgid "Confirm availability of workers"
+msgstr "Підтвердьте наявність працівників"
+
+#: vacancy/templates/vacancy/call_confirm.html:6
+msgid "Answers saved"
+msgstr "Відповіді збережено"
+
+#: vacancy/templates/vacancy/refind_start.html:6
+msgid "Find is start"
+msgstr "Пошук розпочато"
+
+#: vacancy/templates/vacancy/vacancy_feedback.html:16
+msgid "Submit"
+msgstr "Відправити"
+
+#: vacancy/templates/vacancy/vacancy_form.html:6
+msgid "When are employees needed?"
+msgstr "На коли потрібні працівники?"
+
+#: vacancy/templates/vacancy/vacancy_form.html:19
+msgid "Preferred gender of employee"
+msgstr "Бажана стать працівника"
+
+#: vacancy/templates/vacancy/vacancy_form.html:57
+msgid "Address on Google maps (is not required)"
+msgstr "Адреса в Google Картах (необов'язково)"
+
+#: vacancy/templates/vacancy/vacancy_form.html:80
+#: work/templates/work/includes/header.html:5
+msgid "Create vacancy"
+msgstr "Створити вакансію"
+
+#: vacancy/templates/vacancy/vacancy_form_page.html:6
+#: work/templates/work/blocks/vacancy_create_form.html:5
+msgid "Create a Vacancy"
+msgstr "Створити вакансію"
+
+#: vacancy/views.py:160
+msgid "Feedback has been sent."
+msgstr "Відгук надіслано"
+
+#: work/apps.py:8
+msgid "Work"
+msgstr "Робота"
+
+#: work/choices.py:6
+msgid "Employer"
+msgstr "Роботодавець"
+
+#: work/choices.py:7
+msgid "Worker"
+msgstr "Працівник"
+
+#: work/forms.py:17
+msgid "Employer — looking for workers"
+msgstr "Роботодавець — шукаю працівників"
+
+#: work/forms.py:21
+msgid "Worker — looking for job"
+msgstr "Працівник — шукаю роботу"
+
+#: work/forms.py:28 work/models.py:9
+#: work/templates/work/work_profile/work_profile.html:12
+msgid "Role"
+msgstr "Роль"
+
+#: work/forms.py:71
+msgid "How can I contact you?"
+msgstr "Як до вас звертатися?"
+
+#: work/forms.py:77
+msgid "Contact phone number (+380 xx xxx xxxx)"
+msgstr "Контактний номер телефону (+380 xx xxx xxxx)"
+
+#: work/forms.py:88
+msgid "Year of birth"
+msgstr "Рік народження"
+
+#: work/forms.py:92
+msgid "Enter your year of birth"
+msgstr "Введіть рік вашого народження"
+
+#: work/forms.py:109
+msgid "The number must start with +380"
+msgstr "Номер повинен починатися з +380"
+
+#: work/models.py:12
+msgid "Is completed"
+msgstr "Заповнено"
+
+#: work/templates/work/includes/header.html:9
+msgid "Menu"
+msgstr "Меню"
+
+#: work/templates/work/includes/header.html:13
+msgid "User data"
+msgstr "Дані користувача"
+
+#: work/templates/work/work_profile/role.html:10
+#: work/templates/work/work_profile/step_city.html:10
+msgid "Continue"
+msgstr "Продовжити"
+
+#: work/templates/work/work_profile/step_city.html:12
+msgid "If your city is not on the list, write to the administrator"
+msgstr "Якщо вашого міста немає в списку, напишіть адміністратору"
+
+#: work/templates/work/work_profile/step_contact.html:9
+msgid ""
+"To facilitate communication, please provide some information about yourself."
+msgstr ""
+"Для зручності спілкування, будь ласка, надайте деяку інформацію про себе."
+
+#: work/templates/work/work_profile/work_profile.html:10
+msgid "Location and Role"
+msgstr "Місцезнаходження та роль"
+
+#: work/templates/work/work_profile/work_profile.html:26
+msgid "Contact Information"
+msgstr "Контактна інформація"
+
+#: work/templates/work/work_profile/work_profile.html:45
+msgid "Save changes"
+msgstr "Зберегти зміни"
+
+#~ msgid "Create"
+#~ msgstr "Створити"
