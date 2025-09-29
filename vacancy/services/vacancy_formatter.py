@@ -14,14 +14,15 @@ class VacancyTelegramTextFormatter:
     def base_format(self) -> str:
         with override('uk'):
             return (
-                f'{self.vacancy.get_date_choice_display()} {self.vacancy.date.strftime("%d.%m.%Y")}\n'
-                f'{_('Sex')}: {self.vacancy.get_gender_display()}\n'
-                f'{_('Work time')}: {_('from')} {self.vacancy.start_time.strftime("%H:%M")} {_('to')} {self.vacancy.end_time.strftime("%H:%M")}\n'
-                f'{_('Number of People')}: {self.vacancy.people_count}\n'
-                f'<a href="{self.vacancy.map_link}">{self.vacancy.address}</a>\n\n'
-                f'{self.vacancy.skills}\n\n' +
-                (f'{_('Need passport')}!\n' if self.vacancy.has_passport else '') +
-                f'{_('Payment')}: {int(self.vacancy.payment_amount)} {_('uah')} ({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n'
+                f"{self.vacancy.get_date_choice_display()} {self.vacancy.date.strftime('%d.%m.%Y')}\n"
+                f"{_('Sex')}: {self.vacancy.get_gender_display()}\n"
+                f"{_('Work time')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
+                f"{_('Number of People')}: {self.vacancy.people_count}\n"
+                f"<a href=\"{self.vacancy.map_link}\">{self.vacancy.address}</a>\n\n"
+                f"{self.vacancy.skills}\n\n"
+                + (f"{_('Need passport')}!\n" if self.vacancy.has_passport else "")
+                + f"{_('Payment')}: {int(self.vacancy.payment_amount)} {_('uah')} "
+                  f"({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n"
             )
 
     def for_creator_chat(self) -> str:
@@ -40,14 +41,15 @@ class VacancyTelegramTextFormatter:
         if status == 'full':
             with override('uk'):
                 return (
-                    f'{self.vacancy.date.strftime("%d.%m.%Y")}\n'
-                    f'{_('Sex')}: {self.vacancy.get_gender_display()}\n'
-                    f'{_('Work time')}: {_('from')} {self.vacancy.start_time.strftime("%H:%M")} {_('to')} {self.vacancy.end_time.strftime("%H:%M")}\n'
-                    f'{_('Number of People')}: {self.vacancy.people_count}\n\n'
-                    f'{self.vacancy.skills}\n\n' +
-                    (f'{_('Need passport')}!\n' if self.vacancy.has_passport else '') +
-                    f'{_('Payment')}: {int(self.vacancy.payment_amount)} {_('uah')} ({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n' +
-                    f'{_('Vacancy is close')}'
+                    f"{self.vacancy.date.strftime('%d.%m.%Y')}\n"
+                    f"{_('Sex')}: {self.vacancy.get_gender_display()}\n"
+                    f"{_('Work time')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
+                    f"{_('Number of People')}: {self.vacancy.people_count}\n\n"
+                    f"{self.vacancy.skills}\n\n"
+                    + (f"{_('Need passport')}!\n" if self.vacancy.has_passport else "")
+                    + f"{_('Payment')}: {int(self.vacancy.payment_amount)} {_('uah')} "
+                      f"({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n"
+                    + f"{_('Vacancy is close')}"
                 )
         else:
             return self.base_format()

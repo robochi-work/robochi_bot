@@ -1,4 +1,4 @@
-from typing import TypeVar, Any, cast, ClassVar
+from typing import Any, cast
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractUser, UserManager
@@ -7,16 +7,15 @@ from django.db import models
 from user.choices import USER_GENDER_CHOICES
 from work.models import UserWorkProfile
 
-T = TypeVar('T', bound='User')
 
-class CustomUserManager[T](UserManager[T]):
-    def create_user(self, **extra_fields: Any) -> T:
+class CustomUserManager(UserManager):
+    def create_user(self, **extra_fields: Any):
         user = self.model(**extra_fields)
         user.set_password(extra_fields.get('password'))
         user.save()
-        return cast(T, user)
+        return user
 
-    def create_superuser(self, **extra_fields: Any) -> T:
+    def create_superuser(self, **extra_fields: Any):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
         return self.create_user(**extra_fields)
@@ -42,7 +41,7 @@ class User(AbstractUser):
     USERNAME_FIELD = 'id'
     REQUIRED_FIELDS = []
 
-    objects: ClassVar[CustomUserManager['User']] = CustomUserManager()
+    objects = CustomUserManager()
     class Meta:
         db_table = 'user'
         verbose_name = _('User')
