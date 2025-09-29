@@ -13,7 +13,7 @@ from user.models import User
 @user_required
 def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> None:
     if message.contact and message.contact.phone_number:
-        user.phone_number = f'+{message.contact.phone_number.lstrip('+')}'
+        user.phone_number = f"+{message.contact.phone_number.lstrip('+')}"
         user.save(update_fields=['phone_number'])
         bot.delete_message(
             chat_id=message.chat.id,

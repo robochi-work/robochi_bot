@@ -52,7 +52,7 @@ class CallVacancyTelegramTextFormatter:
                 _(f'The workers did not show up')
                 + '\n'
                 + '\n'.join([
-                    f'{user_call.vacancy_user.user.phone_number} - <a href="{settings.BASE_URL.rstrip('/') + get_admin_url(user_call.vacancy_user.user)}">{user_call.vacancy_user.user.full_name or user_call.vacancy_user.user.id}</a>'
+                    f"{user_call.vacancy_user.user.phone_number} - <a href='{settings.BASE_URL.rstrip('/') + get_admin_url(user_call.vacancy_user.user)}'>{user_call.vacancy_user.user.full_name or user_call.vacancy_user.user.id}</a>"
                     for user_call in users_call
                 ])
                 + '\n' + f'{self.vacancy.group.invite_link}'
