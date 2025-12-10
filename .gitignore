@@ -26,3 +26,11 @@ media/
 coverage.xml
 .pytest_cache/
 .mypy_cache/
+
+/staticfiles/
+/venv/
+/__pycache__/
+/*.pyc
+*.gz
+*.css
+*.js
