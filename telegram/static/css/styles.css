@@ -30,11 +30,15 @@
     font-family: Arial, sans-serif;
 }
 
-body {
-    padding: 0;
+html, body {
+    height: 100%;
     margin: 0;
-    background-color: var(--bg-color);
-    font-family: Arial, sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(145deg, #a6a9ab, #6d7074);
+    background-attachment: fixed;
+    background-size: cover;
+    color: var(--text-color);
+    overflow: auto;
 }
 
 .work_profile {
