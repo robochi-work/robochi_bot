@@ -1,0 +1,38 @@
+# Python/Django
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.log
+*.sqlite3
+.env
+.env.*
+!.env.example
+
+# Venv
+venv/
+# Исключить виртуальное окружение
+venv/
+
+# Исключить байткод Python
+*.pyc
+__pycache__/
+
+# Исключить локальные настройки IDE
+.vscode/
+.idea/
+
+# Django collectstatic (если используешь)
+staticfiles/
+# Юзерский медиа-контент (если он генерится пользователями)
+media/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+
+# Тесты/линтеры
+.coverage
+coverage.xml
+.pytest_cache/
+.mypy_cache/
