@@ -34,3 +34,5 @@ coverage.xml
 *.gz
 *.css
 *.js
+gitignore.save
+fix-user-models.patch
