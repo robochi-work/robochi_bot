@@ -1,0 +1,27 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+<form method="post">
+  {% csrf_token %}
+  <div class="work_profile step agreement">
+    {{ wizard.management_form }}
+
+    <div class="info">
+      {% if agreement %}
+        <h3>{{ agreement.title }}</h3>
+        <div class="agreement-text">
+          {{ agreement.text|linebreaks }}
+        </div>
+      {% else %}
+        <h3>{% trans "Agreement" %}</h3>
+        <div class="agreement-text">
+          {% trans "Agreement text is not configured in admin yet." %}
+        </div>
+      {% endif %}
+    </div>
+
+    <button type="submit">{% trans "Підтверджую" %}</button>
+  </div>
+</form>
+{% endblock %}

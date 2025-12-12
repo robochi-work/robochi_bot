@@ -1,5 +1,6 @@
 from django.contrib import admin
+from work.models import AgreementText
 
-from .models import UserWorkProfile
-
-
+@admin.register(AgreementText)
+class AgreementTextAdmin(admin.ModelAdmin):
+    list_display = ("role", "updated_at")

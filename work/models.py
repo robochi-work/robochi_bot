@@ -19,3 +19,25 @@ class UserWorkProfile(models.Model):
     class Meta:
         verbose_name = _('User work profile')
         verbose_name_plural = _('User work profiles')
+
+class AgreementText(models.Model):
+    ROLE_EMPLOYER = "employer"
+    ROLE_WORKER = "worker"
+    ROLE_CHOICES = [
+        (ROLE_EMPLOYER, "Роботодавець"),
+        (ROLE_WORKER, "Працівник"),
+    ]
+
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, unique=True)
+    title = models.CharField(max_length=255, default="Договір о співпраці")
+    text = models.TextField()
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Agreement ({self.role})"
+
+from django.utils import timezone
+
+agreement_accepted = models.BooleanField(default=False)
+agreement_accepted_at = models.DateTimeField(null=True, blank=True)

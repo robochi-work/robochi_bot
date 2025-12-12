@@ -3,23 +3,23 @@ from django.contrib.auth.decorators import login_required
 from formtools.wizard.views import SessionWizardView
 
 from telegram.service.common import get_payload_url
-from work.forms import CityForm, ContactForm, CitySelectForm, RoleForm
-from work.models import UserWorkProfile
+from work.forms import CityForm, ContactForm, CitySelectForm, RoleForm, AgreementForm
+from work.models import UserWorkProfile, AgreementForm
 from work.service.events import WORK_PROFILE_COMPLETED
 from work.service.subscriber_setup import work_publisher
+from django.utils import timezone
 
 FORMS = [
     ('role', RoleForm),
     ('city', CityForm),
-    ('contact', ContactForm),
+    ('agreement', AgreementForm),
 ]
 
 TEMPLATES = {
     'role': 'work/work_profile/step_city.html',
     'city': 'work/work_profile/step_city.html',
-    'contact': 'work/work_profile/step_contact.html',
+    'agreement': 'work/work_profile/step_agreement.html',
 }
-
 
 class ProfileWizard(SessionWizardView):
     form_list = FORMS
@@ -27,44 +27,52 @@ class ProfileWizard(SessionWizardView):
     def get_template_names(self):
         return [TEMPLATES[self.steps.current]]
 
-    def get_form_kwargs(self, step):
-        kw = super().get_form_kwargs(step)
-        if step == 'contact':
-            kw['user'] = self.request.user
-        return kw
-
     def get_form_instance(self, step):
         if step in ('city'):
             profile, _ = UserWorkProfile.objects.get_or_create(user=self.request.user)
             return profile
         return None
 
-    def get_context_data(self, form, **kwargs):
-        context = super().get_context_data(form=form, **kwargs)
-        if self.steps.current == 'contact':
-            payload = {"type": 'info'}
-            context['info_link'] = get_payload_url(payload=payload)
-        return context
+    def get_form_kwargs(self, step):
+    return super().get_form_kwargs(step)
+
+def get_context_data(self, form, **kwargs):
+    context = super().get_context_data(form=form, **kwargs)
+
+    if self.steps.current == 'agreement':
+        profile, _ = UserWorkProfile.objects.get_or_create(user=self.request.user)
+        agreement = AgreementText.objects.filter(role=profile.role).first()
+        context['agreement'] = agreement
+
+    return context
 
     def done(self, form_list, **kwargs):
-        data = self.get_all_cleaned_data()
+    data = self.get_all_cleaned_data()
+    user = self.request.user
 
-        user = self.request.user
-        user.full_name = data['full_name']
-        user.birth_year = data['birth_year']
-        user.gender = data['gender']
-        user.save(update_fields=['full_name', 'birth_year', 'gender'])
+    profile, _ = UserWorkProfile.objects.get_or_create(user=user)
 
-        profile, _ = UserWorkProfile.objects.get_or_create(user=user)
-        profile.city = data['city']
-        profile.phone_number = data['phone_number']
-        profile.role = data['role']
-        profile.is_completed = True
-        profile.save(update_fields=['city', 'phone_number', 'is_completed', 'role'])
+    # role и city берём из wizard
+    profile.role = data.get('role')
+    profile.city = data.get('city')
 
-        work_publisher.notify(WORK_PROFILE_COMPLETED, data={'user': user})
+    # отмечаем соглашение
+    profile.agreement_accepted = True
+    profile.agreement_accepted_at = timezone.now()
 
-        return redirect('index')
+    # анкета завершена
+    profile.is_completed = True
+
+    profile.save(update_fields=[
+        'role', 'city',
+        'agreement_accepted', 'agreement_accepted_at',
+        'is_completed'
+    ])
+
+    work_publisher.notify(WORK_PROFILE_COMPLETED, data={'user': user})
+
+    # вести в ЛК, а не на index
+    return redirect('work:work_profile_detail')
 
 
 @login_required
@@ -77,11 +85,10 @@ def questionnaire_redirect(request):
     if not profile.city:
         return redirect('work:anketa_step', step='city')
 
-    user = request.user
-    if not (user.full_name and user.birth_year and user.gender):
-        return redirect('work:anketa_step', step='contact')
+    if not profile.agreement_accepted:
+    return redirect('work:anketa_step', step='agreement')
 
-    return redirect('work:work_profile_detail')
+return redirect('work:work_profile_detail')
 
 
 @login_required
