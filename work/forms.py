@@ -59,7 +59,8 @@ class CitySelectForm(CityForm):
     )
 
 
-
+class AgreementForm(forms.Form):
+    pass
 
 class ContactForm(forms.Form):
     gender = forms.ChoiceField(
