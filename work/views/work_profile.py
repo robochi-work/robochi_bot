@@ -1,25 +1,22 @@
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
+from django.utils import timezone
 from formtools.wizard.views import SessionWizardView
 
-from telegram.service.common import get_payload_url
-from work.forms import CityForm, ContactForm, CitySelectForm, RoleForm, AgreementForm
-from work.models import UserWorkProfile, AgreementForm
-from work.service.events import WORK_PROFILE_COMPLETED
-from work.service.subscriber_setup import work_publisher
-from django.utils import timezone
+from work.forms import CityForm, RoleForm
+from work.models import UserWorkProfile, AgreementText
 
 FORMS = [
     ('role', RoleForm),
     ('city', CityForm),
-    ('agreement', AgreementForm),
 ]
 
+# ты переименовал step_city.html -> city.html
 TEMPLATES = {
-    'role': 'work/work_profile/step_city.html',
-    'city': 'work/work_profile/step_city.html',
-    'agreement': 'work/work_profile/step_agreement.html',
+    'role': 'work/work_profile/city.html',
+    'city': 'work/work_profile/city.html',
 }
+
 
 class ProfileWizard(SessionWizardView):
     form_list = FORMS
@@ -28,51 +25,20 @@ class ProfileWizard(SessionWizardView):
         return [TEMPLATES[self.steps.current]]
 
     def get_form_instance(self, step):
-        if step in ('city'):
+        if step in ('city',):
             profile, _ = UserWorkProfile.objects.get_or_create(user=self.request.user)
             return profile
         return None
 
-    def get_form_kwargs(self, step):
-    return super().get_form_kwargs(step)
-
-def get_context_data(self, form, **kwargs):
-    context = super().get_context_data(form=form, **kwargs)
-
-    if self.steps.current == 'agreement':
-        profile, _ = UserWorkProfile.objects.get_or_create(user=self.request.user)
-        agreement = AgreementText.objects.filter(role=profile.role).first()
-        context['agreement'] = agreement
-
-    return context
-
     def done(self, form_list, **kwargs):
-    data = self.get_all_cleaned_data()
-    user = self.request.user
+        data = self.get_all_cleaned_data()
+        profile, _ = UserWorkProfile.objects.get_or_create(user=self.request.user)
 
-    profile, _ = UserWorkProfile.objects.get_or_create(user=user)
+        profile.role = data.get('role')
+        profile.city = data.get('city')
+        profile.save(update_fields=['role', 'city'])
 
-    # role и city берЄм из wizard
-    profile.role = data.get('role')
-    profile.city = data.get('city')
-
-    # отмечаем соглашение
-    profile.agreement_accepted = True
-    profile.agreement_accepted_at = timezone.now()
-
-    # анкета завершена
-    profile.is_completed = True
-
-    profile.save(update_fields=[
-        'role', 'city',
-        'agreement_accepted', 'agreement_accepted_at',
-        'is_completed'
-    ])
-
-    work_publisher.notify(WORK_PROFILE_COMPLETED, data={'user': user})
-
-    # вести в Ћ , а не на index
-    return redirect('work:work_profile_detail')
+        return redirect('work:agreement')
 
 
 @login_required
@@ -86,32 +52,42 @@ def questionnaire_redirect(request):
         return redirect('work:anketa_step', step='city')
 
     if not profile.agreement_accepted:
-    return redirect('work:anketa_step', step='agreement')
+        return redirect('work:agreement')
 
-return redirect('work:work_profile_detail')
+    return redirect('work:work_profile_detail')
 
 
 @login_required
 def work_profile_detail(request):
-    user = request.user
-    profile, _ = UserWorkProfile.objects.get_or_create(user=user)
-
-    city_form = CitySelectForm(request.POST, instance=profile, prefix='city')
-    city_form.fields['city'].disabled = True
-
-    if request.method == 'POST':
-        contact_form = ContactForm(request.POST, user=user, prefix='contact')
-        if city_form.is_valid() and contact_form.is_valid():
-            city_form.save()
-            contact_form.save()
-            return redirect('work:work_profile_detail')
-    else:
-        contact_form = ContactForm(user=user, prefix='contact')
+    profile, _ = UserWorkProfile.objects.get_or_create(user=request.user)
 
     return render(request, 'work/work_profile/work_profile.html', {
         'role': profile.get_role_display(),
-        'city_form': city_form,
-        'contact_form': contact_form,
+        'city': profile.city,
     })
 
 
+@login_required
+def agreement_view(request):
+    profile, _ = UserWorkProfile.objects.get_or_create(user=request.user)
+
+    # если не выбрана роль или город Ч возвращаем в wizard
+    if not profile.role:
+        return redirect('work:anketa_step', step='role')
+    if not profile.city:
+        return redirect('work:anketa_step', step='city')
+
+    agreement = AgreementText.objects.filter(role=profile.role).first()
+
+    if request.method == 'POST':
+        profile.agreement_accepted = True
+        profile.agreement_accepted_at = timezone.now()
+        profile.is_completed = True
+        profile.save(update_fields=['agreement_accepted', 'agreement_accepted_at', 'is_completed'])
+
+        return redirect('work:work_profile_detail')
+
+    # ты переименовал step_agreement.html -> agreement.html
+    return render(request, 'work/work_profile/agreement.html', {
+        'agreement': agreement,
+    })
