@@ -2,47 +2,30 @@
 {% load i18n %}
 
 {% block body %}
-  {% block form %}
-    <form method="post" class="work_profile main">
-      {% csrf_token %}
+  <div class="work_profile main">
 
-      <fieldset>
-        <legend>{% trans "Location and Role" %}</legend>
-        <div>
-          <div>{% trans "Role" %}:</div>
-          {{ role }}
-        </div>
-        <div>
-          {{ city_form.city.label_tag }}<br>
-          {{ city_form.city }}
-          {{ city_form.city.errors }}
-          {% if city_form.fields.city.help_text %}
-            <small>{{ city_form.fields.city.help_text }}</small>
-          {% endif %}
-        </div>
-      </fieldset>
+    <h2>{% trans "Ћичный кабинет" %}</h2>
 
-      <fieldset>
-        <legend>{% trans "Contact Information" %}</legend>
-        {{ contact_form.non_field_errors }}
-        <div>
-          {{ contact_form.full_name.label_tag }}<br>
-          {{ contact_form.full_name }}
-          {{ contact_form.full_name.errors }}
-        </div>
-        <div>
-          {{ contact_form.birth_year.label_tag }}<br>
-          {{ contact_form.birth_year }}
-          {{ contact_form.birth_year.errors }}
-        </div>
-        <div>
-          {{ contact_form.phone_number.label_tag }}<br>
-          {{ contact_form.phone_number }}
-          {{ contact_form.phone_number.errors }}
-        </div>
-      </fieldset>
+    <div>
+      <strong>{% trans "»м€ из Telegram" %}:</strong>
+      <span id="tg-name">Ч</span>
+    </div>
 
-      <button type="submit">{% trans "Save changes" %}</button>
-    </form>
-  {% endblock %}
+    <div style="margin-top: 10px;">
+      <strong>{% trans "Role" %}:</strong> {{ role }}
+    </div>
+
+    <div style="margin-top: 10px;">
+      <strong>{% trans "City" %}:</strong> {{ city }}
+    </div>
+
+  </div>
+
+  <script>
+    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (tgUser) {
+      const name = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ');
+      document.getElementById('tg-name').innerText = name || 'Ч';
+    }
+  </script>
 {% endblock %}
