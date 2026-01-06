@@ -36,3 +36,4 @@ coverage.xml
 *.js
 gitignore.save
 fix-user-models.patch
+!static/css/styles.css
