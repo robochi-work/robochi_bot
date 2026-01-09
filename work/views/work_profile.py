@@ -11,9 +11,8 @@ FORMS = [
     ('city', CityForm),
 ]
 
-# ты переименовал step_city.html -> city.html
 TEMPLATES = {
-    'role': 'work/work_profile/city.html',
+    'role': 'work/work_profile/role.html',
     'city': 'work/work_profile/city.html',
 }
 
@@ -46,10 +45,10 @@ def questionnaire_redirect(request):
     profile, _ = UserWorkProfile.objects.get_or_create(user=request.user)
 
     if not profile.role:
-        return redirect('work:anketa_step', step='role')
+        return redirect('work:wizard_step', step='role')
 
     if not profile.city:
-        return redirect('work:anketa_step', step='city')
+        return redirect('work:wizard_step', step='city')
 
     if not profile.agreement_accepted:
         return redirect('work:agreement')
@@ -71,11 +70,10 @@ def work_profile_detail(request):
 def agreement_view(request):
     profile, _ = UserWorkProfile.objects.get_or_create(user=request.user)
 
-    # если не выбрана роль или город Ч возвращаем в wizard
     if not profile.role:
-        return redirect('work:anketa_step', step='role')
+        return redirect('work:wizard_step', step='role')
     if not profile.city:
-        return redirect('work:anketa_step', step='city')
+        return redirect('work:wizard_step', step='city')
 
     agreement = AgreementText.objects.filter(role=profile.role).first()
 
@@ -87,7 +85,6 @@ def agreement_view(request):
 
         return redirect('work:work_profile_detail')
 
-    # ты переименовал step_agreement.html -> agreement.html
     return render(request, 'work/work_profile/agreement.html', {
         'agreement': agreement,
     })

@@ -35,7 +35,7 @@ def choose_role(message: Message, **kwargs: dict[str, Any]) -> None:
 @user_required
 def fill_work_account(message: Message, **kwargs: dict[str, Any]) -> None:
     markup = InlineKeyboardMarkup()
-    markup.add(ButtonStorage.web_app(label=_('Fill out the form'), url=settings.BASE_URL.rstrip('/') + reverse('work:anketa')))
+    markup.add(ButtonStorage.web_app(label=_('Fill out the form'), url=settings.BASE_URL.rstrip('/') + reverse('work:wizard')))
     bot.send_message(message.chat.id, text=_('You must fill out a work form'), reply_markup=markup)
 
 @user_required

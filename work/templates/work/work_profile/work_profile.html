@@ -4,28 +4,7 @@
 {% block body %}
   <div class="work_profile main">
 
-    <h2>{% trans "Личный кабинет" %}</h2>
+    <h2>{% trans "Р вЂєР С‘РЎвЂЎР Р…РЎвЂ№Р в„– Р С”Р В°Р В±Р С‘Р Р…Р ВµРЎвЂљ" %}</h2>
 
     <div>
-      <strong>{% trans "Имя из Telegram" %}:</strong>
-      <span id="tg-name">—</span>
-    </div>
-
-    <div style="margin-top: 10px;">
-      <strong>{% trans "Role" %}:</strong> {{ role }}
-    </div>
-
-    <div style="margin-top: 10px;">
-      <strong>{% trans "City" %}:</strong> {{ city }}
-    </div>
-
-  </div>
-
-  <script>
-    const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    if (tgUser) {
-      const name = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ');
-      document.getElementById('tg-name').innerText = name || '—';
-    }
-  </script>
-{% endblock %}
+      <strong>{% trans "Р 

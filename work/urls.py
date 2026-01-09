@@ -1,4 +1,5 @@
 from django.urls import path
+from django.shortcuts import redirect
 
 from work.views.work_profile import (
     questionnaire_redirect,
@@ -13,6 +14,6 @@ urlpatterns = [
     path('agreement/', agreement_view, name='agreement'),
     path('profile/', work_profile_detail, name='work_profile_detail'),
 
-    path('anketa/', questionnaire_redirect, name='anketa'),
-    path('anketa/<step>/', ProfileWizard.as_view(), name='anketa_step'),
+    path('wizard/', questionnaire_redirect, name='wizard'),
+    path('wizard/<step>/', ProfileWizard.as_view(), name='wizard_step'),
 ]
