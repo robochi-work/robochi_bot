@@ -26,17 +26,17 @@ if SENTRY_DSN:
         return 1
 
     sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        environment=environment,
-        integrations=[
-            DjangoIntegration(),
-            # CeleryIntegration(),
-        ],
-        _experiments={
-            'enable_logs': True
-        },
-        send_default_pii=True,
-        traces_sampler=traces_sampler,
-        profile_session_sample_rate=1.0,
-        profile_lifecycle='trace'
+       dsn=SENTRY_DSN,
+       environment=environment,
+       integrations=[
+           DjangoIntegration(),
+           # CeleryIntegration(),
+       ],
+       _experiments={
+           'enable_logs': True
+       },
+       send_default_pii=True,
+       traces_sampler=traces_sampler,
+       profile_session_sample_rate=1.0,
+       profile_lifecycle='trace'
     )
