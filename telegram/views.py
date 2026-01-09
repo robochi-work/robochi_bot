@@ -19,7 +19,6 @@ def authenticate_web_app(request: WSGIRequest):
     init_data = request.GET.get('init_data', '')
     next_path = unquote(request.GET.get('next', '/'))
 
-    # secure open-redirect
     if not url_has_allowed_host_and_scheme(
        url=next_path,
        allowed_hosts={request.get_host()},
@@ -27,7 +26,7 @@ def authenticate_web_app(request: WSGIRequest):
     ):
         next_path = '/'
 
-        is_valid, user_id = check_webapp_signature(init_data)
+    is_valid, user_id = check_webapp_signature(init_data)
     if is_valid and user_id:
         if request.user.is_authenticated and request.user.id != user_id:
             from django.contrib.auth import logout
