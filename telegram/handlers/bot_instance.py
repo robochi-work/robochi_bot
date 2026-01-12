@@ -1,16 +1,21 @@
-import os
-from threading import Thread
-
+import logging
 import telebot
 from django.conf import settings
 
-bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, parse_mode='HTML')
+logger = logging.getLogger(__name__)
 
-if os.getenv('run_bot') == '1':
-    os.environ['run_bot'] = '0'
+bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, parse_mode="HTML")
 
-    if bot.webhook_listener:
-        bot.remove_webhook()
-    Thread(target=lambda: bot.infinity_polling(
-        allowed_updates=settings.TELEGRAM_BOT_ALLOWED_UPDATES
-    )).start()
+_handlers_loaded = False
+
+def load_handlers_once():
+    global _handlers_loaded
+    if _handlers_loaded:
+        return
+    _handlers_loaded = True
+
+    # импортируй тут модули с хендлерами я¬Ќќ, без walk_packages
+    # (это убирает непредсказуемые циклы)
+    from telegram.handlers.messages import commands  # noqa
+    from telegram.handlers.messages import info  # noqa
+    # добавь остальные handler-модули аналогично

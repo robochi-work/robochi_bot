@@ -21,6 +21,7 @@ class CustomUserManager(UserManager):
         return self.create_user(**extra_fields)
 
 class User(AbstractUser):
+    telegram_id = models.BigIntegerField(unique=True, db_index=True, null=True, blank=True)
     username = models.CharField(max_length=150, blank=True, null=True, unique=False, verbose_name=_('Username'))
     first_name = None
     last_name = None

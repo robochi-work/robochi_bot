@@ -1,4 +1,2 @@
-from .user_phone_number import bot
-
-
-__all__ = ['bot']
+# /home/webuser/robochi_bot/telegram/handlers/contact/__init__.py
+# Не импортируем bot и модули отсюда, чтобы не вызывать циклы импортов.

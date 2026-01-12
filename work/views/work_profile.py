@@ -1,6 +1,8 @@
 from django.shortcuts import redirect, render
 from django.contrib.auth.decorators import login_required
 from formtools.wizard.views import SessionWizardView
+from django.utils.decorators import method_decorator
+
 
 from telegram.service.common import get_payload_url
 from work.forms import CityForm, ContactForm, CitySelectForm, RoleForm, AgreementForm
@@ -21,6 +23,7 @@ TEMPLATES = {
     'agreement': 'work/work_profile/step_agreement.html',
 }
 
+@method_decorator(login_required, name='dispatch')
 class ProfileWizard(SessionWizardView):
     form_list = FORMS
 

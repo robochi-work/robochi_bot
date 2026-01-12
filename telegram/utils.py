@@ -31,12 +31,18 @@ def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
     data_check_string = "\n".join(
         f"{k}={v}" for k, v in sorted(parsed_data.items(), key=itemgetter(0))
     )
+    
     secret_key = hmac.new(
-        key=b"WebAppData", msg=settings.TELEGRAM_BOT_TOKEN.encode(), digestmod=hashlib.sha256
+        key=settings.TELEGRAM_BOT_TOKEN.encode("utf-8"),
+        msg=b"WebAppData",
+        digestmod=hashlib.sha256,
     )
     calculated_hash = hmac.new(
-        key=secret_key.digest(), msg=data_check_string.encode(), digestmod=hashlib.sha256
+        key=secret_key.digest(),
+        msg=data_check_string.encode("utf-8"),
+        digestmod=hashlib.sha256,
     ).hexdigest()
+
 
     result = calculated_hash == hash_
 

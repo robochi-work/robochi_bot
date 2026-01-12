@@ -23,7 +23,7 @@ def set_work_role(callback: CallbackQuery, user: User, **kwargs: dict[str, Any])
     profile = service.get_profile()
 
     markup = InlineKeyboardMarkup()
-    markup.add(ButtonStorage.web_app(label=_('Fill out the form'), url=settings.BASE_URL.rstrip('/') + reverse('work:anketa')))
+    markup.add(ButtonStorage.web_app(label=_('Fill out the form'), url=settings.BASE_URL.rstrip('/') + reverse('work:wizard')))
 
     if profile.role is not None:
         bot.send_message(chat_id, text=_('You can change the role only through the administrator'))

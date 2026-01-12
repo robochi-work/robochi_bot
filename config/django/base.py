@@ -5,8 +5,8 @@ from django.urls import reverse_lazy
 from dotenv import load_dotenv
 
 
-load_dotenv('.env')
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+load_dotenv(BASE_DIR / ".env", override=False)
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
 DEBUG = False
 
@@ -135,10 +135,24 @@ LOGGING = {
         'handlers': ['console'],
         'level': 'DEBUG',
     },
+    'loggers': {
+        'telebot': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # если хочешь именно твои сообщения:
+        'telegram': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
 }
+
 LOGIN_URL = reverse_lazy('telegram:telegram_check_web_app')
 
-BASE_URL: str = f'https://'
+BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'

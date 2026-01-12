@@ -1,8 +1,3 @@
-from .contact import bot
-from .member import bot
-from .callback import bot
-from .messages import bot
-# from .set_commands import bot
-from .invoice import bot
-
-__all__ = ['bot']
+# /home/webuser/robochi_bot/telegram/handlers/__init__.py
+# Здесь НЕ надо импортировать bot и хендлеры.
+# Хендлеры подгружаются в telegram.handlers.bot_instance через autoload.

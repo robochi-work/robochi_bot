@@ -5,7 +5,7 @@ from django.utils.translation import gettext_lazy as _
 
 from service.notifications import NotificationMethod
 from service.telegram_strategy_factory import TelegramStrategyFactory
-from telegram.handlers.bot_instance import bot
+from telegram.handlers.bot_instance import get_bot
 from telegram.models import Group, GroupMessage, Channel, ChannelMessage
 from telegram.service.channel import ChannelService
 from telegram.service.group import GroupService
@@ -24,7 +24,7 @@ def display_delete_stats(request: WSGIRequest, stats: DeleteStats) -> None:
 
 @admin.action(description=_('Delete messages in Telegram'))
 def delete_messages_by_group_action(modeladmin, request: WSGIRequest, queryset: QuerySet[Group]):
-    deleter = MessageDeleter(bot)
+    deleter = MessageDeleter(get_bot())
     service = MessageDeleteService(deleter)
     stats = service.delete_by_groups(queryset)
 
@@ -33,7 +33,7 @@ def delete_messages_by_group_action(modeladmin, request: WSGIRequest, queryset: 
 
 @admin.action(description=_('Delete messages in Telegram'))
 def delete_messages_action(modeladmin, request: WSGIRequest, queryset: QuerySet[GroupMessage]):
-    deleter = MessageDeleter(bot)
+    deleter = MessageDeleter(get_bot())
     service = MessageDeleteService(deleter)
     stats = service.delete_messages(queryset)
 

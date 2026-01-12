@@ -7,13 +7,14 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils.translation import gettext as _
 from telebot import types
+from urllib.parse import urlencode
 
 from telebot.types import Message, InlineKeyboardMarkup, CallbackQuery, ReplyKeyboardMarkup, InlineKeyboardButton, \
     WebAppInfo
 
 from service.notifications import NotificationMethod
 from telegram.handlers.common import CallbackStorage as Storage
-from telegram.handlers.bot_instance import bot
+from telegram.handlers.bot_instance import get_bot
 from telegram.handlers.utils import user_required
 from telegram.handlers.common import ButtonStorage, F, CallbackStorage
 from vacancy.services.observers.subscriber_setup import telegram_notifier
@@ -27,7 +28,7 @@ def choose_role(message: Message, **kwargs: dict[str, Any]) -> None:
     markup.add(ButtonStorage.work_role(label=str(WorkProfileRole.WORKER.label), role=WorkProfileRole.WORKER.value))
     markup.add(ButtonStorage.work_role(label=str(WorkProfileRole.EMPLOYER.label), role=WorkProfileRole.EMPLOYER.value))
 
-    bot.send_message(
+    get_bot().send_message(
         message.chat.id,
         'Вас вітає сервіс\nrobochi.work\nОбираите\nЯ ЗАМОВНИК\nта знаходьте будь яку кількість\nпрацівників швидко та зручно!\nАбо обираите\nЯ ПРАЦІВНИК\nта знаходьте підробіток\nколи зручно!\n',
         reply_markup=markup,
@@ -35,8 +36,11 @@ def choose_role(message: Message, **kwargs: dict[str, Any]) -> None:
 @user_required
 def fill_work_account(message: Message, **kwargs: dict[str, Any]) -> None:
     markup = InlineKeyboardMarkup()
-    markup.add(ButtonStorage.web_app(label=_('Fill out the form'), url=settings.BASE_URL.rstrip('/') + reverse('work:anketa')))
-    bot.send_message(message.chat.id, text=_('You must fill out a work form'), reply_markup=markup)
+    next_path = reverse('work:wizard')
+    check_url = reverse('telegram:telegram_check_web_app')
+    url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
+    markup.add(ButtonStorage.web_app(label=_('Fill out the form'), url=url))
+    get_bot().send_message(message.chat.id, text=_('You must fill out a work form'), reply_markup=markup)
 
 @user_required
 def ask_phone(message: Message, user: User):
@@ -66,12 +70,12 @@ def default_start(message: Message | None, user: User, **kwargs: dict[str, Any])
     text = _('Hello')
 
     message_common_settings = {
-        'chat_id': user.id,
+        'chat_id': message.chat.id,
         'reply_markup': markup,
         'parse_mode': 'HTML',
     }
 
-    bot.send_message(
+    get_bot().send_message(
         text=text,
         **message_common_settings,
     )
@@ -95,7 +99,7 @@ def process_start_payload(payload: str, message) -> bool:
                     web_app=WebAppInfo(url=url)
                 )
             )
-            bot.send_message(
+            get_bot().send_message(
                 message.chat.id,
                 text=_('Send feedback'),
                 reply_markup=markup
