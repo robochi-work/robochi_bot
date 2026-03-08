@@ -72,34 +72,15 @@ def authenticate_web_app(request: WSGIRequest):
 
 @csrf_exempt
 def telegram_webhook(request: WSGIRequest) -> HttpResponse:
-    logger.warning(
-        "WEBHOOK HIT method=%s path=%s len=%s",
-        request.method,
-        request.path,
-        len(request.body or b""),
-    )
-
     if request.method != "POST":
         return HttpResponse("Only POST allowed", status=405)
 
     try:
         json_str = request.body.decode("utf-8")
         update = telebot.types.Update.de_json(json_str)
-
-        b = get_bot()
-        logger.warning(
-            "BOT HANDLERS: message=%s callback=%s",
-            len(getattr(b, "message_handlers", []) or []),
-            len(getattr(b, "callback_query_handlers", []) or []),
-        )
-
-        b.process_new_updates([update])
-
+        get_bot().process_new_updates([update])
     except Exception:
         logger.exception("Webhook processing failed. body=%r", (request.body[:200] if request.body else b""))
-        # Telegram должен получить 200
         return HttpResponse("ok")
-
-    return HttpResponse("ok")
 
     return HttpResponse("ok")
