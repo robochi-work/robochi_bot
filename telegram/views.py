@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 import telebot
 
-from telegram.handlers.bot_instance import bot, get_bot, load_handlers_once
+from telegram.handlers.bot_instance import get_bot
 from .utils import check_webapp_signature, get_or_create_user
 
 logger = logging.getLogger(__name__)
