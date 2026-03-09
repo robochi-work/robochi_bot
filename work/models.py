@@ -10,6 +10,8 @@ class UserWorkProfile(models.Model):
     phone_number = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Phone number"))
 
     is_completed = models.BooleanField(default=False, verbose_name=_("Is completed"))
+    agreement_accepted = models.BooleanField(default=False)
+    agreement_accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
 
 
@@ -36,8 +38,3 @@ class AgreementText(models.Model):
 
     def __str__(self):
         return f"Agreement ({self.role})"
-
-from django.utils import timezone
-
-agreement_accepted = models.BooleanField(default=False)
-agreement_accepted_at = models.DateTimeField(null=True, blank=True)
