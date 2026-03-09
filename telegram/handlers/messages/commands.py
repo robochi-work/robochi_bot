@@ -1,7 +1,10 @@
 import base64
 import json
+import logging
 from types import SimpleNamespace
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from django.conf import settings
 from django.urls import reverse
@@ -47,11 +50,16 @@ def ask_phone(message: Message, user: User, **kwargs):
     bot = get_bot()
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add(types.KeyboardButton(_('Надіслати номер телефону'), request_contact=True))
-    bot.send_message(
-        message.chat.id,
-        _('Для продовження надішліть ваш номер телефону:'),
-        reply_markup=markup,
-    )
+    logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
+    try:
+        bot.send_message(
+            message.chat.id,
+            _('Для продовження надішліть ваш номер телефону:'),
+            reply_markup=markup,
+        )
+        logger.warning("ASK_PHONE SENT OK")
+    except Exception as e:
+        logger.error(f"ASK_PHONE FAILED: {e}")
 
 @user_required
 def default_start(message: Message, user: User, **kwargs):
