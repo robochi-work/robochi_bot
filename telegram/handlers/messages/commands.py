@@ -58,7 +58,10 @@ def ask_phone(message: Message, user: User):
 def default_start(message: Message | None, user: User, **kwargs: dict[str, Any]) -> None:
     markup = InlineKeyboardMarkup()
     check_url = reverse('telegram:telegram_check_web_app')
-    next_path = '/wizard/' if not user.work_profile.is_completed else '/profile/'
+    try:
+        next_path = '/profile/' if user.work_profile.is_completed else '/wizard/'
+    except Exception:
+        next_path = '/wizard/'
     url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
     markup.add(ButtonStorage.web_app(label='Відкрити кабінет', url=url))
     markup.add(ButtonStorage.menu(menu_name='info', label=_('Info')))
