@@ -2,7 +2,7 @@ import hashlib
 import hmac
 import json
 import logging
-from operator import itemgetter
+import time
 from typing import Optional, Any
 from urllib.parse import parse_qsl
 from django.conf import settings
@@ -20,21 +20,21 @@ def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
     user_id = None
 
     try:
-        parsed_data = dict(parse_qsl(init_data))
+        parsed_data = dict(parse_qsl(init_data, strict_parsing=True))
     except ValueError:
         return False, user_id
 
     if "hash" not in parsed_data:
         return False, user_id
 
-    hash_ = parsed_data.pop('hash')
+    hash_ = parsed_data.pop("hash")
     data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(parsed_data.items(), key=itemgetter(0))
+        f"{k}={v}" for k, v in sorted(parsed_data.items())
     )
-    
+
     secret_key = hmac.new(
-        key=settings.TELEGRAM_BOT_TOKEN.encode("utf-8"),
-        msg=b"WebAppData",
+        key=b"WebAppData",
+        msg=settings.TELEGRAM_BOT_TOKEN.encode("utf-8"),
         digestmod=hashlib.sha256,
     )
     calculated_hash = hmac.new(
@@ -43,13 +43,21 @@ def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
         digestmod=hashlib.sha256,
     ).hexdigest()
 
+    if calculated_hash != hash_:
+        return False, user_id
 
-    result = calculated_hash == hash_
+    # Проверка auth_date — защита от replay-атак
+    auth_date = parsed_data.get("auth_date")
+    if not auth_date:
+        return False, user_id
+    if time.time() - int(auth_date) > 86400:
+        logger.warning("WEBAPP AUTH initData expired, auth_date=%s", auth_date)
+        return False, user_id
 
-    if result:
-        user_id = json.loads(parsed_data['user'])['id']
+    if "user" in parsed_data:
+        user_id = json.loads(parsed_data["user"])["id"]
 
-    return result, user_id
+    return True, user_id
 
 
 def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bool]:
@@ -62,7 +70,8 @@ def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bo
             logger.debug(f'user {user_id} does not exist')
             user = User(
                 id=user_id,
-                **kwargs,
+                username=kwargs.get('username'),
+                language_code=kwargs.get('language_code', 'uk'),
             )
             user.save()
             created = True
