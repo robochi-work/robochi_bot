@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const params = new URLSearchParams(window.location.search);
   const next = params.get("next") || "/";
 
-  // ВАЖНО: имя параметра должно совпадать с тем, что читает Django: init_data
   const url = "{% url 'telegram:telegram_authenticate_web_app' %}"
     + "?init_data=" + encodeURIComponent(initData)
     + "&next=" + encodeURIComponent(next);
