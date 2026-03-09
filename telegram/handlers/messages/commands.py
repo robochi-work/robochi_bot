@@ -43,47 +43,31 @@ def fill_work_account(message: Message, **kwargs: dict[str, Any]) -> None:
     get_bot().send_message(message.chat.id, text=_('You must fill out a work form'), reply_markup=markup)
 
 @user_required
-def ask_phone(message: Message, user: User):
+def ask_phone(message: Message, user: User, **kwargs):
+    bot = get_bot()
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    markup.add(types.KeyboardButton(_('Send phone number'), request_contact=True))
-
-    telegram_notifier.notify(
-        recipient=SimpleNamespace(chat_id=message.chat.id, ),
-        method=NotificationMethod.TEXT,
-        text=_('It is necessary to send your phone number, use the button below'),
+    markup.add(types.KeyboardButton(_('Надіслати номер телефону'), request_contact=True))
+    bot.send_message(
+        message.chat.id,
+        _('Для продовження надішліть ваш номер телефону:'),
         reply_markup=markup,
     )
 
 @user_required
-def default_start(message: Message | None, user: User, **kwargs: dict[str, Any]) -> None:
-    markup = InlineKeyboardMarkup()
-    check_url = reverse('telegram:telegram_check_web_app')
+def default_start(message: Message, user: User, **kwargs):
+    bot = get_bot()
     try:
         next_path = '/profile/' if user.work_profile.is_completed else '/wizard/'
     except Exception:
         next_path = '/wizard/'
+    check_url = reverse('telegram:telegram_check_web_app')
     url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
-    markup.add(ButtonStorage.web_app(label='Відкрити кабінет', url=url))
-    markup.add(ButtonStorage.menu(menu_name='info', label=_('Info')))
-
-    if user.is_staff:
-        markup.add(
-            ButtonStorage.web_app(
-                label=_('Admin panel'), url=settings.BASE_URL.rstrip('/') + reverse('admin:index')
-            )
-        )
-
-    text = _('Hello')
-
-    message_common_settings = {
-        'chat_id': message.chat.id,
-        'reply_markup': markup,
-        'parse_mode': 'HTML',
-    }
-
-    get_bot().send_message(
-        text=text,
-        **message_common_settings,
+    markup = types.InlineKeyboardMarkup()
+    markup.add(types.InlineKeyboardButton(_('Відкрити кабінет'), web_app=types.WebAppInfo(url=url)))
+    bot.send_message(
+        message.chat.id,
+        _('Ласкаво просимо! Натисніть кнопку щоб відкрити кабінет:'),
+        reply_markup=markup,
     )
 
 def decode_start_param(encoded: str) -> dict:
