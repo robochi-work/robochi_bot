@@ -6,6 +6,11 @@ logger = logging.getLogger(__name__)
 
 bot = telebot.TeleBot(settings.TELEGRAM_BOT_TOKEN, parse_mode="HTML")
 
+
+def get_bot():
+    return bot
+
+
 _handlers_loaded = False
 
 def load_handlers_once():
@@ -14,8 +19,4 @@ def load_handlers_once():
         return
     _handlers_loaded = True
 
-    # импортируй тут модули с хендлерами я¬Ќќ, без walk_packages
-    # (это убирает непредсказуемые циклы)
     from telegram.handlers.messages import commands  # noqa
-    from telegram.handlers.messages import info  # noqa
-    # добавь остальные handler-модули аналогично

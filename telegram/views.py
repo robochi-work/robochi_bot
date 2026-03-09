@@ -12,8 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 import telebot
 
-from telegram.handlers.bot_instance import get_bot
-from telegram.handlers.bot_instance import bot, load_handlers_once
+from telegram.handlers.bot_instance import bot, get_bot, load_handlers_once
 from .utils import check_webapp_signature, get_or_create_user
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ def authenticate_web_app(request: WSGIRequest):
     logger.warning("WEBAPP AUTH signature is_valid=%s user_id=%s", is_valid, user_id)
 
     if is_valid and user_id:
-        # user_id = Telegram user id. В нашей системе он хранится в User.telegram_id.
+        # user_id = Telegram user id. пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ User.telegram_id.
         if request.user.is_authenticated:
             current_tid = getattr(request.user, "telegram_id", None)
             if current_tid and current_tid != user_id:
@@ -81,6 +80,5 @@ def telegram_webhook(request: WSGIRequest) -> HttpResponse:
         get_bot().process_new_updates([update])
     except Exception:
         logger.exception("Webhook processing failed. body=%r", (request.body[:200] if request.body else b""))
-        return HttpResponse("ok")
 
     return HttpResponse("ok")

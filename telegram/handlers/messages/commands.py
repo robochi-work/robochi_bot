@@ -14,7 +14,7 @@ from telebot.types import Message, InlineKeyboardMarkup, CallbackQuery, ReplyKey
 
 from service.notifications import NotificationMethod
 from telegram.handlers.common import CallbackStorage as Storage
-from telegram.handlers.bot_instance import get_bot
+from telegram.handlers.bot_instance import bot, get_bot
 from telegram.handlers.utils import user_required
 from telegram.handlers.common import ButtonStorage, F, CallbackStorage
 from vacancy.services.observers.subscriber_setup import telegram_notifier
