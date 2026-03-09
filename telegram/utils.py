@@ -70,7 +70,8 @@ def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bo
             logger.debug(f'user {user_id} does not exist')
             user = User(
                 id=user_id,
-                **kwargs,
+                username=kwargs.get('username'),
+                language_code=kwargs.get('language_code', 'uk'),
             )
             user.save()
             created = True

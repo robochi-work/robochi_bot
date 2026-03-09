@@ -1,6 +1,6 @@
 import json
 import logging
-from urllib.parse import unquote
+from urllib.parse import unquote, parse_qsl
 
 from django.contrib.auth import login
 from django.http import HttpResponse
@@ -59,7 +59,13 @@ def authenticate_web_app(request: WSGIRequest):
                 from django.contrib.auth import logout
                 logout(request)
 
-        user, _ = get_or_create_user(user_id=user_id)
+        parsed_data = dict(parse_qsl(init_data))
+        user_data = json.loads(parsed_data.get('user', '{}'))
+        user, _ = get_or_create_user(
+            user_id=user_id,
+            username=user_data.get('username'),
+            language_code=user_data.get('language_code', 'uk'),
+        )
 
         logger.warning("WEBAPP AUTH logging-in telegram_user_id=%s user_pk=%s", user_id, user.pk)
         login(request, user)

@@ -57,7 +57,10 @@ def ask_phone(message: Message, user: User):
 @user_required
 def default_start(message: Message | None, user: User, **kwargs: dict[str, Any]) -> None:
     markup = InlineKeyboardMarkup()
-    markup.add(ButtonStorage.web_app())
+    check_url = reverse('telegram:telegram_check_web_app')
+    next_path = '/wizard/' if not user.work_profile.is_completed else '/profile/'
+    url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
+    markup.add(ButtonStorage.web_app(label='Відкрити кабінет', url=url))
     markup.add(ButtonStorage.menu(menu_name='info', label=_('Info')))
 
     if user.is_staff:
@@ -133,8 +136,6 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
 
     if not user.phone_number:
         ask_phone(message, user=user)
-    elif not user.work_profile.is_completed:
-        fill_work_account(message, user=user)
     else:
         default_start(message, user=user)
 
