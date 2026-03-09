@@ -17,7 +17,9 @@ def load_handlers_once():
     global _handlers_loaded
     if _handlers_loaded:
         return
-    _handlers_loaded = True
-
-    from telegram.handlers.messages import commands  # noqa
-    from telegram.handlers.contact import user_phone_number  # noqa
+    try:
+        from telegram.handlers.messages import commands  # noqa
+        from telegram.handlers.contact import user_phone_number  # noqa
+        _handlers_loaded = True  # только если всё загрузилось успешно
+    except Exception as e:
+        logger.error(f"load_handlers_once FAILED: {e}", exc_info=True)
