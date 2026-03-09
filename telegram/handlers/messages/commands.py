@@ -117,6 +117,7 @@ def process_start_payload(payload: str, message) -> bool:
 @bot.callback_query_handler(func=F(CallbackStorage.menu.filter(name='start')))
 @user_required
 def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) -> None:
+    logger.warning(f"START CALLED: user={user.pk}, phone={user.phone_number}")
     if isinstance(query, CallbackQuery):
         message = query.message
     else:
@@ -129,10 +130,15 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
             if result:
                 return
 
-    if not user.phone_number:
-        ask_phone(message, user=user)
-    else:
-        default_start(message, user=user)
+    try:
+        if not user.phone_number:
+            logger.warning(f"START → ask_phone")
+            ask_phone(message, user=user)
+        else:
+            logger.warning(f"START → default_start")
+            default_start(message, user=user)
+    except Exception as e:
+        logger.error(f"START FAILED: {type(e).__name__}: {e}", exc_info=True)
 
 
 @bot.message_handler(commands=['info'])
