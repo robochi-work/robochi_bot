@@ -20,3 +20,4 @@ def load_handlers_once():
     _handlers_loaded = True
 
     from telegram.handlers.messages import commands  # noqa
+    from telegram.handlers.contact import user_phone_number  # noqa

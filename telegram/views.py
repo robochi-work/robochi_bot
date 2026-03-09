@@ -12,7 +12,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 import telebot
 
-from telegram.handlers.bot_instance import bot, get_bot, load_handlers_once
+from telegram.handlers.bot_instance import get_bot, load_handlers_once
 from .utils import check_webapp_signature, get_or_create_user
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,7 @@ def authenticate_web_app(request: WSGIRequest):
 
 @csrf_exempt
 def telegram_webhook(request: WSGIRequest) -> HttpResponse:
+    load_handlers_once()  # регистрируем хендлеры один раз при первом запросе
     if request.method != "POST":
         return HttpResponse("Only POST allowed", status=405)
 
