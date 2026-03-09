@@ -2014,6 +2014,29 @@ WantedBy=multi-user.target
    - оплату нужно переводить на monobank;
    - ротация — отдельный ключевой технический узел;
    - анкеты старого типа нужно убрать.
+### 5.4. Исправлено в сессии 09.03.2026
+
+1. Починены критические ошибки импортов в Telegram-части:
+   - добавлена функция get_bot() в bot_instance.py,
+   - убран импорт несуществующего модуля messages/info.py,
+   - добавлен явный импорт bot в commands.py,
+   - объединены дублирующие импорты в views.py,
+   - убран дублирующий return в telegram_webhook.
+   Ветка: fix/bot-imports — смержена в develop и main.
+
+2. Исправлен deploy.sh:
+   - git pull теперь тянет ветку develop вместо main,
+   - все команды python и pip используют ./venv/bin/ вместо системного Python.
+   Ветка: fix/deploy-sh — смержена в develop и main.
+
+3. Добавлена переменная TELEGRAM_WEBHOOK_SECRET в /etc/robochi_bot.env —
+   gunicorn теперь стартует без ValueError.
+
+4. Исправлена кодировка telegram/templates/telegram/check.html —
+   удалён комментарий в CP1251, файл пересоздан в чистом UTF-8.
+   Ветка: fix/template-encoding — смержена в develop и main.
+
+5. Мини-приложение открывается в браузере без ошибки 500.
 
 ---
 
@@ -2095,18 +2118,18 @@ WantedBy=multi-user.target
    Это надо перепроверять по реальной модели `User`.
 
 ### 7.2. Критические проблемы Telegram-части
-1. В develop-снимке `telegram/views.py` импортирует:
+1. В develop-снимке `telegram/views.py` импортирует: [РЕШЕНО 09.03.2026]
    - `get_bot`
    - `bot`
    - `load_handlers_once`
 
-   Но показанный поздний `bot_instance.py`:
+   Но показанный поздний `bot_instance.py`: [РЕШЕНО 09.03.2026]
    - не содержит `get_bot()`;
    - импортирует `messages.info`, которого по отчёту нет.
 
-2. В `commands.py` используются декораторы `@bot.message_handler`, а сам `bot` в этом файле явно не импортирован в показанном develop-варианте.
+2. В `commands.py` используются декораторы `@bot.message_handler`, а сам `bot` в этом файле явно не импортирован в показанном develop-варианте. [РЕШЕНО 09.03.2026]
 
-3. При следующем рестарте production Telegram-часть может упасть из-за broken imports.
+3. При следующем рестарте production Telegram-часть может упасть из-за broken imports. [РЕШЕНО 09.03.2026]
 
 4. В `telegram/utils.py` нет проверки `auth_date`, хотя она рекомендовалась как обязательная / желательная.
 
