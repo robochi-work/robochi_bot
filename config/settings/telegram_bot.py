@@ -6,7 +6,12 @@ if ":" not in TELEGRAM_BOT_TOKEN:
 
 PROVIDER_TOKEN = (os.getenv("PROVIDER_TOKEN") or "").strip()
 
-# Секретный хвост для webhook URL (НЕ из токена)
+TELEGRAM_BOT_ALL_GROUP_CONTENT_TYPES = [
+    'text', 'photo', 'video', 'document', 'audio',
+    'voice', 'sticker', 'location', 'contact',
+]
+
+# пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ webhook URL (пїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
 TELEGRAM_WEBHOOK_SECRET = (os.getenv("TELEGRAM_WEBHOOK_SECRET") or "").strip()
 if not TELEGRAM_WEBHOOK_SECRET:
     raise ValueError("TELEGRAM_WEBHOOK_SECRET is not set")
