@@ -35,6 +35,8 @@ def user_required(func: Callable[..., Any]) -> Callable[..., Any]:
 
         if not isinstance(user, User):
             user_kwargs = {
+                'first_name': getattr(query.from_user, 'first_name', ''),
+                'last_name': getattr(query.from_user, 'last_name', ''),
                 'username': query.from_user.username,
             }
 

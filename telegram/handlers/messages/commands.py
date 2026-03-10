@@ -65,7 +65,7 @@ def ask_phone(message: Message, user: User, **kwargs):
 def default_start(message: Message, user: User, **kwargs):
     bot = get_bot()
     try:
-        next_path = '/profile/' if user.work_profile.is_completed else '/wizard/'
+        next_path = '/' if user.work_profile.is_completed else '/work/wizard/'
     except Exception:
         next_path = '/wizard/'
     check_url = reverse('telegram:telegram_check_web_app')
