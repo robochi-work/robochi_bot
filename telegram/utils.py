@@ -60,27 +60,55 @@ def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
     return True, user_id
 
 
+def _build_full_name(first_name: str = '', last_name: str = '') -> str:
+    """Combine first_name and last_name from Telegram into a single full_name string."""
+    parts = [p for p in (first_name or '', last_name or '') if p.strip()]
+    return ' '.join(parts) or None
+
+
 def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bool]:
     created = False
+    full_name = _build_full_name(
+        kwargs.get('first_name', ''),
+        kwargs.get('last_name', ''),
+    )
+
     try:
         logger.debug(f'get user {user_id}')
         user = User.objects.get(id=user_id)
+
+        # Update user data from Telegram profile on every /start
+        # so that changes in username or name are always reflected
+        update_fields = []
+        new_username = kwargs.get('username')
+        if new_username and user.username != new_username:
+            user.username = new_username
+            update_fields.append('username')
+        if full_name and user.full_name != full_name:
+            user.full_name = full_name
+            update_fields.append('full_name')
+        if not user.telegram_id:
+            user.telegram_id = user_id
+            update_fields.append('telegram_id')
+        if update_fields:
+            user.save(update_fields=update_fields)
+            logger.info(f'Updated user {user_id} fields: {update_fields}')
+
     except User.DoesNotExist:
         try:
             logger.debug(f'user {user_id} does not exist')
             user = User(
                 id=user_id,
+                telegram_id=user_id,
                 username=kwargs.get('username'),
-                language_code=kwargs.get('language_code', 'uk'),
+                full_name=full_name,
             )
             user.save()
             created = True
             logger.info(f'Create new user {user}')
         except Exception as ex:
             logger.error(f'failed to create new user {user_id} {ex=}')
-            user = User(
-                id=user_id,
-            )
+            user = User(id=user_id)
             user.save()
 
     return user, created

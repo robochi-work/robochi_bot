@@ -18,7 +18,7 @@ FORMS = [
 ]
 
 TEMPLATES = {
-    'role': 'work/work_profile/step_city.html',
+    'role': 'work/work_profile/role.html',
     'city': 'work/work_profile/step_city.html',
     'agreement': 'work/work_profile/step_agreement.html',
 }
@@ -71,7 +71,7 @@ class ProfileWizard(SessionWizardView):
 
         work_publisher.notify(WORK_PROFILE_COMPLETED, data={'user': user})
 
-        return redirect('work:work_profile_detail')
+        return redirect('/')
 
 
 @login_required
@@ -87,7 +87,7 @@ def questionnaire_redirect(request):
     if not profile.agreement_accepted:
         return redirect('work:wizard_step', step='agreement')
 
-    return redirect('work:work_profile_detail')
+    return redirect('/')
 
 
 @login_required
@@ -103,7 +103,7 @@ def work_profile_detail(request):
         if city_form.is_valid() and contact_form.is_valid():
             city_form.save()
             contact_form.save()
-            return redirect('work:work_profile_detail')
+            return redirect('/')
     else:
         contact_form = ContactForm(user=user, prefix='contact')
 
