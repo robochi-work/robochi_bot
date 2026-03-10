@@ -5,7 +5,6 @@ from telebot import types
 from telebot.types import ReplyKeyboardRemove
 
 from telegram.handlers.bot_instance import bot
-from telegram.handlers.messages.commands import start
 from telegram.handlers.utils import user_required
 from user.models import User
 
@@ -26,10 +25,9 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
             )
             bot.send_message(
                 chat_id=message.chat.id,
-                text=_('Phone number saved'),
+                text='✅ Номер збережено.',
                 reply_markup=ReplyKeyboardRemove(),
             )
             logger.warning(f"CONTACT SAVED: phone={message.contact.phone_number}")
-            start(message, user=user)
     except Exception as e:
         logger.error(f"CONTACT FAILED: {type(e).__name__}: {e}", exc_info=True)
