@@ -1,6 +1,6 @@
 # AGENTS.md — robochi_bot AI Agent Instructions
 
-Version: 3.0
+Version: 4.0
 
 This document defines how AI assistants (Codex, Claude, ChatGPT, Cursor, etc.) must work with the **robochi_bot** repository.
 
@@ -17,14 +17,31 @@ Example path:
 
 
 ------------------------------------------------------------
-MANDATORY PROJECT CONTEXT LOADING
+AI QUICK START LOADING RULE
 ------------------------------------------------------------
 
-Before starting any task, AI agents must first read:
+AI agents should first read:
+
+AI_QUICK_START.md
+
+before loading any other documentation.
+
+This file provides a rapid overview of the project architecture, workflow, and server environment.
+
+After reading AI_QUICK_START.md, agents must then load:
 
 docs/PROJECT_CONTEXT.md
 
-This file contains the **current state of the project** and must be treated as the primary source of truth.
+which contains the **current state of the project** and must be treated as the primary source of truth.
+
+
+------------------------------------------------------------
+MANDATORY PROJECT CONTEXT LOADING
+------------------------------------------------------------
+
+Before starting any task, AI agents must read:
+
+docs/PROJECT_CONTEXT.md
 
 Agents must:
 
