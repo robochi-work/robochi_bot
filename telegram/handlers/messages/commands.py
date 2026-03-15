@@ -54,7 +54,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     try:
         bot.send_message(
             message.chat.id,
-            _('Для продовження надішліть ваш номер телефону:'),
+            _('Вітаємо у нашому сервісі. Натискайте кнопку нижче.'),
             reply_markup=markup,
         )
         logger.warning("ASK_PHONE SENT OK")
