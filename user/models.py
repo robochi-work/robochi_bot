@@ -52,6 +52,32 @@ class User(AbstractUser):
         return f'User: {self.pk} {self.username}'
 
 
+class AuthIdentity(models.Model):
+    class Provider(models.TextChoices):
+        TELEGRAM = 'telegram', 'Telegram'
+        PHONE = 'phone', 'Phone'
+        EMAIL = 'email', 'Email'
+        GOOGLE = 'google', 'Google'
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='auth_identities'
+    )
+    provider = models.CharField(max_length=50, choices=Provider.choices)
+    provider_uid = models.CharField(max_length=255)
+    extra_data = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('provider', 'provider_uid')
+        verbose_name = 'Auth Identity'
+        verbose_name_plural = 'Auth Identities'
+
+    def __str__(self):
+        return f"{self.provider}:{self.provider_uid} → {self.user}"
+
+
 class UserFeedback(models.Model):
     owner = models.ForeignKey(
         User,

@@ -228,3 +228,82 @@ header {
     flex-direction: column;
     margin-bottom: 20px;
 }
+
+.work_profile.step.roles {
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.work_profile.step.roles .role-selector {
+    margin: 0 0 20px;
+    padding: 0;
+    border: 0;
+}
+
+.work_profile.step.roles .role-selector legend {
+    width: 100%;
+    margin-bottom: 14px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.work_profile.step.roles .role-card {
+    position: relative;
+    display: block;
+    margin-bottom: 14px;
+    cursor: pointer;
+}
+
+.work_profile.step.roles .role-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.work_profile.step.roles .role-card__content {
+    display: flex;
+    align-items: center;
+    min-height: 68px;
+    padding: 18px 18px 18px 52px;
+    border: 1px solid rgba(128, 128, 128, 0.45);
+    border-radius: var(--border-radius);
+    background-color: rgba(128, 128, 128, 0.14);
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.work_profile.step.roles .role-card__content::before {
+    content: "";
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(128, 128, 128, 0.8);
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background-color: transparent;
+    box-sizing: border-box;
+}
+
+.work_profile.step.roles .role-card__label {
+    display: block;
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 600;
+}
+
+.work_profile.step.roles .role-card input[type="radio"]:checked + .role-card__content {
+    border-color: var(--accent-color);
+    background-color: rgba(0, 122, 204, 0.14);
+}
+
+.work_profile.step.roles .role-card input[type="radio"]:checked + .role-card__content::before {
+    border-color: var(--accent-color);
+    background:
+        radial-gradient(circle at center, var(--accent-color) 0 5px, transparent 6px);
+}
+
+.work_profile.step.roles .role-card input[type="radio"]:focus-visible + .role-card__content {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
+}

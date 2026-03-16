@@ -9,7 +9,7 @@ from django.utils.translation import gettext_lazy as _, gettext
 
 import vacancy
 from telegram.choices import STATUS_PROCESS
-from telegram.models import Channel, Payment
+from telegram.models import Channel
 from vacancy.models import Vacancy, VacancyStatusHistory, VacancyUser, VacancyUserCall
 from work.models import UserWorkProfile
 from .choices import STATUS_APPROVED, STATUS_CHOICES, STATUS_PENDING
@@ -35,24 +35,6 @@ class VacancyStatusHistoryInline(admin.TabularInline):
     extra = 0
     readonly_fields = ('changed_at', 'new_status', 'changed_by', 'comment')
     can_delete = False
-
-class PaymentInline(admin.TabularInline):
-    model = Payment
-    fk_name = 'vacancy'
-    fields = ('date', 'total_amount_display', 'currency', 'status')
-    readonly_fields = fields
-    extra = 0
-    can_delete = False
-    verbose_name = _('Payment')
-    verbose_name_plural = _('Payments')
-
-    @admin.display(description=_('Сумма'))
-    def total_amount_display(self, obj):
-        try:
-            amount = obj.total_amount / 100
-            return f"{amount:.2f}"
-        except Exception:
-            return '-'
 
 class StatusDefaultFilter(admin.SimpleListFilter):
     title = _('Status')
@@ -94,7 +76,7 @@ class StatusDefaultFilter(admin.SimpleListFilter):
 class VacancyAdmin(admin.ModelAdmin):
     list_display = ('owner', 'people_count', )
     form = VacancyAdminForm
-    inlines = [PaymentInline, VacancyStatusHistoryInline]
+    inlines = [VacancyStatusHistoryInline]
     actions = [
         'notify_owner', 'notify_admins', 'send_to_channels', 'update_channel_message',
         'before_start_call_action','start_call_action', 'final_call_action', 'after_first_call_check_action',
