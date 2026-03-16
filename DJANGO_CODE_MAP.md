@@ -25,11 +25,19 @@
 
 ## 2. Где обычно искать по типу задачи
 
-### 2.1 Если меняется логика страницы
+### 2.1 Если меняется логика страницы (Mini App, template views)
 Смотреть:
 - `views.py`
 - `urls.py`
 - `templates/...`
+
+### 2.1а Если меняется REST API endpoint
+Смотреть:
+- `api/views/`
+- `api/serializers/`
+- `api/urls.py`
+- `api/permissions.py`
+- соответствующий `services.py` (бизнес-логика)
 
 ### 2.2 Если меняется структура данных
 Смотреть:
@@ -138,6 +146,21 @@ flowchart TD
 - есть интеграция с Telegram
 - есть проверка initData
 - есть хелперы для auth
+
+### api/ (REST API, добавлено 16.03.2026)
+Нужен, если:
+- добавляется новый REST endpoint
+- меняется JWT auth flow
+- добавляется новый serializer
+- меняется логика /api/v1/ endpoints
+Важно: бизнес-логика НЕ в api/views — только вызовы services.py
+
+### payment/ (Monobank, добавлено 16.03.2026)
+Нужен, если:
+- меняется логика оплаты
+- меняется обработка Monobank webhook
+- меняется MonobankPayment модель
+- нужна верификация ECDSA подписи
 
 ---
 

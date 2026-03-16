@@ -18,8 +18,9 @@ Telegram-based platform that connects workers and employers for temporary jobs.
 
 Main components:
 
-- Django backend
-- Telegram Bot
+- Django 5.2 backend
+- Django REST Framework 3.15 + SimpleJWT (REST API + JWT auth, added 16.03.2026)
+- Telegram Bot (pyTelegramBotAPI 4.27)
 - Telegram Mini App (WebApp)
 - PostgreSQL database
 - Redis
@@ -27,6 +28,7 @@ Main components:
 - Gunicorn
 - Nginx
 - systemd
+- Monobank Acquiring (payment integration, Telegram Payments removed 16.03.2026)
 
 Repository:
 
@@ -173,12 +175,16 @@ AI must always:
 
 # Quick Mental Model
 
-User → Telegram Bot → WebApp → Django → Database
+User → Telegram Bot → WebApp → Django (Session Auth) → Database
                                   → Redis → Celery
+
+Mobile/SPA → REST API (/api/v1/) → Django (JWT Auth) → Database
 
 Infrastructure:
 
 Telegram → Nginx → Gunicorn → Django
+
+Payment: Monobank webhook → /api/v1/payments/webhook/monobank/ → Django
 
 ---
 

@@ -17,6 +17,7 @@ flowchart TD
     U[Пользователь в Telegram] --> TG[Telegram Client]
     TG --> BOT[Telegram Bot]
     TG --> WA[Telegram Mini App / WebApp]
+    MOB[Mobile / SPA клиент] --> NGINX
 
     BOT --> NGINX[Nginx]
     WA --> NGINX
@@ -24,9 +25,12 @@ flowchart TD
     NGINX --> GUNICORN[Gunicorn]
     GUNICORN --> DJANGO[Django Backend]
 
+    DJANGO --> SESSION[Session Auth\ntemplate views]
+    DJANGO --> JWT[JWT Auth\nREST API /api/v1/]
     DJANGO --> PG[(PostgreSQL)]
     DJANGO --> REDIS[(Redis)]
     DJANGO --> CELERY[Celery Worker]
+    DJANGO --> MONO[Monobank Acquiring]
     CELERY --> REDIS
     CELERY --> PG
 ```
@@ -152,21 +156,37 @@ sequenceDiagram
 - Django views
 - templates
 - forms
-- session/auth
+- session/auth (для Mini App)
 
-### Зона 3 — Data layer
+### Зона 3 — API layer (добавлена 16.03.2026)
+Что входит:
+- DRF views и serializers (api/ app)
+- JWT authentication (SimpleJWT)
+- REST endpoints /api/v1/
+- Swagger/OpenAPI docs
+
+### Зона 4 — Data layer
 Что входит:
 - models
 - migrations
 - PostgreSQL
+- AuthIdentity (multi-provider auth)
 
-### Зона 4 — Async layer
+### Зона 5 — Async layer
 Что входит:
 - Celery tasks
 - Redis
 - periodic jobs
 
-### Зона 5 — Infra layer
+### Зона 6 — Payment layer (добавлена 16.03.2026)
+Что входит:
+- payment/ app
+- MonobankPayment model
+- payment/services.py
+- Monobank webhook (ECDSA verification)
+- Telegram Payments удалены
+
+### Зона 7 — Infra layer
 Что входит:
 - Gunicorn
 - Nginx

@@ -3,6 +3,8 @@
 This file describes the structure of the robochi_bot repository so that
 AI assistants understand where code and configuration live.
 
+Last updated: 16.03.2026
+
 ## Root
 
 robochi_bot/
@@ -10,7 +12,8 @@ robochi_bot/
 Important files:
 
 AGENTS.md ARCHITECTURE.md DEVELOPMENT_GUIDE.md PROJECT_RULES.md
-REPOSITORY_MAP.md
+REPOSITORY_MAP.md CLAUDE.md AI_QUICK_START.md AI_ARCHITECTURE_MAP.md
+DJANGO_CODE_MAP.md TELEGRAM_MINIAPP_FLOW.md
 
 ## Django Core
 
@@ -18,21 +21,65 @@ manage.py
 
 Main Django entry point.
 
-## Applications
+## Applications (9 total)
 
-apps/
+### config/
+Django settings and configuration.
+- config/django/base.py, local.py, production.py --- settings files
+- config/settings/celery.py, sentry.py, telegram_bot.py --- service configs
+- config/urls.py --- root URL routing
+- config/wsgi.py
 
-Typical structure:
+### user/
+User accounts, authentication, and identity management.
+- User model (PK = Telegram ID, extends AbstractUser)
+- AuthIdentity model --- links users to auth providers (telegram, phone, email, google)
+- user/services.py --- get_or_create_user_from_telegram(), find_user_by_phone()
+- UserFeedback model
 
-apps/ users/ jobs/ telegram/
+### city/
+Cities (TranslatableModel via django-parler).
+Current cities: Київ(1), Одеса(2), Дніпро(3), Харків(4)
 
-Responsibilities:
+### work/
+Work profiles, registration wizard, dashboard blocks.
+- UserWorkProfile, AgreementText models
+- wizard (django-formtools): role → city → agreement steps
+- block_registry: ChannelPreviewBlock, VacancyCreateFormBlock, ActiveVacanciesPreviewBlock
+- work/service/: work_profile.py, publisher.py, events.py, subscriber_setup.py
 
-users --- authentication and profiles
+### telegram/
+Telegram bot integration and WebApp authentication.
+- Channel, Group, ChannelMessage, GroupMessage, UserInGroup models
+- Bot handlers (webhook, /start, contact, etc.)
+- WebApp initData verification (HMAC-SHA256)
+- Two auth endpoints: check-web-app/ and authenticate-web-app/
 
-jobs --- job listings and worker matching
+### vacancy/
+Vacancy lifecycle, worker matching, call-checks.
+- Vacancy, VacancyUser, VacancyUserCall, VacancyStatusHistory models
+- Observer/Publisher pattern for vacancy events
+- Celery tasks for call-checks and rotation
+- vacancy/services/: call.py, vacancy_status.py, vacancy_formatter.py
 
-telegram --- bot integration
+### payment/
+Monobank Acquiring payment integration.
+- MonobankPayment model (amounts in kopecks)
+- payment/services.py: create_invoice(), process_webhook(), verify_monobank_signature()
+- Telegram Payments have been REMOVED
+
+### api/
+REST API built with Django REST Framework.
+- No models, no migrations (business logic stays in other apps)
+- JWT authentication via Telegram initData (SimpleJWT)
+- Swagger/OpenAPI docs via drf-spectacular
+- api/serializers/, api/views/, api/permissions/, api/urls.py
+- All endpoints under /api/v1/
+
+### service/
+Shared services used across apps.
+- notifications.py, broadcast_service.py
+- telegram_strategies.py, telegram_markup_factory.py
 
 ## Templates
 
@@ -81,13 +128,13 @@ System environment:
 
 ## Services
 
-Gunicorn --- Django application server
+Gunicorn --- Django application server (unix socket, restart after any Python change)
 
-Celery worker --- background tasks
+Celery worker --- background tasks (vacancy tasks, rotation)
 
 Celery beat --- scheduled tasks
 
-Redis --- Celery broker
+Redis --- Celery broker (redis://localhost:6379/0)
 
 PostgreSQL --- database
 

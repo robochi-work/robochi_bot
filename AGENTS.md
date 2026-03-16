@@ -71,14 +71,31 @@ Production server:
 Stack:
 
 Python 3.11
-Django
-pyTelegramBotAPI
+Django 5.2
+pyTelegramBotAPI 4.27
+Django REST Framework 3.15 + SimpleJWT 5.4 (JWT auth for REST API)
+django-cors-headers (CORS restricted to /api/*)
+drf-spectacular 0.28 (Swagger/OpenAPI)
 PostgreSQL
 Redis
 Celery
 Gunicorn
 Nginx
 systemd
+httpx (HTTP client for Monobank API)
+ecdsa (ECDSA signatures for Monobank webhook)
+
+Django applications (9):
+
+config/        --- settings (base, local, production), urls, wsgi, celery
+user/          --- User model (PK=Telegram ID), AuthIdentity, user/services.py
+city/          --- City (TranslatableModel, django-parler)
+work/          --- UserWorkProfile, AgreementText, wizard, dashboard blocks
+telegram/      --- bot handlers, webhook, WebApp auth, Channel/Group models
+vacancy/       --- Vacancy, VacancyUser, Celery tasks, Observer/Publisher
+payment/       --- MonobankPayment model, payment/services.py
+api/           --- REST API (DRF), no models, no migrations
+service/       --- shared services (notifications, broadcast, telegram markup)
 
 
 ------------------------------------------------------------
@@ -141,9 +158,11 @@ python3 manage.py collectstatic --noinput
 SERVICE RESTART RULES
 ------------------------------------------------------------
 
-If Python backend code changes:
+If Python backend code changes (Django views, models, serializers, services, api/):
 
 sudo systemctl restart gunicorn.service
+
+IMPORTANT: Any change to Python files requires gunicorn restart to take effect.
 
 If Celery tasks change:
 
@@ -207,10 +226,46 @@ AI agents must never:
 
 
 ------------------------------------------------------------
+REST API (added 16.03.2026)
+------------------------------------------------------------
+
+New DRF-based REST API under /api/v1/:
+
+- /api/v1/auth/telegram/        POST  --- get JWT from Telegram initData
+- /api/v1/auth/token/refresh/   POST  --- refresh JWT
+- /api/v1/users/me/             GET   --- current user profile
+- /api/v1/vacancies/            GET   --- employer vacancies list
+- /api/v1/vacancies/<pk>/       GET   --- vacancy detail
+- /api/v1/payments/webhook/monobank/  POST  --- Monobank webhook (ECDSA verified)
+- /api/docs/                          Swagger UI
+- /api/schema/                        OpenAPI schema
+
+Authentication:
+- Session auth (existing) --- for Telegram Mini App (template views)
+- JWT auth (new) --- for REST API (mobile clients, SPA)
+
+Both mechanisms work in parallel.
+
+Business logic must live in services.py of each app, NOT in api/views/.
+
+------------------------------------------------------------
+PAYMENTS (updated 16.03.2026)
+------------------------------------------------------------
+
+Telegram Payments have been REMOVED (PreCheckoutLog, Payment, handlers/invoice/).
+
+Monobank Acquiring is the payment system:
+- Model: payment/models.py (MonobankPayment)
+- Services: payment/services.py (create_invoice, process_webhook, verify_monobank_signature)
+- Webhook: /api/v1/payments/webhook/monobank/
+- Env var: MONOBANK_API_TOKEN (currently empty, merchant token not yet configured)
+- Amounts are in kopecks (4200 = 42.00 UAH)
+
+------------------------------------------------------------
 SUMMARY
 ------------------------------------------------------------
 
-robochi_bot is a Telegram Mini App platform built on Django.
+robochi_bot is a Telegram Mini App platform built on Django with a REST API layer.
 
 Development happens directly on a Linux server through SSH commands.
 
