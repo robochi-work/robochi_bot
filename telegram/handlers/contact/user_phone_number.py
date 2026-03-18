@@ -44,6 +44,10 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
 
+            # Notify admins with complete user data (now includes phone)
+            from telegram.utils import notify_admins_new_user
+            notify_admins_new_user(user)
+
             # Set MenuButton "ПОЧАТИ" -> WebApp on wizard
             try:
                 next_path = '/' if user.work_profile.is_completed else '/work/wizard/'

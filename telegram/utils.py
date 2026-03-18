@@ -66,6 +66,38 @@ def _build_full_name(first_name: str = '', last_name: str = '') -> str:
     return ' '.join(parts) or None
 
 
+
+def notify_admins_new_user(user: User) -> None:
+    """Send notification to all admins about a new user registration."""
+    from telegram.handlers.bot_instance import get_bot
+    from django.conf import settings
+
+    admin_ids = getattr(settings, 'ADMIN_TELEGRAM_IDS', [])
+    if not admin_ids:
+        logger.warning("ADMIN_TELEGRAM_IDS not configured, skipping new user notification")
+        return
+
+    text = (
+        "🆕 <b>Новий користувач</b>\n\n"
+        f"<b>ID:</b> <code>{user.pk}</code>\n"
+        f"<b>Ім'я:</b> {user.full_name or '—'}\n"
+        f"<b>Username:</b> @{user.username}\n" if user.username else
+        "🆕 <b>Новий користувач</b>\n\n"
+        f"<b>ID:</b> <code>{user.pk}</code>\n"
+        f"<b>Ім'я:</b> {user.full_name or '—'}\n"
+        f"<b>Username:</b> —\n"
+    )
+    if user.phone_number:
+        text += f"<b>Телефон:</b> {user.phone_number}\n"
+
+    bot = get_bot()
+    for admin_id in admin_ids:
+        try:
+            bot.send_message(chat_id=admin_id, text=text, parse_mode='HTML')
+            logger.info(f"New user notification sent to admin {admin_id}")
+        except Exception as e:
+            logger.error(f"Failed to notify admin {admin_id}: {e}")
+
 def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bool]:
     created = False
     full_name = _build_full_name(
@@ -106,6 +138,7 @@ def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bo
             user.save()
             created = True
             logger.info(f'Create new user {user}')
+            # notification moved to contact handler (after phone is saved)
         except Exception as ex:
             logger.error(f'failed to create new user {user_id} {ex=}')
             user = User(id=user_id)
