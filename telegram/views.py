@@ -70,20 +70,6 @@ def authenticate_web_app(request: WSGIRequest):
         logger.warning("WEBAPP AUTH logging-in telegram_user_id=%s user_pk=%s", user_id, user.pk)
         login(request, user)
 
-        if not user.phone_number:
-            return HttpResponse(
-                '<!DOCTYPE html>'
-                '<html>'
-                '<head><script src="https://telegram.org/js/telegram-web-app.js"></script></head>'
-                '<body>'
-                '<script>'
-                '  window.Telegram.WebApp.ready();'
-                '  window.Telegram.WebApp.close();'
-                '</script>'
-                '</body>'
-                '</html>'
-            )
-
         return redirect(next_path)
 
     admin_login_url = reverse("admin:login")

@@ -13,7 +13,7 @@ from telebot import types
 from urllib.parse import urlencode
 
 from telebot.types import Message, InlineKeyboardMarkup, CallbackQuery, ReplyKeyboardMarkup, InlineKeyboardButton, \
-    WebAppInfo
+    WebAppInfo, MenuButtonWebApp
 
 from service.notifications import NotificationMethod
 from telegram.handlers.common import CallbackStorage as Storage
@@ -54,7 +54,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     try:
         bot.send_message(
             message.chat.id,
-            _('Вітаємо у нашому сервісі. Натискайте кнопку нижче.'),
+            _('Для продовження надішліть ваш номер телефону:'),
             reply_markup=markup,
         )
         logger.warning("ASK_PHONE SENT OK")
@@ -67,15 +67,26 @@ def default_start(message: Message, user: User, **kwargs):
     try:
         next_path = '/' if user.work_profile.is_completed else '/work/wizard/'
     except Exception:
-        next_path = '/wizard/'
+        next_path = '/work/wizard/'
     check_url = reverse('telegram:telegram_check_web_app')
     url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
-    markup = types.InlineKeyboardMarkup()
-    markup.add(types.InlineKeyboardButton(_('Відкрити кабінет'), web_app=types.WebAppInfo(url=url)))
+
+    # Set MenuButton "ПОЧАТИ" -> WebApp
+    try:
+        bot.set_chat_menu_button(
+            chat_id=message.chat.id,
+            menu_button=MenuButtonWebApp(
+                type='web_app',
+                text='ПОЧАТИ',
+                web_app=types.WebAppInfo(url=url),
+            ),
+        )
+    except Exception as e:
+        logger.error(f"SET_MENU_BUTTON FAILED: {e}", exc_info=True)
+
     bot.send_message(
         message.chat.id,
-        _('Ласкаво просимо! Натисніть кнопку щоб відкрити кабінет:'),
-        reply_markup=markup,
+        _('Вітаємо у нашому сервісі!\nНатискайте кнопку ПОЧАТИ нижче.'),
     )
 
 def decode_start_param(encoded: str) -> dict:
