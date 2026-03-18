@@ -2,17 +2,19 @@
 {% load i18n %}
 
 {% block body %}
+<div class="vacancy-feedback">
   <h1>{{ vacancy.title }}</h1>
 
-  <form method="post" class="mb-4">
+  <form method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}
     {{ form.vacancy }}
     {{ form.users }}
-    <div class="mb-3">
+    <div class="column">
       {{ form.text.errors }}
       {{ form.text }}
     </div>
-    <button type="submit" class="btn btn-primary">{% trans "Submit" %}</button>
+    <button type="submit">{% trans "Submit" %}</button>
   </form>
+</div>
 {% endblock %}

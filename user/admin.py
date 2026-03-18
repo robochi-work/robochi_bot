@@ -5,7 +5,13 @@ from django.utils.html import format_html
 from django.urls import reverse
 
 from .forms import UserChangeForm, UserCreationForm
-from .models import User, UserFeedback, UserWorkProfileInUser
+from .models import User, AuthIdentity, UserFeedback, UserWorkProfileInUser
+
+
+class AuthIdentityInline(admin.TabularInline):
+    model = AuthIdentity
+    extra = 0
+    readonly_fields = ('created_at',)
 
 
 @admin.register(User)
@@ -13,6 +19,7 @@ class UserAdmin(BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
+    inlines = [AuthIdentityInline]
 
     list_display = ('id', 'telegram_link', 'full_name', 'phone_number', 'is_staff')
     search_fields = ('username', 'full_name')

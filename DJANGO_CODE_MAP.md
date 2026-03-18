@@ -25,11 +25,19 @@
 
 ## 2. Где обычно искать по типу задачи
 
-### 2.1 Если меняется логика страницы
+### 2.1 Если меняется логика страницы (Mini App, template views)
 Смотреть:
 - `views.py`
 - `urls.py`
 - `templates/...`
+
+### 2.1а Если меняется REST API endpoint
+Смотреть:
+- `api/views/`
+- `api/serializers/`
+- `api/urls.py`
+- `api/permissions.py`
+- соответствующий `services.py` (бизнес-логика)
 
 ### 2.2 Если меняется структура данных
 Смотреть:
@@ -139,6 +147,21 @@ flowchart TD
 - есть проверка initData
 - есть хелперы для auth
 
+### api/ (REST API, добавлено 16.03.2026)
+Нужен, если:
+- добавляется новый REST endpoint
+- меняется JWT auth flow
+- добавляется новый serializer
+- меняется логика /api/v1/ endpoints
+Важно: бизнес-логика НЕ в api/views — только вызовы services.py
+
+### payment/ (Monobank, добавлено 16.03.2026)
+Нужен, если:
+- меняется логика оплаты
+- меняется обработка Monobank webhook
+- меняется MonobankPayment модель
+- нужна верификация ECDSA подписи
+
 ---
 
 ## 5. Как AI должен предлагать изменения
@@ -209,3 +232,23 @@ AI должен предлагать изменения точечно:
 - явно отмечать предположение
 - привязываться к уже известным файлам
 - работать от текущего контекста проекта
+
+---
+
+## 9. Static / CSS правила (добавлено 18.03.2026)
+
+### Если меняется CSS
+Смотреть:
+- `telegram/static/css/styles.css` (PRIMARY source)
+- `static/css/styles.css` (synced copy)
+
+### Порядок
+1. Редактируем `telegram/static/css/styles.css`
+2. Копируем в `static/css/styles.css`
+3. `collectstatic --clear --noinput`
+4. Restart gunicorn
+
+### Важно
+- WhiteNoise берёт CSS из `telegram/static/` (app static dir имеет приоритет)
+- Если файлы рассинхронизированы — `collectstatic` возьмёт app-версию
+- `WHITENOISE_KEEP_ONLY_HASHED_FILES = True` — без хэша файл не раздаётся

@@ -4,9 +4,33 @@
 {% block form %}
     <form method="post">
         {% csrf_token %}
-        <div class="work_profile step city">
+        <div class="work_profile step roles">
             {{ wizard.management_form }}
-            {{ form.as_p }}
+            {% if form.non_field_errors %}
+                <div class="form-errors">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <fieldset class="role-selector">
+                <legend>{{ form.role.label }}</legend>
+
+                {% for radio in form.role %}
+                    <label class="role-card" for="{{ radio.id_for_label }}">
+                        {{ radio.tag }}
+                        <span class="role-card__content">
+                            <span class="role-card__label">{{ radio.choice_label }}</span>
+                        </span>
+                    </label>
+                {% endfor %}
+
+                {% if form.role.errors %}
+                    <div class="form-errors">
+                        {{ form.role.errors }}
+                    </div>
+                {% endif %}
+            </fieldset>
+
             <button type="submit">{% trans 'Continue' %}</button>
         </div>
     </form>
