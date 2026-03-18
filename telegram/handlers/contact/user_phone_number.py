@@ -39,7 +39,7 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
             # Send welcome message (no inline button)
             bot.send_message(
                 chat_id=message.chat.id,
-                text='Вітаємо у нашому сервісі!\nНатискайте кнопку нижче.',
+                text='Вітаємо у нашому сервісі!',
                 reply_markup=ReplyKeyboardRemove(),
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
