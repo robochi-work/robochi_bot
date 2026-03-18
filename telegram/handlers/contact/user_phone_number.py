@@ -20,6 +20,15 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
     logger.warning(f"CONTACT HANDLER CALLED: user_id={message.from_user.id}")
     try:
         if message.contact and message.contact.phone_number:
+            # FIRST: delete the contact card message ASAP
+            try:
+                bot.delete_message(
+                    chat_id=message.chat.id,
+                    message_id=message.message_id,
+                )
+            except Exception:
+                pass
+
             phone = f"+{message.contact.phone_number.lstrip('+')}"
             user.phone_number = phone
             user.save(update_fields=['phone_number'])
@@ -30,13 +39,6 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                 defaults={'user': user},
             )
 
-            # Delete the contact message from chat
-            bot.delete_message(
-                chat_id=message.chat.id,
-                message_id=message.message_id,
-            )
-
-            # Send welcome message (no inline button)
             bot.send_message(
                 chat_id=message.chat.id,
                 text='Вітаємо у нашому сервісі!',
@@ -44,7 +46,7 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
 
-            # Notify admins with complete user data (now includes phone)
+            # Notify admins with complete user data
             from telegram.utils import notify_admins_new_user
             notify_admins_new_user(user)
 
