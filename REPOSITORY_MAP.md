@@ -139,3 +139,20 @@ Redis --- Celery broker (redis://localhost:6379/0)
 PostgreSQL --- database
 
 Nginx --- HTTP reverse proxy
+
+## Static Files Architecture (updated 18.03.2026)
+
+Primary CSS source: telegram/static/css/styles.css
+Synced copy: static/css/styles.css
+
+Both files must be identical. WhiteNoise collects from telegram/static/ (app priority).
+
+After CSS changes:
+1. Edit telegram/static/css/styles.css
+2. cp telegram/static/css/styles.css static/css/styles.css
+3. python3 manage.py collectstatic --clear --noinput
+4. sudo systemctl restart gunicorn.service
+
+JS files:
+telegram/static/js/telegram.js --- WebApp init, theme, auth helper
+telegram/static/js/menu.js --- menu toggle

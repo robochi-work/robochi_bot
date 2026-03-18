@@ -125,3 +125,24 @@ cd /home/webuser/robochi_bot
 - DRF views + serializers = для REST API (новые клиенты: мобильные, SPA)
 - Бизнес-логика живёт в services.py КАЖДОГО app, НЕ в views
 - Оба механизма аутентификации (Session + JWT) работают параллельно
+
+## Frontend стиль (обновлено 18.03.2026)
+
+### CSS архитектура
+- **Основной CSS**: `telegram/static/css/styles.css` — это ЕДИНСТВЕННЫЙ источник стилей. Копия в `static/css/styles.css` синхронизируется вручную.
+- **WhiteNoise** собирает статику из `telegram/static/` (app static dir) — он имеет приоритет над `static/` (project static dir). При изменении CSS нужно обновить ОБА файла.
+- Стиль проекта: neumorphism (стальной градиент `#a6a9ab → #6d7074`, выпуклые кнопки с тенями).
+- Dark theme: `@media (prefers-color-scheme: dark)` — переключает переменные на тёмные значения.
+- НЕ используем: glass-morphism карточки, цветные рамки вокруг контента, `backdrop-filter`.
+
+### Обновление CSS — обязательный порядок
+1. Редактируем `telegram/static/css/styles.css`
+2. Копируем: `cp telegram/static/css/styles.css static/css/styles.css`
+3. `python3 manage.py collectstatic --clear --noinput`
+4. `sudo systemctl restart gunicorn.service`
+
+### Обновлённые шаблоны (18.03.2026)
+- `vacancy/templates/vacancy/pre_call.html` — добавлены классы `btn-primary`, `btn-secondary`
+- `vacancy/templates/vacancy/vacancy_form.html` — убран inline `style="background-color: blue"`
+- `vacancy/templates/vacancy/vacancy_feedback.html` — обёрнут в `.vacancy-feedback`
+- `vacancy/templates/vacancy/call.html`, `call_confirm.html`, `refind_start.html` — обёрнуты в `.call`

@@ -232,3 +232,23 @@ AI должен предлагать изменения точечно:
 - явно отмечать предположение
 - привязываться к уже известным файлам
 - работать от текущего контекста проекта
+
+---
+
+## 9. Static / CSS правила (добавлено 18.03.2026)
+
+### Если меняется CSS
+Смотреть:
+- `telegram/static/css/styles.css` (PRIMARY source)
+- `static/css/styles.css` (synced copy)
+
+### Порядок
+1. Редактируем `telegram/static/css/styles.css`
+2. Копируем в `static/css/styles.css`
+3. `collectstatic --clear --noinput`
+4. Restart gunicorn
+
+### Важно
+- WhiteNoise берёт CSS из `telegram/static/` (app static dir имеет приоритет)
+- Если файлы рассинхронизированы — `collectstatic` возьмёт app-версию
+- `WHITENOISE_KEEP_ONLY_HASHED_FILES = True` — без хэша файл не раздаётся

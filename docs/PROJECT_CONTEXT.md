@@ -51,7 +51,7 @@
 - /api/schema/ → OpenAPI schema
 
 ## Аутентификация (два параллельных механизма)
-1. Django Session (текущий) — для Mini App. authenticate-web-app/ проверяет HMAC-SHA256 initData, создаёт Django session. Используется template views.
+1. Django Session (текущий) — для Mini App. authenticate-web-app/ проверяет HMAC-SHA256 initData, создаёт Django session. Используется template views. Проверка phone_number убрана (телефон сохраняется до открытия WebApp).
 2. JWT (новый) — для REST API. /api/v1/auth/telegram/ принимает initData, валидирует, выдаёт access+refresh токены. Для будущих мобильных клиентов.
 
 AuthIdentity модель (user/models.py) — связывает User с провайдерами аутентификации:
@@ -99,6 +99,17 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - & в .env — всегда кавычить
 
 ## История изменений
+### 18.03.2026 — Настройка входа из бота в Mini App + уведомления админов
+- MenuButton «ПОЧАТИ» (setChatMenuButton type=web_app) вместо inline-кнопки «Відкрити кабінет»
+- После сохранения контакта: delete_message первым (до DB-операций), затем «Вітаємо у нашому сервісі!», затем set_chat_menu_button
+- Убрана проверка phone_number в authenticate_web_app (телефон сохраняется до открытия WebApp)
+- ask_phone текст: «Для продовження надішліть ваш номер телефону:»
+- default_start: устанавливает MenuButton web_app вместо InlineKeyboardButton
+- Уведомление админов о новых пользователях: notify_admins_new_user() в telegram/utils.py
+- ADMIN_TELEGRAM_IDS в .env и config/django/base.py (460011962, 1401489055)
+- Глобальный MenuButton сброшен на default (type=commands), персональный устанавливается после контакта
+- has_main_web_app отключён в BotFather
+
 ### 16.03.2026 — Рефакторинг архитектуры (коммит 9b8e1fc)
 - Добавлен DRF + SimpleJWT + corsheaders + drf-spectacular + ecdsa + httpx
 - Создано api/ app: JWT auth через Telegram initData, endpoints для user/vacancies/payments
@@ -119,7 +130,15 @@ AuthIdentity модель (user/models.py) — связывает User с про
 1. Admin data: каналы для Київ, invite_link для Дніпро, AgreementText
 2. Legacy cleanup: удалить work_profile_detail, ContactForm, work_profile.html
 3. Agreement fix: role из wizard data
-4. Бизнес-логика: форма заявки полная, переклички, ротация, автоматический/ручной поиск
-5. Monobank: получить токен мерчанта, тестировать оплату
-6. ЛК Рабочего и Заказчика: новый дизайн по ТЗ
-7. Мобильные клиенты: Android/iOS через /api/v1/
+4. Wizard: добавить шаг выбора пола (М/Ж) для Рабочего, шаг анкеты пользователя
+5. ЛК Рабочего и Заказчика: новый дизайн по ТЗ (без анкеты, с кнопками Мої відгуки, Вакансії, Моя робота)
+6. Бизнес-логика: форма заявки полная, переклички, ротация, автоматический/ручной поиск
+7. Monobank: получить токен мерчанта, тестировать оплату
+8. Мобильные клиенты: Android/iOS через /api/v1/
+
+### 9.3. Сессия 18.03.2026 (Claude)
+1. **Полная переработка CSS** — единый стиль с robochi.work (neumorphism, стальной градиент).
+2. **Dark theme** — добавлен `@media (prefers-color-scheme: dark)` с тёмными переменными.
+3. **Обнаружен и задокументирован дубль CSS** — `telegram/static/css/styles.css` (приоритетный для WhiteNoise) и `static/css/styles.css`. Оба файла должны быть синхронизированы.
+4. **Обновлены шаблоны**: `pre_call.html`, `vacancy_form.html`, `vacancy_feedback.html`, `call.html`, `call_confirm.html`, `refind_start.html` — убраны inline стили, добавлены единые CSS-классы.
+5. **Убраны glass-morphism карточки** — контент отображается прямо на основном фоне без обрамлений.

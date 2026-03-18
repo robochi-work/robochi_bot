@@ -2,12 +2,13 @@
 {% load i18n %}
 
 {% block body %}
+<div class="pre-call-page">
+    <div class="info">Увага!<br>Почався робочий час, але працівників<br>недостатньо!<br>Якщо бажаєте продовжити пошук працівників — натисніть нижче</div>
 
-    <div class="info">Увага!<br>Почався робочий час, але працівників<br>недостатньо!</div>
-    <a href="{% url 'vacancy:refind' pk=pk %}">ПРОДОЛЖИТИ ПОШУК ПРАЦІВНИКІВ</a>
-    <br>
+    <a href="{% url 'vacancy:refind' pk=pk %}" class="btn-primary">{% trans "Continue search" %}</a>
+
     {% if members_count %}
-        <a href="{% url 'vacancy:call' pk=pk call_type=call_type %}">НЕ ТРЕБА</a>
+        <a href="{% url 'vacancy:call' pk=pk call_type=call_type %}" class="btn-secondary" style="display:block;margin:14px auto;max-width:520px;">{% trans "Not needed" %}</a>
     {% endif %}
-
+</div>
 {% endblock %}
