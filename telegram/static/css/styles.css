@@ -1,0 +1,653 @@
+/* ===== robochi_bot — unified style (matches robochi.work) ===== */
+
+/* ---------- Theme variables ---------- */
+:root {
+    --steel-top: #a6a9ab;
+    --steel-bottom: #6d7074;
+    --accent-dark: #111;
+    --bg-gradient: linear-gradient(145deg, #a6a9ab, #6d7074);
+    --btn-bg: #b0b3b6;
+    --btn-shadow: 3px 3px 6px rgba(0,0,0,0.8), -3px -3px 6px rgba(255,255,255,1);
+    --btn-shadow-active: inset 6px 6px 12px #3c3f42, inset -6px -6px 12px #d4d6d8;
+    --btn-text-shadow: 1px 1px 2px rgba(255,255,255,0.7), -1px -1px 2px rgba(0,0,0,0.6);
+    --btn-radius: 30px;
+    --btn-radius-big: 40px;
+    --card-bg: rgba(255,255,255,0.12);
+    --card-border: rgba(255,255,255,0.25);
+    --card-radius: 16px;
+    --input-bg: rgba(255,255,255,0.85);
+    --input-border: rgba(0,0,0,0.2);
+    --input-radius: 10px;
+    --default-margin: 10px;
+    --default-padding: 12px;
+    --message-success-bg: rgba(76,175,80,0.25);
+    --message-warning-bg: rgba(255,193,7,0.25);
+    --message-error-bg: rgba(244,67,54,0.25);
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* ---------- Base ---------- */
+html, body {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: var(--bg-gradient);
+    background-attachment: fixed;
+    background-size: cover;
+    color: var(--accent-dark);
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Neumorphic button (primary) ---------- */
+.btn-primary,
+button[type="submit"],
+.work_profile button[type="submit"] {
+    display: block;
+    width: 100%;
+    max-width: 520px;
+    margin: 18px auto;
+    padding: 18px 24px;
+    border: none;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    color: var(--accent-dark) !important;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    text-decoration: none !important;
+    text-shadow: var(--btn-text-shadow);
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    letter-spacing: 0.5px;
+}
+.btn-primary:active,
+button[type="submit"]:active,
+.work_profile button[type="submit"]:active {
+    box-shadow: var(--btn-shadow-active);
+}
+
+/* Secondary / smaller button */
+.btn-secondary {
+    display: inline-block;
+    padding: 12px 28px;
+    border: none;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    color: var(--accent-dark) !important;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.6), -1px -1px 2px rgba(0,0,0,0.4);
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.8), -2px -2px 4px rgba(255,255,255,1);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+.btn-secondary:active {
+    box-shadow: var(--btn-shadow-active);
+}
+
+/* Link-styled button (for inline links that should look like buttons) */
+a.btn-primary,
+a.btn-secondary {
+    display: block;
+    text-align: center;
+}
+
+/* ---------- Glass card ---------- */
+.card {
+    background: transparent;
+    border: none;
+    border-radius: var(--card-radius);
+    padding: 20px 16px;
+    margin: var(--default-margin);
+}
+
+/* ---------- Header ---------- */
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 14px;
+    background: rgba(0,0,0,0.08);
+}
+header a {
+    color: var(--accent-dark);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 15px;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+}
+header .left {
+    flex: 1;
+}
+header .right {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* ---------- Menu ---------- */
+.menu {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 15px;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+}
+#menu {
+    display: none;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+}
+#menu a {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 14px;
+    min-height: 48px;
+    background: rgba(0,0,0,0.06);
+    margin-top: 1px;
+    text-decoration: none;
+    color: var(--accent-dark);
+    font-size: 15px;
+    font-weight: 500;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+/* ---------- Messages ---------- */
+.messages-container {
+    padding: 8px 14px;
+}
+.alert {
+    padding: 12px 16px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    font-size: 14px;
+}
+.alert-success { background: var(--message-success-bg); }
+.alert-warning { background: var(--message-warning-bg); }
+.alert-error   { background: var(--message-error-bg); }
+
+/* ---------- Forms — general ---------- */
+.work_profile {
+    padding: 16px 14px;
+    max-width: 560px;
+    margin: 0 auto;
+}
+.work_profile input[type="text"],
+.work_profile input[type="tel"],
+.work_profile input[type="date"],
+.work_profile input[type="number"],
+.work_profile input[type="time"],
+.work_profile input[type="url"],
+.work_profile textarea,
+.work_profile select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--input-radius);
+    background: var(--input-bg);
+    color: var(--accent-dark);
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.work_profile input:focus,
+.work_profile textarea:focus,
+.work_profile select:focus {
+    border-color: var(--steel-bottom);
+    box-shadow: 0 0 0 2px rgba(109,112,116,0.25);
+}
+.work_profile textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+.work_profile label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+/* ---------- Wizard — Role step ---------- */
+.work_profile.step.roles {
+    max-width: 560px;
+    margin: 20px auto;
+    padding: 16px 14px;
+}
+.work_profile.step.roles .role-selector {
+    margin: 0 0 20px;
+    padding: 0;
+    border: 0;
+}
+.work_profile.step.roles .role-selector legend {
+    width: 100%;
+    margin-bottom: 14px;
+    font-size: 18px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+}
+.work_profile.step.roles .role-card {
+    position: relative;
+    display: block;
+    margin-bottom: 14px;
+    cursor: pointer;
+}
+.work_profile.step.roles .role-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+.work_profile.step.roles .role-card__content {
+    display: flex;
+    align-items: center;
+    min-height: 68px;
+    padding: 18px 18px 18px 52px;
+    border: none;
+    border-radius: var(--card-radius);
+    background: transparent;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.work_profile.step.roles .role-card__content::before {
+    content: "";
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+}
+.work_profile.step.roles .role-card__label {
+    display: block;
+    font-size: 16px;
+    line-height: 1.4;
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+}
+.work_profile.step.roles .role-card input[type="radio"]:checked + .role-card__content {
+    border-color: transparent;
+    background: transparent;
+}
+.work_profile.step.roles .role-card input[type="radio"]:checked + .role-card__content::before {
+    border-color: transparent;
+    background: radial-gradient(circle at center, var(--accent-dark) 0 5px, transparent 6px);
+}
+.work_profile.step.roles .role-card input[type="radio"]:focus-visible + .role-card__content {
+    outline: 2px solid var(--accent-dark);
+    outline-offset: 2px;
+}
+
+/* ---------- Wizard — City step ---------- */
+.work_profile.step.city {
+    padding: 16px 14px;
+}
+.work_profile.step.city div label {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 14px;
+    background: transparent;
+    border: none;
+    border-radius: var(--card-radius);
+    cursor: pointer;
+    font-weight: 500;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+    transition: background 0.2s;
+}
+.work_profile.step.city div label input {
+    width: auto;
+    min-height: auto;
+    margin: 0 10px 0 0;
+}
+.work_profile.step.city div label:has(input:checked) {
+    background: transparent;
+    border-color: transparent;
+}
+
+/* ---------- Wizard — Agreement step ---------- */
+.work_profile.step.agreement {
+    padding: 16px 14px;
+}
+.work_profile.step.agreement .info {
+    background: transparent;
+    border: none;
+    border-radius: var(--card-radius);
+    padding: 20px 16px;
+    margin-bottom: 18px;
+}
+.work_profile.step.agreement h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-shadow: var(--btn-text-shadow);
+}
+.work_profile.step.agreement .agreement-text {
+    font-size: 14px;
+    line-height: 1.6;
+    text-align: justify;
+}
+
+/* ---------- Wizard — Contact / legacy step ---------- */
+.work_profile.step.contact p {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
+    padding: 8px 0;
+}
+
+/* ---------- Channel preview block ---------- */
+.channel.preview {
+    background: transparent;
+    border: none;
+    border-radius: var(--card-radius);
+    margin: var(--default-margin);
+    padding: 20px var(--default-padding);
+    text-align: center;
+}
+.channel.preview .title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-dark);
+    text-shadow: var(--btn-text-shadow);
+    margin-bottom: 14px;
+}
+.channel.preview a {
+    text-decoration: none;
+}
+.channel.preview button.open {
+    width: 100%;
+    max-width: 520px;
+    height: auto;
+    padding: 16px 24px;
+    border: none;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    color: var(--accent-dark);
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+    text-shadow: var(--btn-text-shadow);
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    margin-top: 0;
+}
+.channel.preview button.open:active {
+    box-shadow: var(--btn-shadow-active);
+}
+
+/* ---------- Page block ---------- */
+.page-block {
+    background: transparent;
+    border: none;
+    border-radius: var(--card-radius);
+    margin: var(--default-margin);
+    padding: 20px var(--default-padding);
+}
+.page-block h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-shadow: var(--btn-text-shadow);
+}
+
+/* ---------- Active vacancies preview ---------- */
+.active-vacancies-preview ul {
+    list-style: none;
+    padding: 0;
+}
+.active-vacancies-preview li {
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+.active-vacancies-preview li a {
+    color: var(--accent-dark);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* ---------- Vacancy form ---------- */
+.column {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 16px;
+}
+.column label {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+/* Date choice (radio row) */
+.date-choice {
+    width: 100%;
+}
+.date-choice .option {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+}
+.date-choice .option label {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0;
+    cursor: pointer;
+}
+.date-choice .option input[type="radio"] {
+    width: auto;
+    min-height: auto;
+    margin: 0 10px 0 0;
+}
+
+/* Vacancy form general inputs (when used outside .work_profile wrapper) */
+form .column input[type="text"],
+form .column input[type="tel"],
+form .column input[type="number"],
+form .column input[type="time"],
+form .column input[type="url"],
+form .column input[type="date"],
+form .column textarea,
+form .column select {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--input-border);
+    border-radius: var(--input-radius);
+    background: var(--input-bg);
+    color: var(--accent-dark);
+    font-size: 15px;
+    font-family: inherit;
+    outline: none;
+}
+form .column input:focus,
+form .column textarea:focus,
+form .column select:focus {
+    border-color: var(--steel-bottom);
+    box-shadow: 0 0 0 2px rgba(109,112,116,0.25);
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--steel-bottom);
+}
+
+/* ---------- Call / roll-call pages ---------- */
+.call {
+    padding: 20px 14px;
+    max-width: 560px;
+    margin: 0 auto;
+}
+.call h2 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 18px;
+    text-align: center;
+    text-shadow: var(--btn-text-shadow);
+}
+.call form p {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
+}
+.call form p label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px;
+    margin-bottom: 8px;
+    background: transparent;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+/* ---------- Pre-call page ---------- */
+.pre-call-page {
+    padding: 30px 16px;
+    text-align: center;
+    max-width: 560px;
+    margin: 0 auto;
+}
+.pre-call-page .info {
+    background: transparent;
+    border: none;
+    border-radius: var(--card-radius);
+    padding: 24px 18px;
+    margin-bottom: 24px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.6;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+/* ---------- Vacancy feedback ---------- */
+.vacancy-feedback {
+    padding: 20px 14px;
+    max-width: 560px;
+    margin: 0 auto;
+}
+.vacancy-feedback h1 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-shadow: var(--btn-text-shadow);
+}
+
+/* ---------- Info link (admin contact, city not found) ---------- */
+a.info,
+.info-link {
+    display: block;
+    text-align: center;
+    padding: 12px;
+    margin-top: 10px;
+    color: var(--accent-dark);
+    font-size: 13px;
+    text-decoration: underline;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+/* ---------- Form errors ---------- */
+.form-errors,
+.errorlist {
+    color: #b71c1c;
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: rgba(244,67,54,0.12);
+    border-radius: 8px;
+}
+.errorlist {
+    list-style: none;
+}
+
+/* ---------- Terms link ---------- */
+.terms-link {
+    display: block;
+    text-align: center;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--accent-dark);
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+.terms-link a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 420px) {
+    .work_profile {
+        padding: 12px 10px;
+    }
+    .btn-primary,
+    button[type="submit"],
+    .work_profile button[type="submit"] {
+        padding: 16px 18px;
+        font-size: 15px;
+        border-radius: 24px;
+    }
+}
+
+/* ---------- Legacy / misc ---------- */
+.work_profile.main fieldset {
+    margin-bottom: 20px;
+    border-radius: var(--card-radius);
+    border: none;
+    padding: 14px;
+}
+
+/* ---------- Dark theme (Telegram dark mode) ---------- */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --steel-top: #2c2d2e;
+        --steel-bottom: #1a1b1c;
+        --accent-dark: #e0e0e0;
+        --bg-gradient: linear-gradient(145deg, #2c2d2e, #1a1b1c);
+        --btn-bg: #3a3b3d;
+        --btn-shadow: 3px 3px 6px rgba(0,0,0,0.9), -3px -3px 6px rgba(80,80,80,0.3);
+        --btn-shadow-active: inset 6px 6px 12px #111213, inset -6px -6px 12px #4a4b4d;
+        --btn-text-shadow: 1px 1px 2px rgba(0,0,0,0.7), -1px -1px 2px rgba(100,100,100,0.3);
+        --card-bg: rgba(255,255,255,0.06);
+        --card-border: rgba(255,255,255,0.1);
+        --input-bg: rgba(255,255,255,0.1);
+        --input-border: rgba(255,255,255,0.2);
+        --message-success-bg: rgba(76,175,80,0.2);
+        --message-warning-bg: rgba(255,193,7,0.2);
+        --message-error-bg: rgba(244,67,54,0.2);
+    }
+}
