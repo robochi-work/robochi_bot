@@ -2449,3 +2449,44 @@ msgstr "Зберегти зміни"
 
 #~ msgid "Create"
 #~ msgstr "Створити"
+
+#: work/templates/work/work_profile/role.html
+msgid "I AM EMPLOYER"
+msgstr "Я РОБОТОДАВЕЦЬ"
+
+#: work/templates/work/work_profile/role.html
+msgid "looking for workers"
+msgstr "шукаю працівників"
+
+#: work/templates/work/work_profile/role.html
+msgid "I AM WORKER"
+msgstr "Я ПРАЦІВНИК"
+
+#: work/templates/work/work_profile/role.html
+msgid "looking for a job"
+msgstr "шукаю роботу"
+
+#: work/templates/work/work_profile/role.html
+#: work/templates/work/legal_offer.html
+msgid "Public offer agreement and Privacy policy"
+msgstr "Договір оферти та Політика конфіденційності"
+
+#: work/templates/work/legal_offer.html
+msgid "Text is not configured in admin yet."
+msgstr "Текст ще не налаштований в адмінці."
+
+#: work/templates/work/legal_offer.html
+msgid "Back"
+msgstr "Назад"
+
+#: work/models.py
+msgid "Agreement for Employer"
+msgstr "Угода для Роботодавця"
+
+#: work/models.py
+msgid "Agreement for Worker"
+msgstr "Угода для Працівника"
+
+#: work/models.py
+msgid "Public offer and Privacy policy"
+msgstr "Договір оферти та Політика конфіденційності"
