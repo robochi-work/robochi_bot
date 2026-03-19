@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -32,20 +31,16 @@ msgid "Cities"
 msgstr "Города"
 
 #: service/telegram_markup_factory.py:19
-#, fuzzy
-#| msgid "Vacancy"
 msgid "View vacancy"
-msgstr "Вакансия"
+msgstr "Посмотреть вакансию"
 
 #: service/telegram_markup_factory.py:25
 msgid "Apply for vacancy"
 msgstr "Откликнуться на вакансию"
 
 #: service/telegram_markup_factory.py:31
-#, fuzzy
-#| msgid "New feedback"
 msgid "View feedback"
-msgstr "Новый отзыв"
+msgstr "Посмотреть отзыв"
 
 #: service/telegram_markup_factory.py:41 service/telegram_markup_factory.py:47
 #: telegram/handlers/messages/commands.py:113
@@ -57,10 +52,6 @@ msgid "Configured"
 msgstr "Настроен"
 
 #: telegram/admin.py:34
-#, fuzzy
-#| msgid "Message ID"
-msgid "Message"
-msgstr "ID сообщения"
 
 #: telegram/admin_actions.py:18
 #, python-format
@@ -815,10 +806,8 @@ msgid "Attention! Work time has started but there are not enough workers! If you
 msgstr "Внимание! Рабочее время началось, но работников недостаточно! Если хотите продолжить поиск работников — нажмите ниже."
 
 #: vacancy/templates/vacancy/pre_call.html:8
-#, fuzzy
-#| msgid "Continue"
 msgid "Continue search"
-msgstr "Продолжить"
+msgstr "Продолжить поиск"
 
 #: vacancy/templates/vacancy/pre_call.html:11
 msgid "Not needed"
@@ -896,10 +885,6 @@ msgid "Aborted!"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/click/core.py:1779
-#, fuzzy
-#| msgid "Comment"
-msgid "Commands"
-msgstr "Комментарий"
 
 #: venv/lib/python3.11/site-packages/click/core.py:1810
 msgid "Missing command."
@@ -955,10 +940,6 @@ msgstr ""
 
 #: venv/lib/python3.11/site-packages/click/exceptions.py:50
 #: venv/lib/python3.11/site-packages/click/exceptions.py:89
-#, fuzzy, python-brace-format
-#| msgid "Group message"
-msgid "Error: {message}"
-msgstr "Сообщение в группе"
 
 #: venv/lib/python3.11/site-packages/click/exceptions.py:81
 #, python-brace-format
@@ -966,10 +947,6 @@ msgid "Try '{command} {option}' for help."
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/click/exceptions.py:130
-#, fuzzy, python-brace-format
-#| msgid "Invalid date format"
-msgid "Invalid value: {message}"
-msgstr "Недопустимый формат даты"
 
 #: venv/lib/python3.11/site-packages/click/exceptions.py:132
 #, python-brace-format
@@ -1013,10 +990,6 @@ msgstr[2] ""
 msgstr[3] ""
 
 #: venv/lib/python3.11/site-packages/click/exceptions.py:282
-#, fuzzy
-#| msgid "Unknown role"
-msgid "unknown error"
-msgstr "Неизвестная роль"
 
 #: venv/lib/python3.11/site-packages/click/exceptions.py:289
 msgid "Could not open file {filename!r}: {message}"
@@ -1055,10 +1028,6 @@ msgid "Error: The value you entered was invalid."
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/click/termui.py:180
-#, fuzzy, python-brace-format
-#| msgid "Group message"
-msgid "Error: {e.message}"
-msgstr "Сообщение в группе"
 
 #: venv/lib/python3.11/site-packages/click/termui.py:191
 msgid "Error: The two entered values do not match."
@@ -1158,10 +1127,6 @@ msgstr[2] ""
 msgstr[3] ""
 
 #: venv/lib/python3.11/site-packages/django/contrib/messages/apps.py:16
-#, fuzzy
-#| msgid "Message ID"
-msgid "Messages"
-msgstr "ID сообщения"
 
 #: venv/lib/python3.11/site-packages/django/contrib/sitemaps/apps.py:8
 msgid "Site Maps"
@@ -1294,10 +1259,6 @@ msgstr[3] ""
 #: venv/lib/python3.11/site-packages/django/core/validators.py:514
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:366
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:405
-#, fuzzy
-#| msgid "Phone number"
-msgid "Enter a number."
-msgstr "Номер телефона"
 
 #: venv/lib/python3.11/site-packages/django/core/validators.py:516
 #, python-format
@@ -1337,10 +1298,6 @@ msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/db/models/base.py:1600
 #: venv/lib/python3.11/site-packages/django/forms/models.py:908
-#, fuzzy
-#| msgid "Ban"
-msgid "and"
-msgstr "Забанить"
 
 #: venv/lib/python3.11/site-packages/django/db/models/base.py:1602
 #, python-format
@@ -1444,10 +1401,6 @@ msgid "“%(value)s” value must be a decimal number."
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:1704
-#, fuzzy
-#| msgid "Phone number"
-msgid "Decimal number"
-msgstr "Номер телефона"
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:1864
 #, python-format
@@ -1459,10 +1412,6 @@ msgid "Duration"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:1920
-#, fuzzy
-#| msgid "Address"
-msgid "Email address"
-msgstr "Адрес встречи работников"
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:1945
 msgid "File path"
@@ -1474,10 +1423,6 @@ msgid "“%(value)s” value must be a float."
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2025
-#, fuzzy
-#| msgid "Send phone number"
-msgid "Floating point number"
-msgstr "Отправить номер телефона"
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2065
 #, python-format
