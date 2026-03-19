@@ -146,3 +146,35 @@ cd /home/webuser/robochi_bot
 - `vacancy/templates/vacancy/vacancy_form.html` — убран inline `style="background-color: blue"`
 - `vacancy/templates/vacancy/vacancy_feedback.html` — обёрнут в `.vacancy-feedback`
 - `vacancy/templates/vacancy/call.html`, `call_confirm.html`, `refind_start.html` — обёрнуты в `.call`
+
+## Локализация / i18n (добавлено 19.03.2026)
+
+### Как добавлять новые тексты
+- Python код: `from django.utils.translation import gettext as _` → `_('English key text')`
+- Шаблоны: `{% load i18n %}` → `{% trans "English key text" %}`
+- НЕ писать hardcoded кириллические строки — всегда через `_()`
+
+### Обновление переводов
+```bash
+set -a; source .env; set +a
+python manage.py makemessages -l uk -l ru --no-wrap
+# Заполнить переводы в locale/uk/ и locale/ru/ .po файлов
+python manage.py compilemessages -l uk -l ru
+sudo systemctl restart gunicorn.service
+```
+
+### Команды бота
+При изменении описаний команд — вызвать из shell:
+```bash
+python manage.py shell -c "from telegram.handlers.set_commands import setup_bot_commands; setup_bot_commands()"
+```
+
+### Где хранятся переводы
+- `locale/uk/LC_MESSAGES/django.po` — украинский
+- `locale/ru/LC_MESSAGES/django.po` — русский
+- User.language_code — поле в модели пользователя ('uk' по умолчанию)
+- UserLanguageMiddleware активирует перевод по user.language_code
+
+### Особенности
+- vacancy_formatter.py: `with override('uk')` — тексты вакансий в каналах всегда на украинском
+- Кнопка "Открыть приложение" в Telegram — системная, НЕ контролируется разработчиком

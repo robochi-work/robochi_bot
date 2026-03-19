@@ -1,5 +1,4 @@
 # robochi_bot — Project Context
-
 ## Общая информация
 - Сервер: /home/webuser/robochi_bot/ на Fornex VPS, домен robochi.pp.ua
 - GitHub: github.com/robochi-work/robochi_bot, рабочая ветка: develop
@@ -66,6 +65,28 @@ AuthIdentity модель (user/models.py) — связывает User с про
   payment/services.py: create_invoice(), process_webhook() (с modifiedDate идемпотентностью), verify_monobank_signature() (ECDSA).
   Webhook: /api/v1/payments/webhook/monobank/. Env: MONOBANK_API_TOKEN (пока пустой).
 
+## Локализация (i18n) — обновлено 19.03.2026
+Основной язык: украинский (uk). Дополнительный: русский (ru).
+
+### Инфраструктура
+- USE_I18N=True, LANGUAGE_CODE='uk', LANGUAGES=[('ru','Русский'),('uk','Українська')]
+- django-parler: PARLER_DEFAULT_LANGUAGE_CODE='uk', City — TranslatableModel
+- Middleware: django.middleware.locale.LocaleMiddleware + user.middleware.UserLanguageMiddleware (читает user.language_code из БД)
+- User.language_code — поле модели (choices=LANGUAGES, default='uk')
+- locale/uk/LC_MESSAGES/django.po|mo, locale/ru/LC_MESSAGES/django.po|mo — заполнены, скомпилированы
+- Все тексты в Python: gettext/_(), в шаблонах: {% trans %}. Нет hardcoded строк.
+
+### Telegram Bot
+- Команды бота (setMyCommands) зарегистрированы на uk, ru и default (fallback=uk)
+- setup_bot_commands() в telegram/handlers/set_commands.py — вызывать из shell при деплое
+- MenuButton текст ('Start') — через _(), зависит от активного языка
+- Кнопка "Открыть приложение" на профиле бота — системная кнопка Telegram, зависит от языка клиента пользователя, НЕ контролируется разработчиком
+
+### Известные особенности
+- vacancy_formatter.py: with override('uk') — тексты вакансий для каналов принудительно на украинском
+- 3 msgid на украинском в commands.py ('Надіслати номер телефону' и др.) — работают, но нестандартные ключи
+- Fuzzy-строки в .po: только 1/1 (заголовок файла) — норма
+
 ## Сервисный слой
 - user/services.py: get_or_create_user_from_telegram(), find_user_by_phone()
 - payment/services.py: create_invoice(), process_webhook(), verify_monobank_signature(), get_monobank_pubkey()
@@ -88,23 +109,31 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - test_heartbeat — health check
 
 ## БД (текущее состояние)
-- 6 пользователей, 11 AuthIdentity (6 telegram + 5 phone)
+- 5 пользователей, все language_code='uk'
 - Каналы: Харків ✓, Одеса ✓, Дніпро — нет invite_link, Київ — нет канала
 
 ## Окружение и деплой
 - Env: /etc/robochi_bot.env (systemd) или .env в корне
 - Перед manage.py: set -a; source .env; set +a
 - После Python: sudo systemctl restart gunicorn
+- После i18n: python manage.py compilemessages -l uk -l ru && sudo systemctl restart gunicorn
 - Логи: sudo journalctl -u gunicorn -f
 - & в .env — всегда кавычить
 
 ## История изменений
+
+### 19.03.2026 — Локализация (i18n) — полная настройка
+- Все hardcoded тексты заменены на gettext/_() и {% trans %}: telegram_markup_factory.py (5 строк, 3 были на русском), common.py (кнопка 'Подтвердить'), commands.py (приветствие + MenuButton), user_phone_number.py (приветствие + MenuButton), pre_call.html (текстовый блок)
+- set_commands.py переписан: setup_bot_commands() регистрирует команды на uk/ru/default
+- Починена кодировка в telegram/handlers/__init__.py и contact/__init__.py (Windows-1251 → UTF-8)
+- locale/uk и locale/ru: заполнены все переводы, скомпилированы .mo
+- Fuzzy-строки очищены: с 38/37 до 1/1 (только заголовок .po)
+- Коммиты: 6bf8402, 38b4632, 11a72a2
+
 ### 18.03.2026 — Настройка входа из бота в Mini App + уведомления админов
 - MenuButton «ПОЧАТИ» (setChatMenuButton type=web_app) вместо inline-кнопки «Відкрити кабінет»
 - После сохранения контакта: delete_message первым (до DB-операций), затем «Вітаємо у нашому сервісі!», затем set_chat_menu_button
 - Убрана проверка phone_number в authenticate_web_app (телефон сохраняется до открытия WebApp)
-- ask_phone текст: «Для продовження надішліть ваш номер телефону:»
-- default_start: устанавливает MenuButton web_app вместо InlineKeyboardButton
 - Уведомление админов о новых пользователях: notify_admins_new_user() в telegram/utils.py
 - ADMIN_TELEGRAM_IDS в .env и config/django/base.py (460011962, 1401489055)
 - Глобальный MenuButton сброшен на default (type=commands), персональный устанавливается после контакта
@@ -135,10 +164,11 @@ AuthIdentity модель (user/models.py) — связывает User с про
 6. Бизнес-логика: форма заявки полная, переклички, ротация, автоматический/ручной поиск
 7. Monobank: получить токен мерчанта, тестировать оплату
 8. Мобильные клиенты: Android/iOS через /api/v1/
+9. i18n: перевести msgid на английский (commands.py), убрать override('uk') в vacancy_formatter для личных сообщений
 
-### 9.3. Сессия 18.03.2026 (Claude)
-1. **Полная переработка CSS** — единый стиль с robochi.work (neumorphism, стальной градиент).
-2. **Dark theme** — добавлен `@media (prefers-color-scheme: dark)` с тёмными переменными.
-3. **Обнаружен и задокументирован дубль CSS** — `telegram/static/css/styles.css` (приоритетный для WhiteNoise) и `static/css/styles.css`. Оба файла должны быть синхронизированы.
-4. **Обновлены шаблоны**: `pre_call.html`, `vacancy_form.html`, `vacancy_feedback.html`, `call.html`, `call_confirm.html`, `refind_start.html` — убраны inline стили, добавлены единые CSS-классы.
-5. **Убраны glass-morphism карточки** — контент отображается прямо на основном фоне без обрамлений.
+### Сессия 18.03.2026 (CSS)
+1. Полная переработка CSS — единый стиль с robochi.work (neumorphism, стальной градиент).
+2. Dark theme — добавлен @media (prefers-color-scheme: dark) с тёмными переменными.
+3. Обнаружен и задокументирован дубль CSS — telegram/static/css/styles.css и static/css/styles.css.
+4. Обновлены шаблоны: pre_call, vacancy_form, vacancy_feedback, call, call_confirm, refind_start.
+5. Убраны glass-morphism карточки.

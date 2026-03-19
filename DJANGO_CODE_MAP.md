@@ -252,3 +252,28 @@ AI должен предлагать изменения точечно:
 - WhiteNoise берёт CSS из `telegram/static/` (app static dir имеет приоритет)
 - Если файлы рассинхронизированы — `collectstatic` возьмёт app-версию
 - `WHITENOISE_KEEP_ONLY_HASHED_FILES = True` — без хэша файл не раздаётся
+
+---
+
+## 10. Locale / i18n правила (добавлено 19.03.2026)
+
+### Если добавляется новый текст для пользователя
+Смотреть:
+- Python: обернуть в `_()` (from django.utils.translation import gettext as _)
+- Templates: обернуть в `{% trans "..." %}` или `{% blocktrans %}...{% endblocktrans %}`
+- `locale/uk/LC_MESSAGES/django.po` — украинский перевод
+- `locale/ru/LC_MESSAGES/django.po` — русский перевод
+
+### Порядок
+1. Добавляем `_('English key')` в код
+2. `python manage.py makemessages -l uk -l ru --no-wrap`
+3. Заполняем msgstr в обоих .po файлах
+4. `python manage.py compilemessages -l uk -l ru`
+5. Restart gunicorn
+
+### Важно
+- msgid — на английском (исторически есть несколько на украинском — не ломать)
+- НЕ использовать hardcoded кириллические строки в Python/templates
+- vacancy_formatter.py: `with override('uk')` — для каналов это правильно
+- Telegram Bot commands: setup_bot_commands() — вызвать после изменений
+- User.language_code хранит предпочтение пользователя ('uk' по умолчанию)
