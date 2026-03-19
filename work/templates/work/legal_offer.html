@@ -1,0 +1,18 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+<div class="page-narrow">
+    {% if agreement %}
+        <h1 style="font-size:18px;font-weight:700;text-align:center;margin-bottom:20px;text-shadow:1px 1px 2px rgba(255,255,255,0.7),-1px -1px 2px rgba(0,0,0,0.6);">{{ agreement.title }}</h1>
+        <div class="legal-text">
+            {{ agreement.text|linebreaks }}
+        </div>
+    {% else %}
+        <h1 style="font-size:18px;font-weight:700;text-align:center;margin-bottom:20px;">{% trans "Public offer agreement and Privacy policy" %}</h1>
+        <p style="text-align:center;padding:20px;">{% trans "Text is not configured in admin yet." %}</p>
+    {% endif %}
+
+    <a href="javascript:history.back()" class="btn-secondary" style="display:block;margin:24px auto;max-width:200px;text-align:center;">{% trans "Back" %}</a>
+</div>
+{% endblock %}

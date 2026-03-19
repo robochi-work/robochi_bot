@@ -2,36 +2,67 @@
 {% load i18n %}
 
 {% block form %}
-    <form method="post">
-        {% csrf_token %}
-        <div class="work_profile step roles">
-            {{ wizard.management_form }}
-            {% if form.non_field_errors %}
-                <div class="form-errors">
-                    {{ form.non_field_errors }}
-                </div>
-            {% endif %}
+<form method="post" id="role-form">
+    {% csrf_token %}
+    {{ wizard.management_form }}
 
-            <fieldset class="role-selector">
-                <legend>{{ form.role.label }}</legend>
-
-                {% for radio in form.role %}
-                    <label class="role-card" for="{{ radio.id_for_label }}">
-                        {{ radio.tag }}
-                        <span class="role-card__content">
-                            <span class="role-card__label">{{ radio.choice_label }}</span>
-                        </span>
-                    </label>
-                {% endfor %}
-
-                {% if form.role.errors %}
-                    <div class="form-errors">
-                        {{ form.role.errors }}
-                    </div>
-                {% endif %}
-            </fieldset>
-
-            <button type="submit">{% trans 'Continue' %}</button>
+    <main class="page page--role">
+        <div class="big-buttons">
+            {% for radio in form.role %}
+                <label class="big-btn" for="{{ radio.id_for_label }}">
+                    {{ radio.tag }}
+                    {% if forloop.first %}
+                        <span class="line1">{% trans "I AM EMPLOYER" %}</span>
+                        <span class="line2">{% trans "looking for workers" %}</span>
+                    {% else %}
+                        <span class="line1">{% trans "I AM WORKER" %}</span>
+                        <span class="line2">{% trans "looking for a job" %}</span>
+                    {% endif %}
+                </label>
+            {% endfor %}
         </div>
-    </form>
+
+        <div class="bottom-link">
+            <a href="{% url 'work:legal_offer' %}">{% trans "Public offer agreement and Privacy policy" %}</a>
+        </div>
+    </main>
+</form>
+
+<style>
+    .big-btn input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .big-btn {
+        cursor: pointer;
+        position: relative;
+    }
+    .page--role {
+        justify-content: flex-start;
+        padding-top: 25vh;
+    }
+    .bottom-link {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 10px;
+        display: flex;
+        justify-content: center;
+        font-size: 12px;
+        text-shadow: 1px 1px 2px rgba(255,255,255,0.6), -1px -1px 2px rgba(0,0,0,0.6);
+    }
+    .bottom-link a {
+        color: var(--accent-dark);
+        text-decoration: none;
+    }
+</style>
+
+<script>
+document.querySelectorAll('.big-btn input[type="radio"]').forEach(function(radio) {
+    radio.addEventListener('change', function() {
+        document.getElementById('role-form').submit();
+    });
+});
+</script>
 {% endblock %}
