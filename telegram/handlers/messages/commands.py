@@ -33,7 +33,7 @@ def choose_role(message: Message, **kwargs: dict[str, Any]) -> None:
 
     get_bot().send_message(
         message.chat.id,
-        'Вас вітає сервіс\nrobochi.work\nОбираите\nЯ ЗАМОВНИК\nта знаходьте будь яку кількість\nпрацівників швидко та зручно!\nАбо обираите\nЯ ПРАЦІВНИК\nта знаходьте підробіток\nколи зручно!\n',
+        _('Welcome to robochi.work! Choose your role below.'),
         reply_markup=markup,
     )
 @user_required
@@ -77,7 +77,7 @@ def default_start(message: Message, user: User, **kwargs):
             chat_id=message.chat.id,
             menu_button=MenuButtonWebApp(
                 type='web_app',
-                text='ПОЧАТИ',
+                text=_('Start'),
                 web_app=types.WebAppInfo(url=url),
             ),
         )

@@ -16,19 +16,19 @@ from vacancy.models import Vacancy
 def admin_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     url = settings.BASE_URL.rstrip('/') + get_admin_url(vacancy)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text='🔍 Посмотреть вакансию', web_app=WebAppInfo(url=url)))
+    markup.add(InlineKeyboardButton(text=_('View vacancy'), web_app=WebAppInfo(url=url)))
     return markup
 
 def channel_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup()
     if vacancy.group and vacancy.group.invite_link:
-        markup.add(InlineKeyboardButton(text='Откликнуться на вакансию', url=vacancy.group.invite_link))
+        markup.add(InlineKeyboardButton(text=_('Apply for vacancy'), url=vacancy.group.invite_link))
     return markup
 
 def admin_vacancy_feedback_reply_markup(feedback: UserFeedback) -> InlineKeyboardMarkup:
     url = settings.BASE_URL.rstrip('/') + get_admin_url(feedback)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text='🔍 Посмотреть отзыв', web_app=WebAppInfo(url=url)))
+    markup.add(InlineKeyboardButton(text=_('View feedback'), web_app=WebAppInfo(url=url)))
     return markup
 
 def group_url_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
@@ -38,11 +38,11 @@ def group_url_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     }
     url = get_payload_url(payload=payload)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text='Надіслати відгук', url=url))
+    markup.add(InlineKeyboardButton(text=_('Send feedback'), url=url))
     return markup
 
 def group_webapp_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     url = settings.BASE_URL.rstrip('/') + reverse('vacancy:feedback', kwargs={'pk': vacancy.pk})
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text='Надіслати відгук', web_app=WebAppInfo(url=url)))
+    markup.add(InlineKeyboardButton(text=_('Send feedback'), web_app=WebAppInfo(url=url)))
     return markup

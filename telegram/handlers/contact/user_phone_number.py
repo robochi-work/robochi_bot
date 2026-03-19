@@ -41,7 +41,7 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
 
             bot.send_message(
                 chat_id=message.chat.id,
-                text='Вітаємо у нашому сервісі!',
+                text=_('Welcome to our service!'),
                 reply_markup=ReplyKeyboardRemove(),
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
@@ -63,7 +63,7 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                 chat_id=message.chat.id,
                 menu_button=types.MenuButtonWebApp(
                     type='web_app',
-                    text='ПОЧАТИ',
+                    text=_('Start'),
                     web_app=WebAppInfo(url=webapp_url),
                 ),
             )

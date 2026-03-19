@@ -29,6 +29,6 @@ class ButtonStorage:
     menu_language = lambda label=None: IKB(label or '🌐 ' + _('Language'), callback_data=CallbackStorage.menu.new(name='language'))
     work_role = lambda label, role: IKB(label, callback_data=CallbackStorage.work_role.new(role=role))
     web_app = lambda label=None, url=settings.BASE_URL: IKB(label or _('Open the app'), web_app=WebAppInfo(url=url))
-    before_start_call_confirm_btn = lambda vacancy_id, label='Подтвердить': IKB(label, callback_data=CallbackStorage.call_handler.new(call_type=CallType.BEFORE_START.value, status=CallStatus.CONFIRM.value, vacancy_id=vacancy_id))
+    before_start_call_confirm_btn = lambda vacancy_id, label=None: IKB(label or _('Confirm'), callback_data=CallbackStorage.call_handler.new(call_type=CallType.BEFORE_START.value, status=CallStatus.CONFIRM.value, vacancy_id=vacancy_id))
     pay = lambda label: IKB(label, pay=True)
 
