@@ -77,7 +77,7 @@ def default_start(message: Message, user: User, **kwargs):
             chat_id=message.chat.id,
             menu_button=MenuButtonWebApp(
                 type='web_app',
-                text=_('Start'),
+                text='ПОЧАТИ',
                 web_app=types.WebAppInfo(url=url),
             ),
         )

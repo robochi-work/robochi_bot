@@ -63,7 +63,7 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                 chat_id=message.chat.id,
                 menu_button=types.MenuButtonWebApp(
                     type='web_app',
-                    text=_('Start'),
+                    text='ПОЧАТИ',
                     web_app=WebAppInfo(url=webapp_url),
                 ),
             )
