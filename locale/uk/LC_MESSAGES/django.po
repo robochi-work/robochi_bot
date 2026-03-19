@@ -1442,16 +1442,8 @@ msgid "Small integer"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2188
-#, fuzzy
-#| msgid "Address"
-msgid "IPv4 address"
-msgstr "Адреса зустрічі працівників"
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2219
-#, fuzzy
-#| msgid "Address"
-msgid "IP address"
-msgstr "Адреса зустрічі працівників"
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2310
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2311
@@ -1495,10 +1487,6 @@ msgid "“%(value)s” value has the correct format (HH:MM[:ss[.uuuuuu]]) but it
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2534
-#, fuzzy
-#| msgid "End Time"
-msgid "Time"
-msgstr "Час закінчення роботы"
 
 #: venv/lib/python3.11/site-packages/django/db/models/fields/__init__.py:2642
 msgid "URL"
@@ -1571,10 +1559,6 @@ msgid "This field is required."
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:315
-#, fuzzy
-#| msgid "Send phone number"
-msgid "Enter a whole number."
-msgstr "Надіслати номер телефону"
 
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:486
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:1267
@@ -1595,10 +1579,6 @@ msgid "Enter a valid duration."
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:571
-#, fuzzy, python-brace-format
-#| msgid "Number of people must be between 1 and 20."
-msgid "The number of days must be between {min_days} and {max_days}."
-msgstr "Кількість людей повинна бути від одного до двадцяти."
 
 #: venv/lib/python3.11/site-packages/django/forms/fields.py:640
 msgid "No file was submitted. Check the encoding type on the form."
@@ -1693,10 +1673,6 @@ msgid "Order"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/forms/formsets.py:499
-#, fuzzy
-#| msgid "Deleted"
-msgid "Delete"
-msgstr "Вилучено"
 
 #: venv/lib/python3.11/site-packages/django/forms/models.py:901
 #, python-format
@@ -1744,16 +1720,8 @@ msgid "Currently"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/forms/widgets.py:529
-#, fuzzy
-#| msgid "Channel"
-msgid "Change"
-msgstr "Канал"
 
 #: venv/lib/python3.11/site-packages/django/forms/widgets.py:866
-#, fuzzy
-#| msgid "Unknown role"
-msgid "Unknown"
-msgstr "Невідома роль"
 
 #: venv/lib/python3.11/site-packages/django/forms/widgets.py:867
 msgid "Yes"
@@ -1876,10 +1844,6 @@ msgid "Fri"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:21
-#, fuzzy
-#| msgid "Start"
-msgid "Sat"
-msgstr "Час початку"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:22
 msgid "Sun"
@@ -1902,10 +1866,6 @@ msgid "April"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:29
-#, fuzzy
-#| msgid "Pay"
-msgid "May"
-msgstr "Сплатити"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:30
 msgid "June"
@@ -1920,32 +1880,16 @@ msgid "August"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:33
-#, fuzzy
-#| msgid "Member"
-msgid "September"
-msgstr "Учасник"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:34
 msgid "October"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:35
-#, fuzzy
-#| msgid "Member"
-msgid "November"
-msgstr "Учасник"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:36
-#, fuzzy
-#| msgid "Member"
-msgid "December"
-msgstr "Учасник"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:39
-#, fuzzy
-#| msgid "Ban"
-msgid "jan"
-msgstr "Заблокувати"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:40
 msgid "feb"
@@ -1960,10 +1904,6 @@ msgid "apr"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:43
-#, fuzzy
-#| msgid "Pay"
-msgid "may"
-msgstr "Сплатити"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:44
 msgid "jun"
@@ -2014,11 +1954,6 @@ msgid "April"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:57
-#, fuzzy
-#| msgid "Pay"
-msgctxt "abbrev. month"
-msgid "May"
-msgstr "Сплатити"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:58
 msgctxt "abbrev. month"
@@ -2076,11 +2011,6 @@ msgid "April"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:71
-#, fuzzy
-#| msgid "Pay"
-msgctxt "alt. month"
-msgid "May"
-msgstr "Сплатити"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:72
 msgctxt "alt. month"
@@ -2098,11 +2028,6 @@ msgid "August"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:75
-#, fuzzy
-#| msgid "Member"
-msgctxt "alt. month"
-msgid "September"
-msgstr "Учасник"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:76
 msgctxt "alt. month"
@@ -2110,18 +2035,8 @@ msgid "October"
 msgstr ""
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:77
-#, fuzzy
-#| msgid "Member"
-msgctxt "alt. month"
-msgid "November"
-msgstr "Учасник"
 
 #: venv/lib/python3.11/site-packages/django/utils/dates.py:78
-#, fuzzy
-#| msgid "Member"
-msgctxt "alt. month"
-msgid "December"
-msgstr "Учасник"
 
 #: venv/lib/python3.11/site-packages/django/utils/ipv6.py:20
 msgid "This is not a valid IPv6 address."
