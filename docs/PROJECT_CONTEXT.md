@@ -172,3 +172,15 @@ AuthIdentity модель (user/models.py) — связывает User с про
 3. Обнаружен и задокументирован дубль CSS — telegram/static/css/styles.css и static/css/styles.css.
 4. Обновлены шаблоны: pre_call, vacancy_form, vacancy_feedback, call, call_confirm, refind_start.
 5. Убраны glass-morphism карточки.
+
+### Сессия 20.03.2026 (Frontend pages + bot flow)
+1. **Страница role** — big-btn стиль как robochi.work, auto-submit по клику, ссылка "Договір оферти" внизу
+2. **Страница city** — прокрутка списка, фиксированная кнопка ПРОДОВЖИТИ внизу, заголовок "Оберіть Ваше місто", ссылка на админа в конце списка
+3. **Страница agreement** — прокрутка текста, фиксированная кнопка ЗГОДЕН внизу, заголовок "Правила користування сервісом:"
+4. **Страница legal_offer** — новая: /work/legal/offer/, отображает AgreementText type=offer из админки
+5. **Страница phone_required** — новая: /work/phone-required/, показывается при открытии WebApp без подтверждённого телефона, кнопка "Повернутися в бот" + resend phone request
+6. **AgreementText модель** — добавлен тип `offer` (Договір оферти та Політика конфіденційності), admin с list_editable
+7. **Bot flow** — ask_phone сбрасывает MenuButton, проверка phone_number в questionnaire_redirect и index view
+8. **i18n** — добавлены переводы для role, city, agreement, legal, phone_required страниц
+9. **Новые файлы**: work/views/legal.py, work/views/phone_required.py, work/templates/work/legal_offer.html, work/templates/work/phone_required.html
+10. **Миграция** — AgreementText.role choices расширен (employer, worker, offer)

@@ -6,6 +6,7 @@ from work.views.work_profile import (
     work_profile_detail,
 )
 from work.views.legal import legal_offer_view
+from work.views.phone_required import phone_required_view, resend_phone_request
 
 app_name = 'work'
 
@@ -14,4 +15,6 @@ urlpatterns = [
     path('wizard/', questionnaire_redirect, name='wizard'),
     path('wizard/<step>/', login_required(ProfileWizard.as_view()), name='wizard_step'),
     path('legal/offer/', legal_offer_view, name='legal_offer'),
+    path('phone-required/', phone_required_view, name='phone_required'),
+    path('phone-required/resend/', resend_phone_request, name='resend_phone'),
 ]

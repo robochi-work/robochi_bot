@@ -7,6 +7,10 @@ from work.blocks.registry import block_registry
 
 @login_required
 def index(request: WSGIRequest):
+    # If phone not confirmed, redirect to phone-required page
+    if not request.user.phone_number:
+        from django.shortcuts import redirect
+        return redirect('work:phone_required')
     blocks = []
     for block in block_registry.get_visible_blocks(request):
         ctx = block.get_context(request)

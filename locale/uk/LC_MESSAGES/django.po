@@ -2490,3 +2490,31 @@ msgstr "Угода для Працівника"
 #: work/models.py
 msgid "Public offer and Privacy policy"
 msgstr "Договір оферти та Політика конфіденційності"
+
+#: work/templates/work/work_profile/step_city.html
+msgid "Choose your city"
+msgstr "Оберіть Ваше місто"
+
+#: work/templates/work/work_profile/step_city.html
+msgid "If your city is not on the list — write to the administrator"
+msgstr "Якщо Вашого міста немає у списку — напишіть адміністратору"
+
+#: work/templates/work/phone_required.html
+msgid "Phone number required"
+msgstr "Необхідно підтвердити номер телефону"
+
+#: work/templates/work/phone_required.html
+msgid "To continue, please go back to the bot chat and confirm your phone number by pressing the button below the message."
+msgstr "Для продовження поверніться у чат з ботом та підтвердіть ваш номер телефону, натиснувши кнопку під повідомленням."
+
+#: work/templates/work/phone_required.html
+msgid "Back to bot"
+msgstr "Повернутися в бот"
+
+#: work/templates/work/work_profile/step_agreement.html
+msgid "Terms of service"
+msgstr "Правила користування сервісом:"
+
+#: work/templates/work/work_profile/step_agreement.html
+msgid "I agree"
+msgstr "ЗГОДЕН"

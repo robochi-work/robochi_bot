@@ -178,3 +178,14 @@ python manage.py shell -c "from telegram.handlers.set_commands import setup_bot_
 ### Особенности
 - vacancy_formatter.py: `with override('uk')` — тексты вакансий в каналах всегда на украинском
 - Кнопка "Открыть приложение" в Telegram — системная, НЕ контролируется разработчиком
+
+### Новые страницы и views (добавлено 20.03.2026)
+- `work/views/legal.py` — legal_offer_view, отображает AgreementText type=offer
+- `work/views/phone_required.py` — phone_required_view + resend_phone_request (API для повторной отправки кнопки телефона)
+- `work/templates/work/legal_offer.html` — страница договора оферти
+- `work/templates/work/phone_required.html` — страница "подтвердите телефон" с JS close WebApp + resend
+
+### Проверка phone_number (добавлено 20.03.2026)
+- `work/views/index.py` — редирект на phone_required если нет phone_number
+- `work/views/work_profile.py` — questionnaire_redirect: редирект на phone_required если нет phone_number
+- `telegram/views.py` — authenticate_web_app: редирект на /work/phone-required/ если нет phone_number

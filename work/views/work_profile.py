@@ -76,6 +76,10 @@ class ProfileWizard(SessionWizardView):
 
 @login_required
 def questionnaire_redirect(request):
+    # If phone not confirmed, redirect to phone-required page
+    if not request.user.phone_number:
+        return redirect('work:phone_required')
+
     profile, _ = UserWorkProfile.objects.get_or_create(user=request.user)
 
     if not profile.role:

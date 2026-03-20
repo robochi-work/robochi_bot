@@ -9,7 +9,7 @@
     <main class="page page--role">
         <div class="big-buttons">
             {% for radio in form.role %}
-                <label class="big-btn" for="{{ radio.id_for_label }}">
+                <label class="big-btn" data-index="{{ forloop.counter0 }}">
                     {{ radio.tag }}
                     {% if forloop.first %}
                         <span class="line1">{% trans "I AM EMPLOYER" %}</span>
@@ -32,7 +32,6 @@
     .big-btn input[type="radio"] {
         position: absolute;
         opacity: 0;
-        pointer-events: none;
     }
     .big-btn {
         cursor: pointer;
@@ -59,9 +58,14 @@
 </style>
 
 <script>
-document.querySelectorAll('.big-btn input[type="radio"]').forEach(function(radio) {
-    radio.addEventListener('change', function() {
-        document.getElementById('role-form').submit();
+document.querySelectorAll('.big-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var radio = btn.querySelector('input[type="radio"]');
+        if (radio) {
+            radio.checked = true;
+            document.getElementById('role-form').submit();
+        }
     });
 });
 </script>

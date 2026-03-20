@@ -70,6 +70,10 @@ def authenticate_web_app(request: WSGIRequest):
         logger.warning("WEBAPP AUTH logging-in telegram_user_id=%s user_pk=%s", user_id, user.pk)
         login(request, user)
 
+        # If user has no phone number, redirect to phone-required page
+        if not user.phone_number:
+            return redirect('/work/phone-required/')
+
         return redirect(next_path)
 
     admin_login_url = reverse("admin:login")
