@@ -1,0 +1,61 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+<form method="post" id="gender-form">
+    {% csrf_token %}
+    {{ wizard.management_form }}
+
+    <main class="page page--gender">
+        <div class="gender-title">Оберіть Вашу стать:</div>
+
+        <div class="big-buttons">
+            {% for radio in form.gender %}
+                <label class="big-btn" data-index="{{ forloop.counter0 }}">
+                    {{ radio.tag }}
+                    {% if forloop.first %}
+                        <span class="line1">Я ЧОЛОВІК</span>
+                    {% else %}
+                        <span class="line1">Я ЖІНКА</span>
+                    {% endif %}
+                </label>
+            {% endfor %}
+        </div>
+    </main>
+</form>
+
+<style>
+    .big-btn input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+    }
+    .big-btn {
+        cursor: pointer;
+        position: relative;
+    }
+    .page--gender {
+        justify-content: flex-start;
+        padding-top: 20vh;
+    }
+    .gender-title {
+        text-align: center;
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 24px;
+        color: var(--text-color, #fff);
+    }
+</style>
+
+<script>
+document.querySelectorAll('.big-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var radio = btn.querySelector('input[type="radio"]');
+        if (radio) {
+            radio.checked = true;
+            document.getElementById('gender-form').submit();
+        }
+    });
+});
+</script>
+{% endblock %}
