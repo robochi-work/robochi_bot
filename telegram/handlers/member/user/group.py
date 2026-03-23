@@ -1,4 +1,5 @@
 from telebot.types import ChatMemberUpdated, ChatPermissions, ChatJoinRequest
+from django.utils.translation import gettext as _
 
 from telegram.models import Group, UserInGroup, Status
 from telegram.handlers.bot_instance import bot
@@ -21,6 +22,7 @@ def auto_approve(req: ChatJoinRequest):
             }
         )
 
+        # Admins always pass
         if user.is_staff:
             bot.approve_chat_join_request(req.chat.id, req.from_user.id)
             GroupService.set_default_admin_permissions(
@@ -34,8 +36,13 @@ def auto_approve(req: ChatJoinRequest):
             )
             return
 
+        # Blocked users
         if not user.is_active:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            bot.send_message(
+                req.from_user.id,
+                text="Ви заблоковані в системі. Зверніться до адміністратора."
+            )
             return
 
         group, _ = Group.objects.update_or_create(
@@ -49,21 +56,66 @@ def auto_approve(req: ChatJoinRequest):
             group=group,
         )
 
-        filters = [
-            vacancy.members.count() < vacancy.people_count,
-            (vacancy.gender == user.gender) or vacancy.gender == GENDER_ANY,
-        ]
-
-        if all(filters) or vacancy.owner == user:
+        # Vacancy owner always passes
+        if vacancy.owner == user:
             bot.approve_chat_join_request(req.chat.id, req.from_user.id)
-        else:
-            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            return
 
+        # Check: already in another active vacancy
+        already_in_vacancy = VacancyUser.objects.filter(
+            user=user,
+            status=Status.MEMBER,
+            vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+        ).exclude(vacancy=vacancy).exists()
+
+        if already_in_vacancy:
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            bot.send_message(
+                req.from_user.id,
+                text="Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну."
+            )
+            return
+
+        # Check: group is full
+        if vacancy.members.count() >= vacancy.people_count:
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            bot.send_message(
+                req.from_user.id,
+                text="На жаль, всі місця за цією вакансією вже зайняті."
+            )
+            return
+
+        # Check: gender filter
+        if vacancy.gender != GENDER_ANY:
+            if not user.gender:
+                bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+                bot.send_message(
+                    req.from_user.id,
+                    text="Ваша стать не вказана в профілі. Зверніться до адміністратора."
+                )
+                return
+            if vacancy.gender != user.gender:
+                bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+                bot.send_message(
+                    req.from_user.id,
+                    text="Ця вакансія призначена для іншої статі."
+                )
+                return
+
+        # All checks passed
+        bot.approve_chat_join_request(req.chat.id, req.from_user.id)
+
+    except Vacancy.DoesNotExist:
+        try:
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+        except Exception:
+            pass
     except Exception as e:
         try:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
-        except Exception as ex:
-            ...
+        except Exception:
+            pass
+
 
 @bot.chat_member_handler()
 def handle_user_status_change(event: ChatMemberUpdated):
@@ -95,9 +147,9 @@ def handle_user_status_change(event: ChatMemberUpdated):
     )
 
     status = event.new_chat_member.status
-    if status not in ['kicked', 'left',]:
+    if status not in ['kicked', 'left']:
 
-        if not status in Status.values:
+        if status not in Status.values:
             status = Status.MEMBER.value
         if event.new_chat_member.user.id == vacancy.owner.id:
             status = Status.OWNER.value
@@ -113,7 +165,6 @@ def handle_user_status_change(event: ChatMemberUpdated):
         if user.is_staff:
             status = Status.ADMINISTRATOR.value
 
-
         UserInGroup.objects.update_or_create(
             user=user,
             group=group,
@@ -125,7 +176,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
             status=status,
         )
 
-        vacancy_publisher.notify(events.VACANCY_NEW_MEMBER, data={'vacancy': vacancy, })
+        vacancy_publisher.notify(events.VACANCY_NEW_MEMBER, data={'vacancy': vacancy})
     else:
         UserInGroup.objects.filter(user=user, group=group).delete()
         VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
@@ -135,4 +186,4 @@ def handle_user_status_change(event: ChatMemberUpdated):
         )
 
         if not vacancy.owner == user and not user.is_staff:
-            vacancy_publisher.notify(events.VACANCY_LEFT_MEMBER, data={'vacancy': vacancy, })
+            vacancy_publisher.notify(events.VACANCY_LEFT_MEMBER, data={'vacancy': vacancy})
