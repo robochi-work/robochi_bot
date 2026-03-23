@@ -27,8 +27,6 @@ class User(AbstractUser):
     last_name = None
     full_name = models.CharField(_('Full name'), max_length=150, blank=True, null=True)
     phone_number = models.CharField(max_length=20, null=True, blank=True, verbose_name=_('Phone number'))
-    birth_year = models.IntegerField(
-        _('Birth year'),
         null=True,
         blank=True,
     )

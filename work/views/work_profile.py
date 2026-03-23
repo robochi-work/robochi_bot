@@ -1,10 +1,10 @@
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from formtools.wizard.views import SessionWizardView
 from django.utils.decorators import method_decorator
 
 from work.choices import WorkProfileRole
-from work.forms import CityForm, CitySelectForm, RoleForm, GenderForm, AgreementForm
+from work.forms import CityForm, RoleForm, GenderForm, AgreementForm
 from work.models import UserWorkProfile, AgreementText
 from work.service.events import WORK_PROFILE_COMPLETED
 from work.service.subscriber_setup import work_publisher
@@ -113,29 +113,3 @@ def questionnaire_redirect(request):
         return redirect('work:wizard_step', step='agreement')
 
     return redirect('/')
-
-
-@login_required
-def work_profile_detail(request):
-    user = request.user
-    profile, _ = UserWorkProfile.objects.get_or_create(user=user)
-
-    city_form = CitySelectForm(request.POST, instance=profile, prefix='city')
-    city_form.fields['city'].disabled = True
-
-    if request.method == 'POST':
-        from work.forms import ContactForm
-        contact_form = ContactForm(request.POST, user=user, prefix='contact')
-        if city_form.is_valid() and contact_form.is_valid():
-            city_form.save()
-            contact_form.save()
-            return redirect('/')
-    else:
-        from work.forms import ContactForm
-        contact_form = ContactForm(user=user, prefix='contact')
-
-    return render(request, 'work/work_profile/work_profile.html', {
-        'role': profile.get_role_display(),
-        'city_form': city_form,
-        'contact_form': contact_form,
-    })

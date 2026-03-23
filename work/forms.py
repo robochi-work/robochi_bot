@@ -1,13 +1,8 @@
-import datetime
-
 from django import forms
 from django.utils.translation import gettext_lazy as _
-from django.contrib.auth import get_user_model
 from city.models import City
 from user.choices import USER_GENDER_CHOICES
 from .models import UserWorkProfile, WorkProfileRole
-
-User = get_user_model()
 
 
 class RoleForm(forms.ModelForm):
@@ -58,14 +53,6 @@ class CityForm(forms.ModelForm):
         self.fields['city'].label_from_instance = (
             lambda obj: obj.safe_translation_getter('name', any_language=True)
         )
-
-
-class CitySelectForm(CityForm):
-    city = forms.ModelChoiceField(
-        queryset=City.objects.all(),
-        widget=forms.Select,
-        label=_('City'),
-    )
 
 
 class AgreementForm(forms.Form):
