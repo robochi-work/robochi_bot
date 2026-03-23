@@ -101,9 +101,3 @@ class UserFeedback(models.Model):
         verbose_name_plural = _('User feedbacks')
 
 
-class UserWorkProfileInUser(UserWorkProfile):
-    class Meta:
-        proxy = True
-        verbose_name = _('User work profile')
-        verbose_name_plural = _('User work profiles')
-
