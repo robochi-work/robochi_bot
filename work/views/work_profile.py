@@ -98,6 +98,10 @@ class ProfileWizard(SessionWizardView):
 
 @login_required
 def questionnaire_redirect(request):
+    # Administrator skips wizard entirely
+    if request.user.is_staff:
+        return redirect('/')
+
     if not request.user.phone_number:
         return redirect('work:phone_required')
 

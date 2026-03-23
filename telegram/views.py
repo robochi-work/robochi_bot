@@ -52,7 +52,6 @@ def authenticate_web_app(request: WSGIRequest):
     logger.warning("WEBAPP AUTH signature is_valid=%s user_id=%s", is_valid, user_id)
 
     if is_valid and user_id:
-        # user_id = Telegram user id. � ����� ������� �� �������� � User.telegram_id.
         if request.user.is_authenticated:
             current_tid = getattr(request.user, "telegram_id", None)
             if current_tid and current_tid != user_id:
@@ -70,6 +69,10 @@ def authenticate_web_app(request: WSGIRequest):
         logger.warning("WEBAPP AUTH logging-in telegram_user_id=%s user_pk=%s", user_id, user.pk)
         login(request, user)
 
+        # Administrator skips phone check and wizard
+        if user.is_staff:
+            return redirect('/')
+
         # If user has no phone number, redirect to phone-required page
         if not user.phone_number:
             return redirect('/work/phone-required/')
@@ -82,7 +85,7 @@ def authenticate_web_app(request: WSGIRequest):
 
 @csrf_exempt
 def telegram_webhook(request: WSGIRequest) -> HttpResponse:
-    load_handlers_once()  # регистрируем хендлеры один раз при первом запросе
+    load_handlers_once()
     if request.method != "POST":
         return HttpResponse("Only POST allowed", status=405)
 

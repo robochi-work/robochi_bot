@@ -5,7 +5,6 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
 from user.choices import USER_GENDER_CHOICES
-from work.models import UserWorkProfile
 
 
 class CustomUserManager(UserManager):

@@ -101,6 +101,23 @@ class UserAdmin(BaseUserAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('work_profile', 'work_profile__city')
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+
+        # Sync is_staff with administrator role
+        if obj.is_staff:
+            profile, _ = UserWorkProfile.objects.get_or_create(user=obj)
+            if profile.role != WorkProfileRole.ADMINISTRATOR:
+                profile.role = WorkProfileRole.ADMINISTRATOR
+                profile.is_completed = True
+                profile.save(update_fields=['role', 'is_completed'])
+        else:
+            profile = UserWorkProfile.objects.filter(user=obj).first()
+            if profile and profile.role == WorkProfileRole.ADMINISTRATOR:
+                profile.role = None
+                profile.is_completed = False
+                profile.save(update_fields=['role', 'is_completed'])
+
     @admin.display(description=_('Telegram'))
     def telegram_link(self, obj):
         if obj.username:
