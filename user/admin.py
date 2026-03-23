@@ -7,6 +7,7 @@ from django.utils.translation import gettext_lazy as _
 from .forms import UserChangeForm, UserCreationForm
 from .models import User, AuthIdentity, UserFeedback
 from work.models import UserWorkProfile
+from work.choices import WorkProfileRole
 
 
 class AuthIdentityInline(admin.TabularInline):
@@ -46,7 +47,6 @@ class RoleFilter(admin.SimpleListFilter):
     parameter_name = 'role'
 
     def lookups(self, request, model_admin):
-        from work.choices import WorkProfileRole
         return WorkProfileRole.choices
 
     def queryset(self, request, queryset):
@@ -78,7 +78,7 @@ class UserAdmin(BaseUserAdmin):
 
     list_display = (
         'id', 'telegram_link', 'full_name', 'phone_number',
-        'display_role', 'display_city', 'gender', 'is_staff', 'is_active',
+        'display_role', 'display_city', 'display_gender', 'is_staff', 'is_active',
     )
     list_filter = (RoleFilter, CityFilter, 'gender', 'is_staff', 'is_active')
     search_fields = ('username', 'full_name', 'phone_number')
@@ -122,4 +122,13 @@ class UserAdmin(BaseUserAdmin):
         profile = getattr(obj, 'work_profile', None)
         if profile and profile.city:
             return profile.city.safe_translation_getter('name', any_language=True)
+        return "-"
+
+    @admin.display(description=_('Gender'))
+    def display_gender(self, obj):
+        profile = getattr(obj, 'work_profile', None)
+        if profile and profile.role == WorkProfileRole.WORKER:
+            if obj.gender:
+                return obj.get_gender_display()
+            return _('Not set')
         return "-"
