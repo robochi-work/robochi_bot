@@ -196,3 +196,64 @@ AuthIdentity модель (user/models.py) — связывает User с про
 8. **i18n** — добавлены переводы для role, city, agreement, legal, phone_required страниц
 9. **Новые файлы**: work/views/legal.py, work/views/phone_required.py, work/templates/work/legal_offer.html, work/templates/work/phone_required.html
 10. **Миграция** — AgreementText.role choices расширен (employer, worker, offer)
+
+### Сессия 24.03.2026 — Реорганізація бази даних користувачів та адмін-панелі
+**5 этапов выполнено:**
+
+1. **Объединение админки пользователей** — 3 раздела (Користувачі, Робочі профілі, Відгуки) слиты в один UserAdmin:
+   - list_display: ID, Telegram, Full name, Phone, Role, City, Gender, is_staff, is_active
+   - Фильтры: RoleFilter, CityFilter, Gender, is_staff, is_active
+   - Inlines: UserWorkProfileInline, AuthIdentityInline, UserFeedbackReceivedInline
+   - Удалены: UserWorkProfileInUserAdmin, UserFeedbackAdmin, proxy UserWorkProfileInUser, дублирующий UserWorkProfileAdmin из work/admin.py
+
+2. **Шаг выбора пола в wizard для Worker** — форма GenderForm, шаблон step_gender.html:
+   - Wizard: role → gender (только для Worker, condition_dict) → city → agreement
+   - Дизайн: копия role.html, без политики конфиденциальности, текст "Оберіть Вашу стать:", кнопки "Я ЧОЛОВІК" / "Я ЖІНКА"
+   - Gender сохраняется в User.gender только для Worker; для Employer пол не запрашивается
+
+3. **Роль Administrator** — добавлена в WorkProfileRole choices + миграция:
+   - is_staff=True автоматически синхронизирует role=administrator (через UserAdmin.save_model)
+   - При снятии is_staff → role=None, is_completed=False (пользователь проходит wizard заново)
+   - index view: is_staff=True → admin_dashboard.html (заглушка, функционал позже)
+   - authenticate_web_app: is_staff=True → пропуск wizard, redirect на /
+   - Administrator НЕ совмещается с Worker/Employer — отдельная роль
+
+4. **Блокировка по полу при "Я ГОТОВИЙ ПРАЦЮВАТИ"** — обновлён chat_join_request handler:
+   - Последовательные проверки: is_staff → is_active → owner → участие в другой вакансии → лимит людей → пол
+   - Каждый отказ: decline_chat_join_request + сообщение Worker в бот с причиной
+   - Проверка пола: vacancy.gender != GENDER_ANY and vacancy.gender != user.gender → "Ця вакансія призначена для іншої статі"
+   - Проверка участия: VacancyUser.filter(status=MEMBER, vacancy__status__in=[APPROVED,ACTIVE]).exclude(vacancy) → "Ви вже берете участь в іншій вакансії"
+
+5. **Удаление legacy-кода:**
+   - Удалены: ContactForm, CitySelectForm, work_profile_detail(), work_profile.html, URL profile/
+   - Удалено поле birth_year из User + миграция remove_birth_year
+   - Удалён неиспользуемый импорт UserWorkProfile из user/models.py
+
+**Текущее состояние БД:**
+- 5 городов: Київ(1), Одеса(2), Дніпро(3), Харків(4), Буча(9)
+- 6 пользователей, роли: Employer, Worker, Administrator
+- Wizard flow: role → gender (Worker only) → city → agreement → /
+
+**Файлы изменены/созданы:**
+- user/admin.py — полностью переписан (единый UserAdmin с inlines и фильтрами)
+- user/models.py — удалены birth_year, proxy UserWorkProfileInUser, unused import
+- user/forms.py — убрано поле email
+- work/forms.py — удалены ContactForm, CitySelectForm; добавлена GenderForm
+- work/views/work_profile.py — удалён work_profile_detail; добавлен шаг gender в wizard с condition_dict
+- work/views/index.py — маршрутизация по is_staff для ЛК админа
+- work/admin.py — убран дублирующий UserWorkProfileAdmin
+- work/choices.py — добавлен ADMINISTRATOR в WorkProfileRole
+- work/urls.py — убран URL profile/
+- work/templates/work/work_profile/step_gender.html — новый шаблон выбора пола
+- work/templates/work/work_profile/work_profile.html — удалён
+- work/templates/work/admin_dashboard.html — заглушка ЛК администратора
+- telegram/handlers/member/user/group.py — расширенные проверки в chat_join_request
+- telegram/views.py — пропуск wizard для is_staff
+
+**Приоритеты (после сессии 24.03.2026):**
+1. AgreementText для employer/worker в admin
+2. ЛК администратора — наполнить функционалом (модерация, пользователи, каналы, оплаты)
+3. ЛК Employer — дизайн и кнопки по ТЗ (Мої відгуки, Мої міста, Створити вакансію, Поточні заявки)
+4. ЛК Worker — дизайн и кнопки по ТЗ (Мої відгуки, Мої вакансії, Моя робота)
+5. Ротация вакансий
+6. Monobank интеграция
