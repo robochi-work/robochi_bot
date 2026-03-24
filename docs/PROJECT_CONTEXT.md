@@ -110,7 +110,8 @@ AuthIdentity модель (user/models.py) — связывает User с про
 
 ## БД (текущее состояние)
 - 5 пользователей, все language_code='uk'
-- Каналы: Харків ✓, Одеса ✓, Дніпро — нет invite_link, Київ — нет канала
+- Каналы: Харків ✓, Одеса ✓, Дніпро ✓, Київ ✓, Буча ✓ — все с invite_link и bot_admin
+- Группы: 11 групп в пуле, все available, active, с invite_link
 
 ## Окружение и деплой
 - Env: /etc/robochi_bot.env (systemd) или .env в корне
@@ -155,8 +156,19 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - Wizard done() → redirect /
 - get_or_create_user() обновлён
 
+### 24.03.2026 — Настройка БД каналов/групп, admin restructure
+- **Webhook**: allowed_updates расширен — добавлены my_chat_member, chat_member, chat_join_request (без них бот не получал события добавления в каналы/группы)
+- **load_handlers_once()**: добавлены все недостающие импорты хэндлеров (member.bot.channel/group, member.user.group, callbacks, messages.group). Было 0 my_chat_member хэндлеров, стало 2
+- **Автоматическое создание каналов/групп** восстановлено: при добавлении бота в канал/группу в Telegram запись создаётся в БД автоматически через my_chat_member хэндлер
+- **Канал Києва** — создан и привязан к городу
+- **Канал Дніпро** — invite_link добавлен
+- **Канал Буча** — создан (тестовый)
+- **Admin restructure**: раздел Канали перенесён из ТЕЛЕГРАМ в МІСТО (через proxy model ChannelProxy). Кнопки "Додати Канал/Групу" убраны (создаются только ботом). Город можно создать из формы канала через "+" у поля Місто
+- **City.__str__**: добавлен safe fallback для отсутствующих переводов (parler DoesNotExist)
+- Коммиты в develop
+
 ## На горизонте (приоритеты)
-1. Admin data: каналы для Київ, invite_link для Дніпро, AgreementText
+1. Admin data: AgreementText записи для employer/worker
 2. Legacy cleanup: удалить work_profile_detail, ContactForm, work_profile.html
 3. Agreement fix: role из wizard data
 4. Wizard: добавить шаг выбора пола (М/Ж) для Рабочего, шаг анкеты пользователя
