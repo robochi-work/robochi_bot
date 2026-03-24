@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--faq">
+    <div class="faq-header">
+        <a href="/" class="back-link">← Назад</a>
+        <h2>Що робити якщо?</h2>
+    </div>
+
+    <div class="faq-list">
+        <details class="faq-item">
+            <summary>Як обрати вакансію?</summary>
+            <p>Перейдіть до каналу вашого міста через кнопку «Мої вакансії» в особистому кабінеті. Знайдіть підходящу вакансію та натисніть кнопку «Я ГОТОВИЙ ПРАЦЮВАТИ».</p>
+        </details>
+
+        <details class="faq-item">
+            <summary>Я вже обрав вакансію, що далі?</summary>
+            <p>Після натискання кнопки вам прийде повідомлення в бот з деталями вакансії. Підтвердіть участь натиснувши «Підтвердити». Після цього вас додадуть до групи вакансії.</p>
+        </details>
+
+        <details class="faq-item">
+            <summary>Чи можу я обрати кілька вакансій одночасно?</summary>
+            <p>Ні, ви можете бути учасником лише однієї активної вакансії одночасно.</p>
+        </details>
+
+        <details class="faq-item">
+            <summary>Що таке перекличка?</summary>
+            <p>Перед початком роботи бот надішле вам повідомлення з проханням підтвердити свою участь. У вас є 5 хвилин на відповідь. Якщо не підтвердите — вас буде видалено з групи вакансії.</p>
+        </details>
+
+        <details class="faq-item">
+            <summary>Мене заблоковано. Що робити?</summary>
+            <p>Зверніться до адміністратора через кнопку «Допомога адміністратора» в особистому кабінеті або напишіть напряму: <a href="https://t.me/robochi_work_admin">@robochi_work_admin</a>.</p>
+        </details>
+
+        <details class="faq-item">
+            <summary>Як подивитися відгуки про мене?</summary>
+            <p>Натисніть кнопку «Мої відгуки» в особистому кабінеті. Там відображаються всі відгуки, залишені роботодавцями.</p>
+        </details>
+    </div>
+</main>
+
+<style>
+.page--faq {
+    padding: 16px 14px;
+    justify-content: flex-start;
+    align-items: stretch;
+    min-height: 100vh;
+}
+.faq-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.faq-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    margin: 0;
+}
+.faq-list {
+    max-width: 520px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.faq-item {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    overflow: hidden;
+}
+.faq-item summary {
+    padding: 14px 16px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-shadow: var(--btn-text-shadow);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.faq-item summary::after {
+    content: '▸';
+    font-size: 14px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.faq-item[open] summary::after {
+    transform: rotate(90deg);
+}
+.faq-item summary::-webkit-details-marker {
+    display: none;
+}
+.faq-item p {
+    padding: 0 16px 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+}
+.faq-item a {
+    color: var(--accent-dark);
+}
+</style>
+{% endblock %}

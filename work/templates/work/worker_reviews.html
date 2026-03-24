@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--reviews">
+    <div class="reviews-header">
+        <a href="/" class="back-link">← Назад</a>
+        <h2>Мої відгуки</h2>
+    </div>
+
+    <div class="reviews-list">
+        {% for item in enriched_reviews %}
+        <div class="review-card">
+            <div class="review-meta">
+                <span class="review-author">{{ item.review.owner.full_name|default:"Замовник" }}</span>
+                <span class="review-date">{{ item.review.created_at|date:"d.m.Y" }}</span>
+            </div>
+            {% if item.vacancy %}
+            <div class="review-vacancy">📍 {{ item.vacancy.address|truncatechars:50 }}</div>
+            {% endif %}
+            <div class="review-text">{{ item.review.text }}</div>
+        </div>
+        {% empty %}
+        <div class="reviews-empty">
+            <p>У вас поки немає відгуків</p>
+        </div>
+        {% endfor %}
+    </div>
+</main>
+
+<style>
+.page--reviews {
+    padding: 16px 14px;
+    justify-content: flex-start;
+    align-items: stretch;
+    min-height: 100vh;
+}
+.reviews-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.reviews-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    margin: 0;
+}
+.back-link {
+    color: var(--accent-dark);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+    flex-shrink: 0;
+}
+.reviews-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 520px;
+    width: 100%;
+    margin: 0 auto;
+}
+.review-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    padding: 14px 16px;
+}
+.review-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.review-author {
+    font-weight: 600;
+    font-size: 14px;
+    text-shadow: var(--btn-text-shadow);
+}
+.review-date {
+    font-size: 12px;
+    opacity: 0.6;
+}
+.review-vacancy {
+    font-size: 13px;
+    opacity: 0.7;
+    margin-bottom: 6px;
+}
+.review-text {
+    font-size: 14px;
+    line-height: 1.5;
+}
+.reviews-empty {
+    text-align: center;
+    padding: 40px 20px;
+    font-size: 15px;
+    opacity: 0.7;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+</style>
+{% endblock %}
