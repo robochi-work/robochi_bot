@@ -167,16 +167,26 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - **City.__str__**: добавлен safe fallback для отсутствующих переводов (parler DoesNotExist)
 - Коммиты в develop
 
+### Сессия 24.03.2026 (вечер) — ЛК Рабочего (Worker dashboard)
+1. **Разделение dashboard по ролям** — index view теперь маршрутизирует: Worker → worker_dashboard.html, Employer → index.html (block_registry), Admin → admin_dashboard.html
+2. **worker_dashboard.html** — 5 кнопок в neumorphic стиле:
+   - Мої вакансії → ссылка на канал города (Channel по city)
+   - Моя робота → ссылка на группу текущей вакансии (VacancyUser status=MEMBER + Vacancy status in approved/active). Если нет активной вакансии → модальное окно «Спочатку оберіть вакансію» с кнопкой «Зрозуміло»
+   - Мої відгуки → /work/reviews/ (UserFeedback.filter(user=user) + vacancy info из extra.vacancy_id)
+   - Що робити якщо? → /work/faq/ (статические FAQ с <details>)
+   - Допомога адміністратора → https://t.me/robochi_work_admin
+3. **worker_reviews.html** — страница просмотра отзывов с адресом вакансии из extra.vacancy_id
+4. **worker_faq.html** — FAQ страница (6 вопросов, accordion на <details>/<summary>)
+5. **Новые файлы**: work/views/worker.py, work/templates/work/worker_dashboard.html, worker_reviews.html, worker_faq.html
+6. **Обновлены**: work/views/index.py (маршрутизация по role), work/urls.py (+ worker_reviews, worker_faq)
+
 ## На горизонте (приоритеты)
-1. Admin data: AgreementText записи для employer/worker
-2. Legacy cleanup: удалить work_profile_detail, ContactForm, work_profile.html
-3. Agreement fix: role из wizard data
-4. Wizard: добавить шаг выбора пола (М/Ж) для Рабочего, шаг анкеты пользователя
-5. ЛК Рабочего и Заказчика: новый дизайн по ТЗ (без анкеты, с кнопками Мої відгуки, Вакансії, Моя робота)
-6. Бизнес-логика: форма заявки полная, переклички, ротация, автоматический/ручной поиск
-7. Monobank: получить токен мерчанта, тестировать оплату
-8. Мобильные клиенты: Android/iOS через /api/v1/
-9. i18n: перевести msgid на английский (commands.py), убрать override('uk') в vacancy_formatter для личных сообщений
+1. AgreementText для employer/worker в admin
+2. ЛК администратора — наполнить функционалом
+3. ЛК Employer — дизайн и кнопки по ТЗ (Мої відгуки, Мої міста, Створити вакансію, Поточні заявки)
+4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансии
+5. Ротация вакансий
+6. Monobank интеграция
 
 ### Сессия 18.03.2026 (CSS)
 1. Полная переработка CSS — единый стиль с robochi.work (neumorphism, стальной градиент).
