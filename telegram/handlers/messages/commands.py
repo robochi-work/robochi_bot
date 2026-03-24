@@ -33,7 +33,7 @@ def choose_role(message: Message, **kwargs: dict[str, Any]) -> None:
 
     get_bot().send_message(
         message.chat.id,
-        'Вас вітає сервіс\nrobochi.work\nОбираите\nЯ ЗАМОВНИК\nта знаходьте будь яку кількість\nпрацівників швидко та зручно!\nАбо обираите\nЯ ПРАЦІВНИК\nта знаходьте підробіток\nколи зручно!\n',
+        _('Welcome to robochi.work! Choose your role below.'),
         reply_markup=markup,
     )
 @user_required
@@ -48,6 +48,15 @@ def fill_work_account(message: Message, **kwargs: dict[str, Any]) -> None:
 @user_required
 def ask_phone(message: Message, user: User, **kwargs):
     bot = get_bot()
+    # Remove WebApp MenuButton so user sees ReplyKeyboard for phone
+    try:
+        bot.set_chat_menu_button(
+            chat_id=message.chat.id,
+            menu_button=types.MenuButtonDefault(type='default'),
+        )
+        bot.delete_my_commands(scope=types.BotCommandScopeChat(chat_id=message.chat.id))
+    except Exception as e:
+        logger.error(f"RESET_MENU_BUTTON FAILED: {e}")
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
     markup.add(types.KeyboardButton(_('Надіслати номер телефону'), request_contact=True))
     logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
@@ -56,6 +65,7 @@ def ask_phone(message: Message, user: User, **kwargs):
             message.chat.id,
             _('Для продовження надішліть ваш номер телефону:'),
             reply_markup=markup,
+            parse_mode=None,
         )
         logger.warning("ASK_PHONE SENT OK")
     except Exception as e:

@@ -9,7 +9,7 @@ class UserCreationForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ('email', 'username', 'phone_number', 'birth_year', 'language_code', 'full_name')
+        fields = ('username', 'phone_number', 'language_code', 'full_name')
 
     def clean(self):
         cleaned_data = super().clean()
@@ -34,11 +34,14 @@ class UserCreationForm(forms.ModelForm):
 
 
 class UserChangeForm(forms.ModelForm):
-    password = ReadOnlyPasswordHashField(label="Password", help_text="You can change the password using <a href=\"../password/\">this form</a>.")
+    password = ReadOnlyPasswordHashField(
+        label="Password",
+        help_text='You can change the password using <a href="../password/">this form</a>.'
+    )
 
     class Meta:
         model = User
-        fields = ('email', 'username', 'phone_number', 'birth_year', 'language_code', 'full_name', 'password')
+        fields = ('username', 'phone_number', 'language_code', 'full_name', 'password')
 
     def clean_password(self):
         return self.initial["password"]

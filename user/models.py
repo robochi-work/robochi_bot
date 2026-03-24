@@ -5,7 +5,6 @@ from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
 from user.choices import USER_GENDER_CHOICES
-from work.models import UserWorkProfile
 
 
 class CustomUserManager(UserManager):
@@ -27,11 +26,6 @@ class User(AbstractUser):
     last_name = None
     full_name = models.CharField(_('Full name'), max_length=150, blank=True, null=True)
     phone_number = models.CharField(max_length=20, null=True, blank=True, verbose_name=_('Phone number'))
-    birth_year = models.IntegerField(
-        _('Birth year'),
-        null=True,
-        blank=True,
-    )
     language_code = models.CharField(
         max_length=10,
         choices=settings.LANGUAGES,
@@ -100,10 +94,4 @@ class UserFeedback(models.Model):
         verbose_name = _('User feedback')
         verbose_name_plural = _('User feedbacks')
 
-
-class UserWorkProfileInUser(UserWorkProfile):
-    class Meta:
-        proxy = True
-        verbose_name = _('User work profile')
-        verbose_name_plural = _('User work profiles')
 

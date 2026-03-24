@@ -9,7 +9,10 @@ class City(TranslatableModel):
     )
 
     def __str__(self):
-        return f'{self.name}'
+        try:
+            return f'{self.name}' if self.name else f'City #{self.pk}'
+        except Exception:
+            return f'City #{self.pk}'
 
     class Meta:
         verbose_name = _("City")

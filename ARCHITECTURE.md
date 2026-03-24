@@ -118,3 +118,21 @@ Zone 4 — Data layer: models, migrations, PostgreSQL
 Zone 5 — Async layer: Celery tasks, Redis, periodic jobs
 Zone 6 — Payment layer: Monobank Acquiring (payment/ app)
 Zone 7 — Infra layer: Gunicorn, Nginx, systemd, deployment
+
+## Localization / i18n (added 19.03.2026)
+
+Zone 8 — i18n layer:
+- Django i18n: USE_I18N=True, LANGUAGE_CODE='uk', LANGUAGES=[uk, ru]
+- django-parler: TranslatableModel for City (and future content models)
+- UserLanguageMiddleware: activates translation per user.language_code
+- locale/uk/, locale/ru/ — .po/.mo translation files
+- Telegram Bot: setMyCommands per language_code (uk, ru, default)
+- setup_bot_commands() in telegram/handlers/set_commands.py
+
+Translation flow:
+```
+User.language_code → UserLanguageMiddleware → translation.activate(lang)
+                                                    ↓
+                                          Django renders translated text
+                                          (templates: {% trans %}, Python: _())
+```

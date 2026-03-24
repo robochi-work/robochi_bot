@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--worker-dashboard">
+
+
+    <div class="worker-buttons">
+
+        {# 1. Мої вакансії — link to city channel #}
+        {% if channel %}
+        <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
+            <span class="worker-btn__icon">📋</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Мої вакансії</span>
+                <span class="worker-btn__sub">{{ channel.title }}</span>
+            </span>
+        </a>
+        {% endif %}
+
+        {# 2. Моя робота — link to current vacancy group or modal #}
+        {% if current_vacancy and current_vacancy.group and current_vacancy.group.invite_link %}
+        <a href="{{ current_vacancy.group.invite_link }}" target="_blank" class="worker-btn">
+            <span class="worker-btn__icon">🔨</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Моя робота</span>
+                <span class="worker-btn__sub">{{ current_vacancy.address|truncatechars:40 }}</span>
+            </span>
+        </a>
+        {% else %}
+        <button type="button" class="worker-btn" onclick="showNoVacancyModal()">
+            <span class="worker-btn__icon">🔨</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Моя робота</span>
+                <span class="worker-btn__sub">Немає активної вакансії</span>
+            </span>
+        </button>
+        {% endif %}
+
+        {# 3. Мої відгуки #}
+        <a href="{% url 'work:worker_reviews' %}" class="worker-btn">
+            <span class="worker-btn__icon">⭐</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Мої відгуки</span>
+                <span class="worker-btn__sub">
+                    {% if reviews_count %}
+                        {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}
+                    {% else %}
+                        Поки немає
+                    {% endif %}
+                </span>
+            </span>
+        </a>
+
+        {# 4. Що робити якщо? #}
+        <a href="{% url 'work:worker_faq' %}" class="worker-btn">
+            <span class="worker-btn__icon">❓</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Що робити якщо?</span>
+                <span class="worker-btn__sub">Часті питання</span>
+            </span>
+        </a>
+
+        {# 5. Допомога адміністратора #}
+        <a href="https://t.me/robochi_work_admin" target="_blank" class="worker-btn">
+            <span class="worker-btn__icon">🛟</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Допомога адміністратора</span>
+                <span class="worker-btn__sub">Зв'язатися</span>
+            </span>
+        </a>
+
+    </div>
+</main>
+
+{# Modal: no active vacancy #}
+<div id="no-vacancy-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+        <p class="modal-text">Спочатку оберіть вакансію в каналі вашого міста</p>
+        <button type="button" class="btn-primary" onclick="closeNoVacancyModal()">Зрозуміло</button>
+    </div>
+</div>
+
+<script>
+function showNoVacancyModal() {
+    document.getElementById('no-vacancy-modal').style.display = 'flex';
+}
+function closeNoVacancyModal() {
+    document.getElementById('no-vacancy-modal').style.display = 'none';
+}
+document.getElementById('no-vacancy-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeNoVacancyModal();
+});
+</script>
+
+<style>
+/* Worker dashboard */
+.page--worker-dashboard {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.worker-buttons {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0 auto;
+}
+
+/* Worker button card */
+.worker-btn {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 18px 16px;
+    border: none;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    text-decoration: none !important;
+    color: var(--accent-dark) !important;
+    transition: all 0.2s ease-in-out;
+    text-align: left;
+    font-family: inherit;
+    font-size: inherit;
+}
+.worker-btn:active {
+    box-shadow: var(--btn-shadow-active);
+}
+.worker-btn__icon {
+    font-size: 28px;
+    margin-right: 14px;
+    flex-shrink: 0;
+    width: 36px;
+    text-align: center;
+}
+.worker-btn__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.worker-btn__title {
+    font-size: 16px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    margin-bottom: 2px;
+}
+.worker-btn__sub {
+    font-size: 13px;
+    font-weight: 400;
+    opacity: 0.75;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+.modal-card {
+    background: var(--btn-bg);
+    border-radius: var(--card-radius);
+    padding: 28px 20px;
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.modal-text {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    line-height: 1.5;
+    text-shadow: var(--btn-text-shadow);
+}
+
+@media (max-width: 420px) {
+    .worker-btn {
+        padding: 14px 12px;
+        border-radius: 24px;
+    }
+    .worker-btn__icon { font-size: 24px; margin-right: 10px; }
+    .worker-btn__title { font-size: 15px; }
+}
+</style>
+{% endblock %}

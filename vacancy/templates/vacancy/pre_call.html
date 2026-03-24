@@ -3,7 +3,7 @@
 
 {% block body %}
 <div class="pre-call-page">
-    <div class="info">Увага!<br>Почався робочий час, але працівників<br>недостатньо!<br>Якщо бажаєте продовжити пошук працівників — натисніть нижче</div>
+    <div class="info">{% trans "Attention! Work time has started but there are not enough workers! If you want to continue searching for workers, click below." %}</div>
 
     <a href="{% url 'vacancy:refind' pk=pk %}" class="btn-primary">{% trans "Continue search" %}</a>
 

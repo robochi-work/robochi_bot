@@ -1,0 +1,33 @@
+{% extends 'work/work_profile/steps.html' %}
+{% load i18n %}
+
+{% block form %}
+<main class="page">
+    <div style="text-align:center;padding:20px 16px;max-width:400px;">
+        <h2 style="font-size:18px;font-weight:700;margin-bottom:20px;text-shadow:1px 1px 2px rgba(255,255,255,0.7),-1px -1px 2px rgba(0,0,0,0.6);">
+            {% trans "Phone number required" %}
+        </h2>
+        <p style="font-size:15px;line-height:1.6;margin-bottom:24px;">
+            {% trans "To continue, please go back to the bot chat and confirm your phone number by pressing the button below the message." %}
+        </p>
+        <script>
+            function goBackToBot() {
+                // Resend phone request button then close WebApp
+                fetch('/work/phone-required/resend/', {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                }).finally(function() {
+                    if (window.Telegram && Telegram.WebApp) {
+                        Telegram.WebApp.close();
+                    } else {
+                        window.history.back();
+                    }
+                });
+            }
+        </script>
+        <button type="button" onclick="goBackToBot()" class="btn-primary" style="max-width:300px;">
+            {% trans "Back to bot" %}
+        </button>
+    </div>
+</main>
+{% endblock %}

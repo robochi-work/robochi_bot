@@ -1,8 +1,8 @@
 from django.contrib import admin
 from django.utils.translation import gettext as _
 from telegram.admin_actions import delete_messages_by_group_action, delete_messages_action, update_group_invite_link, \
-    kick_group_users, set_default_permissions, update_channel_invite_link
-from telegram.models import Group, UserInGroup, GroupMessage, Channel, ChannelMessage
+    kick_group_users, set_default_permissions
+from telegram.models import Group, UserInGroup, GroupMessage, ChannelMessage
 
 
 @admin.register(Group)
@@ -34,10 +34,3 @@ class ChannelMessageAdmin(admin.ModelAdmin):
     @admin.display(description=_('Message'))
     def display_channel(self, obj: ChannelMessage):
         return obj.channel.title
-
-
-@admin.register(Channel)
-class ChannelAdmin(admin.ModelAdmin):
-    list_display = ('title', 'is_active', 'city',)
-    readonly_fields = ('id', 'title',)
-    actions = [update_channel_invite_link]

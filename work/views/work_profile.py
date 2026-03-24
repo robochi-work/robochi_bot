@@ -1,11 +1,10 @@
-from django.shortcuts import redirect, render
+from django.shortcuts import redirect
 from django.contrib.auth.decorators import login_required
 from formtools.wizard.views import SessionWizardView
 from django.utils.decorators import method_decorator
 
-
-from telegram.service.common import get_payload_url
-from work.forms import CityForm, ContactForm, CitySelectForm, RoleForm, AgreementForm
+from work.choices import WorkProfileRole
+from work.forms import CityForm, RoleForm, GenderForm, AgreementForm
 from work.models import UserWorkProfile, AgreementText
 from work.service.events import WORK_PROFILE_COMPLETED
 from work.service.subscriber_setup import work_publisher
@@ -13,19 +12,34 @@ from django.utils import timezone
 
 FORMS = [
     ('role', RoleForm),
+    ('gender', GenderForm),
     ('city', CityForm),
     ('agreement', AgreementForm),
 ]
 
 TEMPLATES = {
     'role': 'work/work_profile/role.html',
+    'gender': 'work/work_profile/step_gender.html',
     'city': 'work/work_profile/step_city.html',
     'agreement': 'work/work_profile/step_agreement.html',
 }
 
+
+def show_gender_step(wizard):
+    """Show gender step only for Worker role."""
+    cleaned_data = wizard.get_cleaned_data_for_step('role') or {}
+    return cleaned_data.get('role') == WorkProfileRole.WORKER
+
+
+CONDITION_DICT = {
+    'gender': show_gender_step,
+}
+
+
 @method_decorator(login_required, name='dispatch')
 class ProfileWizard(SessionWizardView):
     form_list = FORMS
+    condition_dict = CONDITION_DICT
 
     def get_template_names(self):
         return [TEMPLATES[self.steps.current]]
@@ -43,8 +57,9 @@ class ProfileWizard(SessionWizardView):
         context = super().get_context_data(form=form, **kwargs)
 
         if self.steps.current == 'agreement':
-            profile, _ = UserWorkProfile.objects.get_or_create(user=self.request.user)
-            agreement = AgreementText.objects.filter(role=profile.role).first()
+            role_data = self.get_cleaned_data_for_step('role') or {}
+            role = role_data.get('role')
+            agreement = AgreementText.objects.filter(role=role).first()
             context['agreement'] = agreement
 
         return context
@@ -69,6 +84,13 @@ class ProfileWizard(SessionWizardView):
             'is_completed'
         ])
 
+        # Save gender only for Worker
+        if profile.role == WorkProfileRole.WORKER:
+            gender = data.get('gender')
+            if gender:
+                user.gender = gender
+                user.save(update_fields=['gender'])
+
         work_publisher.notify(WORK_PROFILE_COMPLETED, data={'user': user})
 
         return redirect('/')
@@ -76,6 +98,13 @@ class ProfileWizard(SessionWizardView):
 
 @login_required
 def questionnaire_redirect(request):
+    # Administrator skips wizard entirely
+    if request.user.is_staff:
+        return redirect('/')
+
+    if not request.user.phone_number:
+        return redirect('work:phone_required')
+
     profile, _ = UserWorkProfile.objects.get_or_create(user=request.user)
 
     if not profile.role:
@@ -88,29 +117,3 @@ def questionnaire_redirect(request):
         return redirect('work:wizard_step', step='agreement')
 
     return redirect('/')
-
-
-@login_required
-def work_profile_detail(request):
-    user = request.user
-    profile, _ = UserWorkProfile.objects.get_or_create(user=user)
-
-    city_form = CitySelectForm(request.POST, instance=profile, prefix='city')
-    city_form.fields['city'].disabled = True
-
-    if request.method == 'POST':
-        contact_form = ContactForm(request.POST, user=user, prefix='contact')
-        if city_form.is_valid() and contact_form.is_valid():
-            city_form.save()
-            contact_form.save()
-            return redirect('/')
-    else:
-        contact_form = ContactForm(user=user, prefix='contact')
-
-    return render(request, 'work/work_profile/work_profile.html', {
-        'role': profile.get_role_display(),
-        'city_form': city_form,
-        'contact_form': contact_form,
-    })
-
-
