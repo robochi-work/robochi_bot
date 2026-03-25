@@ -183,10 +183,10 @@ AuthIdentity модель (user/models.py) — связывает User с про
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом
-3. ЛК Employer — дизайн и кнопки по ТЗ (Мої відгуки, Мої міста, Створити вакансію, Поточні заявки)
-4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансии
+3. ЛК Employer — Фаза 2: управление заявками из ЛК (зупинити/закрити, повторний пошук, учасники групи, оплата monobank)
+4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансії
 5. Ротация вакансий
-6. Monobank интеграция
+6. Monobank інтеграція
 
 ### Сессия 18.03.2026 (CSS)
 1. Полная переработка CSS — единый стиль с robochi.work (neumorphism, стальной градиент).
@@ -265,5 +265,73 @@ AuthIdentity модель (user/models.py) — связывает User с про
 2. ЛК администратора — наполнить функционалом (модерация, пользователи, каналы, оплаты)
 3. ЛК Employer — дизайн и кнопки по ТЗ (Мої відгуки, Мої міста, Створити вакансію, Поточні заявки)
 4. ЛК Worker — дизайн и кнопки по ТЗ (Мої відгуки, Мої вакансії, Моя робота)
+5. Ротация вакансий
+6. Monobank интеграция
+
+### Сессия 24.03.2026 (вечер, часть 2) — ЛК Заказчика (Employer dashboard)
+1. **employer_dashboard.html** — новый шаблон ЛК Заказчика, 6 кнопок в neumorphic стиле (аналогично Worker):
+   - Створити вакансію → /vacancy/create/ (с border-left accent)
+   - Поточні заявки → /vacancy/my/ (показывает count активных)
+   - Мої відгуки → /work/employer/reviews/
+   - Мої міста → ссылка на канал города (Channel по city)
+   - Що робити якщо? → /work/employer/faq/
+   - Допомога адміністратора → https://t.me/robochi_work_admin
+
+2. **vacancy_my_list.html** — страница «Поточні заявки»:
+   - Карточки вакансий: адрес, дата, время, люди (N/M), статус-бейдж
+   - Статусы: Очікує модерації (pending/yellow), Активна (approved/green), Йде зміна (active/blue)
+   - Клик → детальная страница вакансии
+
+3. **vacancy_detail.html** — детальная страница вакансии:
+   - Полная информация: адрес, дата, час, люди, оплата, спосіб, стать, паспорт, опис роботи
+   - Кнопка «Група з робітниками» → invite_link группы
+   - Кнопка «Управління вакансією» → модальное окно с: Повторний пошук, Перекличка Початок/Кінець роботи
+   - Список робітників (VacancyUser members)
+
+4. **Маршрутизация Employer в index.py**:
+   - Первый вход (нет ни одной вакансии) → redirect на /vacancy/create/ (без кнопки «Назад»)
+   - Повторный вход → employer_dashboard.html
+   - Контекст: channel, active_vacancies_count, reviews_count
+
+5. **vacancy_create view** — добавлен флаг is_first_visit (Vacancy.objects.filter(owner).exists()), передаётся в шаблон для скрытия кнопки «Назад»
+
+6. **vacancy_form_page.html** — убран header с меню, добавлена кнопка «← Назад» (скрыта при первом входе через is_first_visit)
+
+7. **employer_reviews.html** — страница просмотра отзывов (аналог worker_reviews)
+
+8. **employer_faq.html** — FAQ страница для заказчиков (5 вопросов: создание заявки, модерация, переклички, неявка рабочего, связь с админом)
+
+9. **CSS вынесен в глобальный styles.css** (telegram/static/css/styles.css):
+   - worker-btn, worker-btn__icon/text/title/sub, worker-btn--accent
+   - modal-overlay, modal-card, modal-text, modal-title
+   - page--worker-dashboard, page--employer-dashboard
+   - Убраны дублирующие <style> из worker_dashboard.html и employer_dashboard.html
+
+10. **Block registry** — больше не используется для Employer (заменён на прямой рендер employer_dashboard.html). Блоки VacancyCreateFormBlock, ActiveVacanciesPreviewBlock, ChannelPreviewBlock остаются как fallback
+
+**Новые файлы:**
+- work/views/employer.py (employer_reviews, employer_faq)
+- work/templates/work/employer_dashboard.html
+- work/templates/work/employer_reviews.html
+- work/templates/work/employer_faq.html
+- vacancy/templates/vacancy/vacancy_my_list.html
+- vacancy/templates/vacancy/vacancy_detail.html
+
+**Обновлённые файлы:**
+- work/views/index.py — маршрутизация Employer
+- work/urls.py — +employer_reviews, employer_faq
+- vacancy/views.py — +vacancy_my_list, vacancy_detail, is_first_visit в vacancy_create
+- vacancy/urls.py — +my/, <pk>/detail/
+- vacancy/templates/vacancy/vacancy_form_page.html — убран header, кнопка Назад
+- telegram/static/css/styles.css — глобальные стили кнопок и модалок
+- work/templates/work/worker_dashboard.html — убраны дублирующие <style>
+
+**Важно:** CSS живёт в telegram/static/css/styles.css (не в static/css/). STATICFILES_DIRS пуст, collectstatic берёт из app static/ папок. После изменений CSS: rm -rf staticfiles && collectstatic --noinput && restart gunicorn.
+
+**Приоритеты (обновлены):**
+1. AgreementText для employer/worker в admin
+2. ЛК администратора — наполнить функционалом
+3. ЛК Employer — Фаза 2: управление заявками (зупинити пошук, повторний пошук из ЛК, страница учасників, оплата)
+4. ЛК Worker — доработка: блокировка UI, запрос телефона
 5. Ротация вакансий
 6. Monobank интеграция

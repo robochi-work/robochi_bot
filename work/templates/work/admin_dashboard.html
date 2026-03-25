@@ -1,45 +1,224 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
+{% block header %}{% endblock %}
+
 {% block body %}
 <main class="page page--admin-dashboard">
-    <div class="admin-header">
-        <h2>Панель керування</h2>
-        <p>Роль: Адміністратор</p>
+
+    <h2 class="admin-title">Панель керування</h2>
+
+    <a href="/admin/" class="worker-btn">
+        <span class="worker-btn__icon">⚙️</span>
+        <span class="worker-btn__text">
+            <span class="worker-btn__title">Адмін-панель Django</span>
+            <span class="worker-btn__sub">Відкрити</span>
+        </span>
+    </a>
+
+    <div class="admin-tabs">
+        <button class="admin-tab active" onclick="switchTab('users')">Користувачі</button>
+        <button class="admin-tab" onclick="switchTab('vacancies')">Вакансії</button>
     </div>
 
-    <div class="admin-placeholder">
-        <p>Функціонал адміністратора в розробці.</p>
-        <p>Використовуйте Django адмін-панель для управління системою.</p>
+    {# ===== TAB: Користувачі ===== #}
+    <div id="tab-users" class="admin-tab-content active">
+        <form method="GET" action="{% url 'work:admin_search_users' %}">
+
+            <input type="text" name="q" placeholder="Ім'я, ID, Username або телефон" class="search-input">
+
+            <div class="filter-section">
+                <label class="filter-toggle">
+                    <input type="checkbox" onchange="toggleFilter('users-cities', this)"> По містах
+                </label>
+                <div id="users-cities" class="filter-options" style="display:none;">
+                    {% for city in cities %}
+                    <label class="filter-option">
+                        <input type="checkbox" name="city" value="{{ city.pk }}">
+                        {{ city.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <label class="filter-toggle">
+                    <input type="checkbox" onchange="toggleFilter('users-roles', this)"> По ролі
+                </label>
+                <div id="users-roles" class="filter-options" style="display:none;">
+                    {% for value, label in roles %}
+                    <label class="filter-option">
+                        <input type="checkbox" name="role" value="{{ value }}"> {{ label }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <label class="filter-toggle">
+                    <input type="checkbox" name="blocked" value="1"> Заблоковані
+                </label>
+            </div>
+
+            <button type="submit" class="btn-primary">ПОШУК</button>
+        </form>
     </div>
+
+    {# ===== TAB: Вакансії ===== #}
+    <div id="tab-vacancies" class="admin-tab-content" style="display:none;">
+        <form method="GET" action="{% url 'work:admin_search_vacancies' %}">
+
+            <div class="filter-section">
+                <label class="filter-toggle">
+                    <input type="checkbox" onchange="toggleFilter('vac-cities', this)"> По містах
+                </label>
+                <div id="vac-cities" class="filter-options" style="display:none;">
+                    {% for city in cities %}
+                    <label class="filter-option">
+                        <input type="checkbox" name="city" value="{{ city.pk }}">
+                        {{ city.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <label class="filter-option">
+                    <input type="checkbox" name="pending" value="1"> На модерації
+                </label>
+            </div>
+            <div class="filter-section">
+                <label class="filter-option">
+                    <input type="checkbox" name="in_work" value="1"> В роботі
+                </label>
+            </div>
+            <div class="filter-section">
+                <label class="filter-option">
+                    <input type="checkbox" name="to_pay" value="1"> До оплати
+                </label>
+            </div>
+            <div class="filter-section">
+                <label class="filter-option">
+                    <input type="checkbox" name="cancelled" value="1"> Відміна вакансії
+                </label>
+            </div>
+
+            <button type="submit" class="btn-primary">ПОШУК</button>
+        </form>
+    </div>
+
 </main>
+
+<script>
+function switchTab(tabName) {
+    document.querySelectorAll('.admin-tab-content').forEach(function(el) {
+        el.style.display = 'none';
+    });
+    document.querySelectorAll('.admin-tab').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    document.getElementById('tab-' + tabName).style.display = 'block';
+    event.currentTarget.classList.add('active');
+}
+
+function toggleFilter(id, checkbox) {
+    var el = document.getElementById(id);
+    el.style.display = checkbox.checked ? 'block' : 'none';
+    if (!checkbox.checked) {
+        el.querySelectorAll('input[type=checkbox]').forEach(function(cb) {
+            cb.checked = false;
+        });
+    }
+}
+</script>
 
 <style>
     .page--admin-dashboard {
-        padding: 24px 16px;
+        padding: 20px 16px;
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
+        max-width: 520px;
+        margin: 0 auto;
     }
-    .admin-header h2 {
-        margin: 0;
+    .admin-title {
         font-size: 22px;
-        color: var(--text-color, #fff);
+        font-weight: 700;
+        text-shadow: var(--btn-text-shadow);
+        margin: 0 0 4px;
     }
-    .admin-header p {
-        margin: 4px 0 0;
-        font-size: 14px;
-        opacity: 0.7;
+    .admin-tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 4px;
     }
-    .admin-placeholder {
-        background: var(--card-bg, rgba(255,255,255,0.08));
-        border-radius: 12px;
-        padding: 24px 16px;
-        text-align: center;
-    }
-    .admin-placeholder p {
-        margin: 8px 0;
+    .admin-tab {
+        flex: 1;
+        padding: 12px 8px;
+        border: none;
+        border-radius: var(--btn-radius);
+        background: var(--btn-bg);
+        color: var(--accent-dark);
         font-size: 15px;
+        font-weight: 600;
+        text-shadow: var(--btn-text-shadow);
+        box-shadow: var(--btn-shadow);
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+    }
+    .admin-tab.active {
+        box-shadow: var(--btn-shadow-active);
+        font-weight: 700;
+    }
+    .admin-tab-content {
+        display: block;
+    }
+    .search-input {
+        width: 100%;
+        padding: 13px 16px;
+        border: 1px solid var(--input-border);
+        border-radius: var(--input-radius);
+        background: var(--input-bg);
+        font-size: 15px;
+        color: var(--accent-dark);
+        margin-bottom: 12px;
+        box-sizing: border-box;
+    }
+    .filter-section {
+        margin-bottom: 10px;
+    }
+    .filter-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 15px;
+        cursor: pointer;
+        text-shadow: var(--btn-text-shadow);
+    }
+    .filter-toggle input[type=checkbox] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+    .filter-options {
+        margin-top: 8px;
+        margin-left: 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .filter-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .filter-option input[type=checkbox] {
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
     }
 </style>
 {% endblock %}

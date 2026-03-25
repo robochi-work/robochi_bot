@@ -16,18 +16,16 @@ def index(request: WSGIRequest):
 
     # If phone not confirmed, redirect to phone-required page
     if not user.phone_number:
-        return redirect('work:phone_required')
+        return redirect("work:phone_required")
 
     # Administrator — separate dashboard, skip wizard check
     if user.is_staff:
-        return render(request, 'work/admin_dashboard.html', {
-            'work_profile': getattr(user, 'work_profile', None),
-        })
+        return redirect("work:admin_dashboard")
 
-    profile = getattr(user, 'work_profile', None)
+    profile = getattr(user, "work_profile", None)
 
     # Worker — dedicated dashboard
-    if profile and profile.role == 'worker':
+    if profile and profile.role == "worker":
         # City channel link
         channel = None
         if profile.city:
@@ -43,7 +41,7 @@ def index(request: WSGIRequest):
         vacancy_user = (
             VacancyUser.objects
             .filter(user=user, status=Status.MEMBER)
-            .select_related('vacancy', 'vacancy__group')
+            .select_related("vacancy", "vacancy__group")
             .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
             .first()
         )
@@ -54,22 +52,22 @@ def index(request: WSGIRequest):
         reviews_count = UserFeedback.objects.filter(user=user).count()
 
         context = {
-            'work_profile': profile,
-            'channel': channel,
-            'current_vacancy': current_vacancy,
-            'reviews_count': reviews_count,
+            "work_profile": profile,
+            "channel": channel,
+            "current_vacancy": current_vacancy,
+            "reviews_count": reviews_count,
         }
-        return render(request, 'work/worker_dashboard.html', context)
+        return render(request, "work/worker_dashboard.html", context)
 
     # Employer — standard block-based dashboard
     blocks = []
     for block in block_registry.get_visible_blocks(request):
         ctx = block.get_context(request)
-        ctx['block'] = block
+        ctx["block"] = block
         blocks.append(ctx)
 
     context = {
         "rendered_blocks": blocks,
-        'work_profile': profile,
+        "work_profile": profile,
     }
-    return render(request, 'work/index.html', context=context)
+    return render(request, "work/index.html", context=context)

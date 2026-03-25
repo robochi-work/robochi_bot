@@ -6,7 +6,6 @@
 {% block body %}
 <main class="page page--worker-dashboard">
 
-
     <div class="worker-buttons">
 
         {# 1. Мої вакансії — link to city channel #}
@@ -94,107 +93,4 @@ document.getElementById('no-vacancy-modal').addEventListener('click', function(e
     if (e.target === this) closeNoVacancyModal();
 });
 </script>
-
-<style>
-/* Worker dashboard */
-.page--worker-dashboard {
-    padding: 20px 14px;
-    justify-content: flex-start;
-    min-height: 100vh;
-}
-.worker-buttons {
-    width: 100%;
-    max-width: 520px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin: 0 auto;
-}
-
-/* Worker button card */
-.worker-btn {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 18px 16px;
-    border: none;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
-    cursor: pointer;
-    text-decoration: none !important;
-    color: var(--accent-dark) !important;
-    transition: all 0.2s ease-in-out;
-    text-align: left;
-    font-family: inherit;
-    font-size: inherit;
-}
-.worker-btn:active {
-    box-shadow: var(--btn-shadow-active);
-}
-.worker-btn__icon {
-    font-size: 28px;
-    margin-right: 14px;
-    flex-shrink: 0;
-    width: 36px;
-    text-align: center;
-}
-.worker-btn__text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-.worker-btn__title {
-    font-size: 16px;
-    font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
-    margin-bottom: 2px;
-}
-.worker-btn__sub {
-    font-size: 13px;
-    font-weight: 400;
-    opacity: 0.75;
-    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Modal */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    padding: 20px;
-}
-.modal-card {
-    background: var(--btn-bg);
-    border-radius: var(--card-radius);
-    padding: 28px 20px;
-    max-width: 340px;
-    width: 100%;
-    text-align: center;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-}
-.modal-text {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 20px;
-    line-height: 1.5;
-    text-shadow: var(--btn-text-shadow);
-}
-
-@media (max-width: 420px) {
-    .worker-btn {
-        padding: 14px 12px;
-        border-radius: 24px;
-    }
-    .worker-btn__icon { font-size: 24px; margin-right: 10px; }
-    .worker-btn__title { font-size: 15px; }
-}
-</style>
 {% endblock %}
