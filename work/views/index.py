@@ -6,8 +6,9 @@ from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
 from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE
-from vacancy.models import VacancyUser
+from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
+from work.choices import WorkProfileRole
 
 
 @login_required
@@ -59,7 +60,40 @@ def index(request: WSGIRequest):
         }
         return render(request, "work/worker_dashboard.html", context)
 
-    # Employer — standard block-based dashboard
+    # Employer — dedicated dashboard
+    if profile and profile.role == WorkProfileRole.EMPLOYER:
+        # First visit: no vacancies yet → redirect to create
+        if Vacancy.objects.filter(owner=user).count() == 0:
+            return redirect("vacancy:create")
+
+        # Active vacancies count
+        active_vacancies_count = Vacancy.objects.filter(
+            owner=user,
+            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+        ).count()
+
+        # Reviews count
+        reviews_count = UserFeedback.objects.filter(user=user).count()
+
+        # City channel link
+        channel = None
+        if profile.city:
+            channel = Channel.objects.filter(
+                city=profile.city,
+                is_active=True,
+                has_bot_administrator=True,
+                invite_link__isnull=False,
+            ).first()
+
+        context = {
+            "work_profile": profile,
+            "active_vacancies_count": active_vacancies_count,
+            "reviews_count": reviews_count,
+            "channel": channel,
+        }
+        return render(request, "work/employer_dashboard.html", context)
+
+    # Fallback — block-based dashboard
     blocks = []
     for block in block_registry.get_visible_blocks(request):
         ctx = block.get_context(request)

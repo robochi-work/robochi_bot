@@ -72,6 +72,9 @@
                 {% if vacancy.group and vacancy.group.invite_link %}
                 <a href="{{ vacancy.group.invite_link }}" target="_blank" class="btn-secondary vacancy-group-btn">ГРУПА</a>
                 {% endif %}
+                {% if vacancy.status == 'pending' %}
+                <a href="{% url 'work:admin_moderate_vacancy' vacancy.pk %}" class="btn-primary vacancy-moderate-btn">МОДЕРАЦІЯ</a>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -212,6 +215,14 @@ function toggleCity(header) {
         word-break: break-word;
     }
     .vacancy-group-btn {
+        margin: 6px 0 0;
+        padding: 8px 18px;
+        font-size: 13px;
+        align-self: flex-start;
+        width: auto;
+        display: inline-block;
+    }
+    .vacancy-moderate-btn {
         margin: 6px 0 0;
         padding: 8px 18px;
         font-size: 13px;

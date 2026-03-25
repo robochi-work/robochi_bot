@@ -14,9 +14,9 @@ from vacancy.models import Vacancy
 
 
 def admin_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
-    url = settings.BASE_URL.rstrip('/') + get_admin_url(vacancy)
+    url = settings.BASE_URL.rstrip('/') + reverse('work:admin_moderate_vacancy', kwargs={'vacancy_id': vacancy.pk})
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_('View vacancy'), web_app=WebAppInfo(url=url)))
+    markup.add(InlineKeyboardButton(text=_('Переглянути вакансію'), web_app=WebAppInfo(url=url)))
     return markup
 
 def channel_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:

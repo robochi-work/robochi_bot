@@ -12,6 +12,9 @@ from vacancy.models import Vacancy
 from vacancy.choices import (
     STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_CLOSED,
 )
+from vacancy.forms import VacancyForm
+from vacancy.services.observers.subscriber_setup import vacancy_publisher
+from vacancy.services.observers.events import VACANCY_APPROVED as VACANCY_APPROVED_EVENT
 
 
 def staff_required(view_func):
@@ -140,6 +143,61 @@ def admin_vacancy_card(request, user_id):
         'target_profile': profile,
         'cities_vacancies': cities_vacancies,
         'work_profile': getattr(request.user, 'work_profile', None),
+    })
+
+
+@staff_required
+def admin_moderate_vacancy(request, vacancy_id):
+    """Moderation form for a single vacancy."""
+    vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
+    work_profile = getattr(request.user, 'work_profile', None)
+
+    if request.method == 'POST':
+        form = VacancyForm(request.POST)
+        if form.is_valid():
+            try:
+                data = form.cleaned_data
+                vacancy.gender = data['gender']
+                vacancy.people_count = data['people_count']
+                vacancy.has_passport = data['has_passport']
+                vacancy.address = data['address']
+                vacancy.map_link = data.get('map_link', vacancy.map_link)
+                vacancy.date_choice = data['date_choice']
+                vacancy.date = data.get('date', vacancy.date)
+                vacancy.start_time = data['start_time']
+                vacancy.end_time = data['end_time']
+                vacancy.payment_amount = data['payment_amount']
+                vacancy.payment_unit = data['payment_unit']
+                vacancy.payment_method = data['payment_method']
+                vacancy.skills = data['skills']
+                vacancy.status = STATUS_APPROVED
+                vacancy.save()
+                vacancy_publisher.notify(VACANCY_APPROVED_EVENT, {'vacancy': vacancy, 'request': request})
+                return redirect('work:admin_vacancy_card', user_id=vacancy.owner_id)
+            except Exception as e:
+                form.add_error(None, str(e))
+    else:
+        initial = {
+            'date_choice': vacancy.date_choice,
+            'gender': vacancy.gender,
+            'people_count': vacancy.people_count,
+            'has_passport': vacancy.has_passport,
+            'address': vacancy.address,
+            'map_link': vacancy.map_link,
+            'start_time': vacancy.start_time,
+            'end_time': vacancy.end_time,
+            'payment_amount': vacancy.payment_amount,
+            'payment_unit': vacancy.payment_unit,
+            'payment_method': vacancy.payment_method,
+            'skills': vacancy.skills,
+        }
+        form = VacancyForm(initial=initial)
+
+    return render(request, 'work/admin_moderate_vacancy.html', {
+        'form': form,
+        'vacancy': vacancy,
+        'target_user': vacancy.owner,
+        'work_profile': work_profile,
     })
 
 
