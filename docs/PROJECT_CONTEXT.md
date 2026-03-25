@@ -335,3 +335,43 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. ЛК Worker — доработка: блокировка UI, запрос телефона
 5. Ротация вакансий
 6. Monobank интеграция
+
+### Сессия 25.03.2026 (вечер) — ЛК Адміністратора (Admin dashboard)
+1. **Полноценный ЛК Администратора** — work/views/admin_panel.py, 6 views:
+   - `admin_dashboard` — главная страница: кнопка «Відкрити Django Admin» + два таба (Користувачі / Вакансії) с фильтрами и поиском
+   - `admin_search_users` — поиск пользователей: карточки с Ім'я, ID (ссылка → Django admin), Username (ссылка → Telegram), Телефон, кнопка блокировки
+   - `admin_search_vacancies` — карта вакансий: Employer с вакансиями по городам, кнопка ГРУПА (invite_link), кнопка МОДЕРАЦІЯ для pending
+   - `admin_vacancy_card` — карточка вакансий пользователя (по user_id)
+   - `admin_block_user` — блокировка/разблокировка пользователя (POST, toggle is_active)
+   - `admin_moderate_vacancy` — форма модерации вакансии: данные вакансии + кнопка ЗАТВЕРДИТИ → status=approved + вызов Observer'ов (notify channels/group)
+
+2. **Кнопка в боте** — `service/telegram_markup_factory.py`: `admin_vacancy_reply_markup` теперь ведёт на `work:admin_moderate_vacancy` (ЛК), а не на Django admin `/admin/vacancy/vacancy/<id>/change/`. Кнопка переименована: «🔍 Посмотреть вакансию» → «Переглянути вакансію».
+
+3. **Employer dashboard** — подключён `employer_dashboard.html` через прямой рендер; redirect на `vacancy:create` при первом входе (нет вакансий).
+
+4. **index.py обновлён** — маршрутизация: admin → `admin_dashboard`, employer без вакансий → `vacancy:create`, employer с вакансиями → `employer_dashboard.html`.
+
+5. **work/urls.py расширен** — новые маршруты:
+   - `admin-panel/` → `admin_dashboard`
+   - `admin-panel/users/` → `admin_search_users`
+   - `admin-panel/vacancies/` → `admin_search_vacancies`
+   - `admin-panel/user/<int:user_id>/vacancies/` → `admin_vacancy_card`
+   - `admin-panel/user/<int:user_id>/block/` → `admin_block_user`
+   - `admin-panel/vacancy/<int:vacancy_id>/moderate/` → `admin_moderate_vacancy`
+   - `employer/reviews/` → `employer_reviews`
+   - `employer/faq/` → `employer_faq`
+
+**Новые/обновлённые файлы:**
+- work/views/admin_panel.py — все admin views
+- work/templates/work/admin_dashboard.html — dashboard с табами
+- work/templates/work/admin_moderate_vacancy.html — форма модерации
+- work/urls.py — расширен
+- work/views/index.py — обновлена маршрутизация
+- service/telegram_markup_factory.py — кнопка ведёт в ЛК
+
+**Приоритеты (обновлены 25.03.2026):**
+1. AgreementText для employer/worker в admin
+2. ЛК Employer — Фаза 2: управление заявками (зупинити пошук, повторний пошук из ЛК, страница учасників, оплата)
+3. ЛК Worker — доработка: блокировка UI, запрос телефона
+4. Ротация вакансий
+5. Monobank інтеграція
