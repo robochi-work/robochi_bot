@@ -162,6 +162,34 @@ flowchart TD
 - меняется MonobankPayment модель
 - нужна верификация ECDSA подписи
 
+### work/views/admin_panel.py — ЛК Администратора (добавлено 25.03.2026)
+Нужен, если:
+- меняется логика дашборда администратора
+- меняется поиск пользователей/вакансий
+- меняется процесс модерации вакансий
+- меняется блокировка пользователей
+
+URL patterns (namespace `work:`):
+- `work:admin_dashboard` → GET `/work/admin-panel/`
+- `work:admin_search_users` → GET `/work/admin-panel/search/users/?q=`
+- `work:admin_search_vacancies` → GET `/work/admin-panel/search/vacancies/?q=`
+- `work:admin_vacancy_card` → GET `/work/admin-panel/vacancy/<id>/`
+- `work:admin_block_user` → POST `/work/admin-panel/user/<id>/block/`
+- `work:admin_moderate_vacancy` → GET+POST `/work/admin-panel/vacancy/<id>/moderate/`
+
+### work/views/employer.py — ЛК Employer (добавлено 25.03.2026)
+Нужен, если:
+- меняется страница отзывов работодателя
+- меняется страница FAQ для работодателя
+
+URL patterns:
+- `work:employer_reviews` → GET `/work/employer/reviews/`
+- `work:employer_faq` → GET `/work/employer/faq/`
+
+### vacancy/ — дополнительные URL patterns (добавлено 25.03.2026)
+- `vacancy:my_list` → GET `/vacancy/my/` — список вакансий работодателя
+- `vacancy:detail` → GET `/vacancy/<id>/` — детальная страница вакансии
+
 ---
 
 ## 5. Как AI должен предлагать изменения

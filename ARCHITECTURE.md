@@ -1,6 +1,6 @@
 # ARCHITECTURE.md --- robochi_bot System Architecture
 
-Last updated: 16.03.2026
+Last updated: 25.03.2026
 
 ## Overview
 
@@ -118,6 +118,42 @@ Zone 4 — Data layer: models, migrations, PostgreSQL
 Zone 5 — Async layer: Celery tasks, Redis, periodic jobs
 Zone 6 — Payment layer: Monobank Acquiring (payment/ app)
 Zone 7 — Infra layer: Gunicorn, Nginx, systemd, deployment
+
+## ЛК Администратора (добавлено 25.03.2026)
+
+### Маршрутизация index.py
+`work/views/index.py` — точка входа после аутентификации, распределяет по роли:
+```
+authenticate_web_app → /work/
+    ├── user.is_staff = True  → redirect work:admin_dashboard
+    ├── Employer, 0 вакансий  → redirect vacancy:create
+    ├── Employer              → render employer_dashboard.html
+    └── Worker                → render worker_dashboard.html
+```
+
+### ЛК Администратора (work/views/admin_panel.py)
+- `admin_dashboard` — дашборд с двумя табами: Користувачі / Вакансії + карта вакансий по статусам
+- `admin_search_users` — AJAX-поиск пользователей (GET ?q=)
+- `admin_search_vacancies` — AJAX-поиск вакансий (GET ?q=)
+- `admin_vacancy_card` — детальный просмотр вакансии (GET)
+- `admin_block_user` — блокировка/разблокировка пользователя (POST)
+- `admin_moderate_vacancy` — форма модерации вакансии: approve/reject (GET+POST)
+
+URL namespace: `work:admin_dashboard`, `work:admin_search_users`, и т.д.
+Доступ: `user.is_staff == True` — декоратор/проверка в каждом view.
+
+### Модерация вакансий
+Кнопка в боте (telegram_markup_factory.admin_vacancy_reply_markup) открывает Mini App:
+```
+Бот → кнопка "Модерувати" → /work/admin-panel/vacancy/<id>/moderate/
+                                        ↓
+                              admin_moderate_vacancy (GET)
+                                        ↓
+                              Форма approve/reject (POST)
+                                        ↓
+                              vacancy.status updated → уведомление работодателю
+```
+НЕ используется Django admin (`/admin/vacancy/vacancy/<id>/change/`) — это устаревший путь.
 
 ## Localization / i18n (added 19.03.2026)
 
