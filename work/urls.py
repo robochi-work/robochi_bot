@@ -7,7 +7,7 @@ from work.views.work_profile import (
 from work.views.legal import legal_offer_view
 from work.views.phone_required import phone_required_view, resend_phone_request
 from work.views.worker import worker_reviews, worker_faq
-from work.views.employer import employer_reviews, employer_faq
+from work.views.employer import employer_reviews, employer_faq, employer_cities
 from work.views.admin_panel import (
     admin_dashboard,
     admin_search_users,
@@ -30,6 +30,7 @@ urlpatterns = [
     # Employer pages
     path('employer/reviews/', employer_reviews, name='employer_reviews'),
     path('employer/faq/', employer_faq, name='employer_faq'),
+    path('employer/cities/', employer_cities, name='employer_cities'),
     # Admin panel pages
     path('admin-panel/', admin_dashboard, name='admin_dashboard'),
     path('admin-panel/users/', admin_search_users, name='admin_search_users'),

@@ -40,3 +40,42 @@ def employer_faq(request):
     return render(request, 'work/employer_faq.html', {
         'work_profile': getattr(request.user, 'work_profile', None),
     })
+
+
+@login_required
+def employer_cities(request):
+    """Page showing all employer's cities with channel links."""
+    profile = getattr(request.user, 'work_profile', None)
+    city_channels = []
+
+    if profile:
+        allowed_ids = []
+        if profile.multi_city_enabled:
+            allowed_ids = list(profile.allowed_cities.values_list('id', flat=True))
+        if profile.city_id:
+            allowed_ids.append(profile.city_id)
+
+        if allowed_ids:
+            channels = (
+                Channel.objects.filter(
+                    city_id__in=allowed_ids,
+                    is_active=True,
+                    has_bot_administrator=True,
+                    invite_link__isnull=False,
+                ).select_related('city')
+            )
+            for ch in channels:
+                city_name = ch.city.safe_translation_getter('name', any_language=True) if ch.city else ch.title
+                city_channels.append({
+                    'city_name': city_name,
+                    'channel_title': ch.title,
+                    'invite_link': ch.invite_link,
+                    'is_main': profile.city_id == ch.city_id,
+                })
+            # Main city first
+            city_channels.sort(key=lambda x: (not x['is_main'], x['city_name']))
+
+    return render(request, 'work/employer_cities.html', {
+        'city_channels': city_channels,
+        'work_profile': profile,
+    })

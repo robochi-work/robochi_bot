@@ -2,6 +2,21 @@
 <form method="post" action="{% url 'vacancy:create' %}">
     {% csrf_token %}
 
+    {# City selector — shown for multi-city employers #}
+    {% if work_profile.multi_city_enabled %}
+    <div class="column city-selector-wrap">
+        <label for="{{ form.city.id_for_label }}">{% trans "City" %}:</label>
+        {{ form.city }}
+        {{ form.city.errors }}
+    </div>
+    {% else %}
+    {# Single city — show as text, hidden input #}
+    <div class="column city-current-wrap">
+        <span class="city-current-label">📍 {{ work_profile.city }}</span>
+    </div>
+    {{ form.city }}
+    {% endif %}
+
     <div class="column">
         <label for="{{ form.date_choice.id_for_label }}">{% trans "When are employees needed?" %}:</label>
         <div class="date-choice">

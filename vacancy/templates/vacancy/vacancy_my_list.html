@@ -16,7 +16,7 @@
         {% for item in vacancy_list %}
         <a href="{% url 'vacancy:detail' pk=item.vacancy.pk %}" class="vacancy-card">
             <div class="vacancy-card__top">
-                <span class="vacancy-card__address">📍 {{ item.vacancy.address|truncatechars:50 }}</span>
+                <span class="vacancy-card__address">📍 {% if item.vacancy.channel and item.vacancy.channel.city %}{{ item.vacancy.channel.city }} · {% endif %}{{ item.vacancy.address|truncatechars:50 }}</span>
                 <span class="vacancy-card__status vacancy-card__status--{{ item.vacancy.status }}">
                     {{ item.status_label }}
                 </span>

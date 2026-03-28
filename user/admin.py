@@ -21,8 +21,13 @@ class UserWorkProfileInline(admin.StackedInline):
     can_delete = False
     extra = 0
     max_num = 1
-    fields = ('role', 'city', 'phone_number', 'agreement_accepted', 'is_completed', 'created_at')
+    fields = (
+        'role', 'city', 'phone_number', 'agreement_accepted', 'is_completed',
+        'multi_city_enabled', 'allowed_cities',
+        'created_at',
+    )
     readonly_fields = ('created_at',)
+    filter_horizontal = ('allowed_cities',)
     verbose_name = _('Work profile')
     verbose_name_plural = _('Work profile')
 

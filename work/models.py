@@ -13,6 +13,20 @@ class UserWorkProfile(models.Model):
     agreement_accepted_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
 
+    # Multi-city feature for employers
+    multi_city_enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Multi-city enabled"),
+        help_text=_("Allow employer to post vacancies in multiple cities"),
+    )
+    allowed_cities = models.ManyToManyField(
+        'city.City',
+        blank=True,
+        related_name='allowed_employers',
+        verbose_name=_("Allowed cities"),
+        help_text=_("Cities where employer can post vacancies (in addition to main city)"),
+    )
+
     def __str__(self):
         return f"{self.user} — {self.get_role_display()}"
 

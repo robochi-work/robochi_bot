@@ -156,7 +156,8 @@ def admin_moderate_vacancy(request, vacancy_id):
         return redirect('work:admin_vacancy_card', user_id=vacancy.owner_id)
 
     if request.method == 'POST':
-        form = VacancyForm(request.POST)
+        owner_profile = getattr(vacancy.owner, 'work_profile', None)
+        form = VacancyForm(request.POST, work_profile=owner_profile)
         if form.is_valid():
             try:
                 data = form.cleaned_data
@@ -214,7 +215,8 @@ def admin_moderate_vacancy(request, vacancy_id):
             'skills': vacancy.skills,
             'contact_phone': vacancy.contact_phone,
         }
-        form = VacancyForm(initial=initial)
+        owner_profile = getattr(vacancy.owner, 'work_profile', None)
+        form = VacancyForm(initial=initial, work_profile=owner_profile)
 
     return render(request, 'work/admin_moderate_vacancy.html', {
         'form': form,

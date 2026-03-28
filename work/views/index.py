@@ -75,7 +75,7 @@ def index(request: WSGIRequest):
         # Reviews count
         reviews_count = UserFeedback.objects.filter(user=user).count()
 
-        # City channel link
+        # City channel link (single city)
         channel = None
         if profile.city:
             channel = Channel.objects.filter(
@@ -85,11 +85,27 @@ def index(request: WSGIRequest):
                 invite_link__isnull=False,
             ).first()
 
+        # Multi-city: collect all city channels
+        city_channels = None
+        if profile.multi_city_enabled:
+            allowed_ids = list(profile.allowed_cities.values_list('id', flat=True))
+            if profile.city_id:
+                allowed_ids.append(profile.city_id)
+            city_channels = list(
+                Channel.objects.filter(
+                    city_id__in=allowed_ids,
+                    is_active=True,
+                    has_bot_administrator=True,
+                    invite_link__isnull=False,
+                ).select_related('city')
+            )
+
         context = {
             "work_profile": profile,
             "active_vacancies_count": active_vacancies_count,
             "reviews_count": reviews_count,
             "channel": channel,
+            "city_channels": city_channels,
         }
         return render(request, "work/employer_dashboard.html", context)
 

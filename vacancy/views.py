@@ -22,8 +22,9 @@ from vacancy.tasks.call import before_start_call, after_first_call_check
 
 
 def vacancy_create(request):
+    work_profile = getattr(request.user, 'work_profile', None)
     if request.method == 'POST':
-        vacancy_form = VacancyForm(request.POST)
+        vacancy_form = VacancyForm(request.POST, work_profile=work_profile)
         if vacancy_form.is_valid():
             # Защита от двойного создания: проверяем дубль за последние 60 секунд
             from django.utils import timezone
@@ -42,7 +43,7 @@ def vacancy_create(request):
             return redirect('index')
 
     else:
-        vacancy_form = VacancyForm()
+        vacancy_form = VacancyForm(work_profile=work_profile)
 
 
     # First visit = employer has never created any vacancy
@@ -50,7 +51,7 @@ def vacancy_create(request):
     return render(request, 'vacancy/vacancy_form_page.html', {
         'form': vacancy_form,
         'is_first_visit': is_first_visit,
-        'work_profile': getattr(request.user, 'work_profile', None),
+        'work_profile': work_profile,
     })
 
 
