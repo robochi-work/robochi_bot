@@ -175,6 +175,20 @@ def admin_moderate_vacancy(request, vacancy_id):
                 vacancy.payment_method = data['payment_method']
                 vacancy.skills = data['skills']
                 vacancy.contact_phone = data.get('contact_phone', '')
+                # Update channel based on selected city
+                selected_city = data.get('city')
+                if selected_city:
+                    from telegram.models import Channel
+                    try:
+                        vacancy.channel = Channel.objects.get(city=selected_city)
+                    except Channel.DoesNotExist:
+                        form.add_error(None, f'Канал для міста {selected_city} не знайдено.')
+                        return render(request, 'work/admin_moderate_vacancy.html', {
+                            'form': form,
+                            'vacancy': vacancy,
+                            'target_user': vacancy.owner,
+                            'work_profile': work_profile,
+                        })
                 # Assign group from pool (same logic as Django Admin save_model)
                 if not vacancy.group:
                     from telegram.service.group import GroupService
@@ -201,6 +215,7 @@ def admin_moderate_vacancy(request, vacancy_id):
                 form.add_error(None, str(e))
     else:
         initial = {
+            'city': vacancy.channel.city_id if vacancy.channel else None,
             'date_choice': vacancy.date_choice,
             'gender': vacancy.gender,
             'people_count': vacancy.people_count,

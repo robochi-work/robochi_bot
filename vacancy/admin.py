@@ -120,8 +120,10 @@ class VacancyAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj: Vacancy, form, change):
         status_changed = 'status' in form.changed_data
-        work_profile = UserWorkProfile.objects.get(user=obj.owner)
-        obj.channel = Channel.objects.get(city=work_profile.city)
+        # Use existing channel if set, otherwise fall back to owner's profile city
+        if not obj.channel:
+            work_profile = UserWorkProfile.objects.get(user=obj.owner)
+            obj.channel = Channel.objects.get(city=work_profile.city)
 
         if status_changed and obj.status == STATUS_APPROVED:
             if not obj.group:
