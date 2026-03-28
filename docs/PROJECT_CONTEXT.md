@@ -423,3 +423,49 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. Фаза 3 — Оплата monobank UI в ЛК
 5. Блокування — модель (тип, термін, причина), автоблокування
 6. Продовження на завтра — розсилка, очікування, перестворення
+
+### Сессия 28.03.2026 (вечер) — Допрацювання ЛК Employer + аудит шаблонів
+
+**4 задачі виконано:**
+
+1. **Аудит header** — у 7 шаблонах, що наслідують base.html, додано порожній {% block header %}{% endblock %} для приховання старого header з кнопкою «Меню»:
+   - vacancy/: call.html, call_confirm.html, pre_call.html, refind_start.html, vacancy_feedback.html
+   - work/: index.html
+   - telegram/: check.html
+
+2. **Права Employer в групі вакансії** — в auto_approve() (chat_join_request handler) додано автоматичний промоут Employer до адміністратора групи при join:
+   - bot.approve → time.sleep(1) → GroupService.set_default_owner_permissions() → set_admin_custom_title('Роботодавець')
+   - Раніше промоут був тільки в chat_member_handler, який міг не спрацювати при join через chat_join_request
+   - import time перенесено в блок імпортів файлу
+
+3. **Аудит форми модерації** — admin_moderate_vacancy:
+   - Додано захист POST від повторної модерації: якщо vacancy.status вже APPROVED або ACTIVE → redirect на admin_vacancy_card
+   - Шаблон: кнопка submit замінюється на повідомлення «Вакансія вже пройшла модерацію» + всі поля disabled через JS
+   - Перевірено: contact_phone, map_link, date з date_choice — все коректно
+
+4. **Віджет вибору часу** — замінено нативний input type=time на custom select:
+   - TimeSelectWidget(forms.MultiWidget) — два select: години (00-23) та хвилини (00/15/30/45)
+   - TimeSelectField(forms.MultiValueField) — compress() збирає datetime.time
+   - Шаблон: vacancy/templates/vacancy/widgets/time_select.html
+   - CSS: .time-select-widget в telegram/static/css/styles.css
+   - VacancyAdminForm не зачіпалась
+   - Виправлено: format_output замінено на template_name (Django 5.x сумісність)
+
+**Нові файли:**
+- vacancy/templates/vacancy/widgets/time_select.html
+
+**Оновлені файли:**
+- vacancy/forms.py — +TimeSelectWidget, +TimeSelectField, start_time/end_time замінені
+- telegram/handlers/member/user/group.py — промоут owner в auto_approve(), +import time
+- work/views/admin_panel.py — +is_already_moderated, захист POST
+- work/templates/work/admin_moderate_vacancy.html — disabled form + повідомлення
+- telegram/static/css/styles.css — +.time-select-widget стилі
+- 7 шаблонів — додано {% block header %}{% endblock %}
+
+**Пріоритети (оновлені 28.03.2026):**
+1. Мультимісто для Employer (M2M, admin UI, форма)
+2. Блокування — модель (тип, термін, причина), автоблокування
+3. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+4. Ротація вакансій (Celery task кожні 5 хв)
+5. Monobank оплата — UI в ЛК
+6. Продовження на завтра — розсилка, очікування, перестворення
