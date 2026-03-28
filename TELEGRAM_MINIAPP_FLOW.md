@@ -174,3 +174,41 @@ sequenceDiagram
 - Telegram
 - Django backend
 - production cookies / HTTPS / proxy
+
+---
+
+## 10. Flow модерации вакансий через ЛК (обновлено 25.03.2026)
+
+### Было (устаревший путь — НЕ использовать)
+```
+Бот → кнопка "Модерувати" → /admin/vacancy/vacancy/<id>/change/  (Django admin)
+```
+
+### Стало (актуальный путь)
+```
+Бот → кнопка "Модерувати" → /work/admin-panel/vacancy/<id>/moderate/  (ЛК Адміністратора)
+```
+
+Полный flow:
+```mermaid
+sequenceDiagram
+    participant Adm as Адміністратор
+    participant Bot as Telegram Bot
+    participant MA as Mini App
+    participant Django as Django
+
+    Note over Bot: Нова вакансія від роботодавця
+    Bot->>Adm: Повідомлення з кнопкою "Модерувати"
+    Adm->>MA: Натискає кнопку
+    MA->>Django: GET /work/admin-panel/vacancy/<id>/moderate/
+    Django->>Adm: Форма модерації (approve/reject + коментар)
+    Adm->>Django: POST форми
+    Django->>Django: vacancy.status = approved/rejected
+    Django->>Bot: Повідомлення роботодавцю про результат
+    Django->>Adm: Редирект на admin_dashboard
+```
+
+Ключевые файлы:
+- `service/telegram_markup_factory.py` — `admin_vacancy_reply_markup()` формирует кнопку с правильным URL
+- `work/views/admin_panel.py` — `admin_moderate_vacancy` обрабатывает форму
+- `work/templates/work/admin_moderate_vacancy.html` — шаблон формы модерации

@@ -1,10 +1,40 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
+{% block header %}{% endblock %}
+
 {% block body %}
-    <div class="page-block">
-        <h2>{% trans "Create a Vacancy" %}</h2>
+<main class="page page--vacancy-form">
+    <div class="form-container">
+
+        {% if not is_first_visit %}
+        <div class="vacancy-list-header">
+            <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+        </div>
+        {% endif %}
+
+        <h2 class="form-title">{% trans "Create a Vacancy" %}</h2>
         {% include 'vacancy/vacancy_form.html' %}
     </div>
+</main>
 
+<style>
+.page--vacancy-form {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.form-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.form-title {
+    font-size: 20px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    margin-bottom: 20px;
+    text-align: center;
+}
+</style>
 {% endblock %}

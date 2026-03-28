@@ -1,14 +1,22 @@
 from django.urls import path
-from .views import vacancy_create, vacancy_test_task, vacancy_call, vacancy_start_refind, vacancy_pre_call_check, \
-    vacancy_user_feedback
+from .views import (
+    vacancy_create, vacancy_test_task, vacancy_call,
+    vacancy_start_refind, vacancy_pre_call_check,
+    vacancy_user_feedback, vacancy_my_list, vacancy_detail,
+    vacancy_stop_search, vacancy_members, vacancy_kick_member,
+)
 
 app_name = 'vacancy'
 urlpatterns = [
     path('create/', vacancy_create, name='create'),
+    path('my/', vacancy_my_list, name='my_list'),
+    path('<int:pk>/detail/', vacancy_detail, name='detail'),
     path('<int:pk>/pre-call/<str:call_type>/', vacancy_pre_call_check, name='pre_call'),
     path('<int:pk>/call/<str:call_type>/', vacancy_call, name='call'),
     path('<int:pk>/refind/', vacancy_start_refind, name='refind'),
+    path('<int:pk>/stop-search/', vacancy_stop_search, name='stop_search'),
+    path('<int:pk>/members/', vacancy_members, name='members'),
+    path('<int:pk>/kick/<int:user_id>/', vacancy_kick_member, name='kick_member'),
     path('<int:pk>/feedback/', vacancy_user_feedback, name='feedback'),
     path('test-task/', vacancy_test_task, name='vacancy_test_task'),
-
 ]

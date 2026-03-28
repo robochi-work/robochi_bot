@@ -20,12 +20,8 @@ class VacancyRefindChannelObserver(Observer):
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data['vacancy']
         if vacancy.status != STATUS_CLOSED:
-            channel = Channel.objects.filter(
-                city=vacancy.owner.work_profile.city,
-                is_active=True,
-                has_bot_administrator=True,
-                invite_link__isnull=False,
-            ).first()
+            # Use vacancy's assigned channel (supports multi-city)
+            channel = vacancy.channel
 
             deleter = MessageDeleter(bot)
             service = MessageDeleteService(deleter)

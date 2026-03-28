@@ -1,0 +1,258 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--vacancy-detail">
+
+    <div class="detail-container">
+
+        <div class="detail-header">
+            <a href="{% url 'vacancy:my_list' %}" class="btn-back">← Заявки</a>
+            <span class="vacancy-card__status vacancy-card__status--{{ vacancy.status }}">
+                {{ status_label }}
+            </span>
+        </div>
+
+        {# Vacancy info card #}
+        <div class="detail-card">
+            <h2 class="detail-address">📍 {{ vacancy.address }}</h2>
+
+            <div class="detail-grid">
+                <div class="detail-row">
+                    <span class="detail-label">📅 Дата</span>
+                    <span class="detail-value">{{ vacancy.date|date:"d.m.Y" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">⏰ Час</span>
+                    <span class="detail-value">{{ vacancy.start_time|time:"H:i" }} – {{ vacancy.end_time|time:"H:i" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">👥 Люди</span>
+                    <span class="detail-value">{{ members_count }} / {{ vacancy.people_count }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">💰 Оплата</span>
+                    <span class="detail-value">{{ vacancy.payment_amount }} грн / {{ vacancy.get_payment_unit_display }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">💳 Спосіб</span>
+                    <span class="detail-value">{{ vacancy.get_payment_method_display }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">👤 Стать</span>
+                    <span class="detail-value">{{ vacancy.get_gender_display }}</span>
+                </div>
+                {% if vacancy.has_passport %}
+                <div class="detail-row">
+                    <span class="detail-label">🪪 Паспорт</span>
+                    <span class="detail-value">Потрібен</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if vacancy.skills %}
+            <div class="detail-skills">
+                <span class="detail-label">📝 Опис роботи</span>
+                <p>{{ vacancy.skills }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {# Action buttons #}
+        <div class="detail-actions">
+
+            {# Group link #}
+            {% if vacancy.group and vacancy.group.invite_link %}
+            <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
+                <span class="worker-btn__icon">💬</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Група з робітниками</span>
+                    <span class="worker-btn__sub">Перейти в Telegram</span>
+                </span>
+            </a>
+            {% endif %}
+
+            {# Roll-calls #}
+            {% if vacancy.status == 'active' or vacancy.status == 'approved' %}
+            <button type="button" class="worker-btn" onclick="showManageModal()">
+                <span class="worker-btn__icon">⚙️</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Управління вакансією</span>
+                    <span class="worker-btn__sub">Пошук, переклички, закриття</span>
+                </span>
+            </button>
+            {% endif %}
+
+            {# Members list #}
+            {% if members_count > 0 %}
+            <div class="detail-members">
+                <h3>Робітники ({{ members_count }})</h3>
+                {% for vu in members %}
+                <div class="member-row">
+                    <span class="member-name">{{ vu.user.full_name|default:"Без імені" }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</main>
+
+{# Management modal #}
+<div id="manage-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+        <h3 class="modal-title">Управління вакансією</h3>
+
+        {% if vacancy.status == 'approved' %}
+        <a href="{% url 'vacancy:refind' pk=vacancy.pk %}" class="btn-primary" style="margin-bottom:10px;">
+            🔄 Повторний пошук
+        </a>
+        <a href="{% url 'vacancy:stop_search' pk=vacancy.pk %}" class="btn-primary" style="margin-bottom:10px;"
+           onclick="return confirm('Зупинити пошук робітників?')">
+            ⏹️ Зупинити пошук
+        </a>
+        {% endif %}
+
+        {% if vacancy.status == 'approved' or vacancy.status == 'active' %}
+        <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="btn-primary" style="margin-bottom:10px;">
+            ▶️ Перекличка: Початок роботи
+        </a>
+
+        <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='after_start' %}" class="btn-primary" style="margin-bottom:10px;">
+            🏁 Перекличка: Кінець роботи
+        </a>
+
+        <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="btn-primary" style="margin-bottom:10px;">
+            👥 Учасники групи
+        </a>
+        {% endif %}
+
+        <button type="button" class="btn-secondary" onclick="closeManageModal()" style="margin-top:10px;">
+            Закрити
+        </button>
+    </div>
+</div>
+
+<script>
+function showManageModal() {
+    document.getElementById('manage-modal').style.display = 'flex';
+}
+function closeManageModal() {
+    document.getElementById('manage-modal').style.display = 'none';
+}
+document.getElementById('manage-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeManageModal();
+});
+</script>
+
+<style>
+.page--vacancy-detail {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.detail-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.detail-card {
+    padding: 20px 16px;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    margin-bottom: 16px;
+}
+.detail-address {
+    font-size: 17px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    margin-bottom: 16px;
+    line-height: 1.4;
+}
+
+.detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+.detail-label {
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+.detail-value {
+    font-weight: 500;
+}
+
+.detail-skills {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+.detail-skills p {
+    font-size: 14px;
+    margin-top: 6px;
+    line-height: 1.5;
+}
+
+.detail-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.detail-members {
+    padding: 16px;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+}
+.detail-members h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    text-shadow: var(--btn-text-shadow);
+}
+.member-row {
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    font-size: 14px;
+}
+.member-row:last-child {
+    border-bottom: none;
+}
+
+.modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-shadow: var(--btn-text-shadow);
+}
+
+/* Status badges (reuse from list) */
+.vacancy-card__status--pending { background: var(--message-warning-bg); }
+.vacancy-card__status--approved { background: var(--message-success-bg); }
+.vacancy-card__status--active { background: rgba(33,150,243,0.25); }
+
+@media (max-width: 420px) {
+    .detail-card { padding: 16px 12px; border-radius: 24px; }
+    .detail-members { border-radius: 24px; }
+}
+</style>
+{% endblock %}

@@ -1,0 +1,165 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--admin-results">
+
+    <a href="{% url 'work:admin_dashboard' %}" class="btn-secondary back-btn">← Назад</a>
+
+    <h2 class="results-title">Результати пошуку <span class="results-count">{{ users|length }}</span></h2>
+
+    {% if not users %}
+    <p class="results-empty">Нічого не знайдено</p>
+    {% endif %}
+
+    {% for user in users %}
+    <div class="user-card">
+        <div class="user-card__row">
+            <span class="user-card__label">Ім'я:</span>
+            <span class="user-card__value">{{ user.full_name|default:'-' }}</span>
+        </div>
+        <div class="user-card__row">
+            <span class="user-card__label">ID:</span>
+            <span class="user-card__value">
+                <a href="/admin/user/user/{{ user.pk }}/change/" class="user-link">{{ user.pk }}</a>
+            </span>
+        </div>
+        <div class="user-card__row">
+            <span class="user-card__label">Username:</span>
+            <span class="user-card__value">
+                {% if user.username %}
+                <a href="https://t.me/{{ user.username }}" target="_blank" class="user-link">@{{ user.username }}</a>
+                {% else %}-{% endif %}
+            </span>
+        </div>
+        <div class="user-card__row">
+            <span class="user-card__label">Телефон:</span>
+            <span class="user-card__value">{{ user.phone_number|default:'-' }}</span>
+        </div>
+        <div class="user-card__row">
+            <span class="user-card__label">Роль:</span>
+            <span class="user-card__value">{{ user.work_profile.get_role_display|default:'-' }}</span>
+        </div>
+        <div class="user-card__row">
+            <span class="user-card__label">Місто:</span>
+            <span class="user-card__value">{{ user.work_profile.city|default:'-' }}</span>
+        </div>
+        <div class="user-card__row">
+            <span class="user-card__label">Статус:</span>
+            <span class="user-card__value {% if user.is_active %}status-active{% else %}status-blocked{% endif %}">
+                {% if user.is_active %}Активний{% else %}Заблокований{% endif %}
+            </span>
+        </div>
+
+        <div class="user-card__actions">
+            {% if search_type == 'vacancies' %}
+            <a href="{% url 'work:admin_vacancy_card' user.pk %}" class="btn-secondary">Карта вакансій</a>
+            {% endif %}
+
+            <form method="POST" action="{% url 'work:admin_block_user' user.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-secondary {% if user.is_active %}btn-block{% else %}btn-unblock{% endif %}">
+                    {% if user.is_active %}Заблокувати{% else %}Розблокувати{% endif %}
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+
+</main>
+
+<style>
+    .page--admin-results {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 520px;
+        margin: 0 auto;
+    }
+    .back-btn {
+        display: inline-block;
+        width: auto;
+        margin: 0;
+        padding: 10px 20px;
+        font-size: 14px;
+        align-self: flex-start;
+    }
+    .results-title {
+        font-size: 20px;
+        font-weight: 700;
+        text-shadow: var(--btn-text-shadow);
+        margin: 0;
+    }
+    .results-count {
+        background: var(--btn-bg);
+        box-shadow: var(--btn-shadow);
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 16px;
+    }
+    .results-empty {
+        font-size: 15px;
+        opacity: 0.7;
+        text-align: center;
+        padding: 24px 0;
+    }
+    .user-card {
+        background: var(--btn-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--btn-shadow);
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .user-card__row {
+        display: flex;
+        gap: 8px;
+        font-size: 14px;
+        align-items: baseline;
+    }
+    .user-card__label {
+        font-weight: 700;
+        min-width: 72px;
+        color: var(--accent-dark);
+        opacity: 0.7;
+    }
+    .user-card__value {
+        color: var(--accent-dark);
+        word-break: break-all;
+    }
+    .user-link {
+        color: var(--accent-dark);
+        font-weight: 600;
+        text-decoration: underline;
+    }
+    .status-active {
+        color: #1a7a1a;
+        font-weight: 700;
+    }
+    .status-blocked {
+        color: #cc0000;
+        font-weight: 700;
+    }
+    .user-card__actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 6px;
+    }
+    .user-card__actions .btn-secondary {
+        margin: 0;
+        padding: 9px 16px;
+        font-size: 13px;
+    }
+    .btn-block {
+        color: #cc0000 !important;
+    }
+    .btn-unblock {
+        color: #1a7a1a !important;
+    }
+</style>
+{% endblock %}

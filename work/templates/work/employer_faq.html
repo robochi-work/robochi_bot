@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--faq">
+    <div class="faq-container">
+        <div class="vacancy-list-header">
+            <h1>Що робити якщо?</h1>
+            <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+        </div>
+
+        <div class="faq-card">
+            <h3>Як створити заявку?</h3>
+            <p>Натисніть кнопку «Створити вакансію» на головній сторінці, заповніть форму та натисніть «Створити вакансію». Заявка буде відправлена на модерацію.</p>
+        </div>
+
+        <div class="faq-card">
+            <h3>Скільки часу займає модерація?</h3>
+            <p>Зазвичай модерація займає від 5 до 30 хвилин. Ви отримаєте повідомлення в бот після затвердження.</p>
+        </div>
+
+        <div class="faq-card">
+            <h3>Як провести перекличку?</h3>
+            <p>Перейдіть в «Поточні заявки», оберіть заявку та натисніть «Управління вакансією». Там доступні переклички на початок та кінець роботи.</p>
+        </div>
+
+        <div class="faq-card">
+            <h3>Що робити якщо робітник не з'явився?</h3>
+            <p>Під час переклички зніміть галочку напроти робітника який не з'явився. Він буде заблокований, а система запустить пошук заміни.</p>
+        </div>
+
+        <div class="faq-card">
+            <h3>Як зв'язатися з адміністратором?</h3>
+            <p>Натисніть кнопку «Допомога адміністратора» на головній сторінці або напишіть <a href="https://t.me/robochi_work_admin">@robochi_work_admin</a>.</p>
+        </div>
+    </div>
+</main>
+
+<style>
+.page--faq {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.faq-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.faq-card {
+    padding: 16px;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    margin-bottom: 12px;
+}
+.faq-card h3 {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-shadow: var(--btn-text-shadow);
+}
+.faq-card p {
+    font-size: 14px;
+    line-height: 1.5;
+}
+.faq-card a {
+    color: var(--accent-dark);
+    font-weight: 600;
+}
+</style>
+{% endblock %}

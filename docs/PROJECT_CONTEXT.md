@@ -183,10 +183,10 @@ AuthIdentity модель (user/models.py) — связывает User с про
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом
-3. ЛК Employer — дизайн и кнопки по ТЗ (Мої відгуки, Мої міста, Створити вакансію, Поточні заявки)
-4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансии
+3. ЛК Employer — Фаза 2: управление заявками из ЛК (зупинити/закрити, повторний пошук, учасники групи, оплата monobank)
+4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансії
 5. Ротация вакансий
-6. Monobank интеграция
+6. Monobank інтеграція
 
 ### Сессия 18.03.2026 (CSS)
 1. Полная переработка CSS — единый стиль с robochi.work (neumorphism, стальной градиент).
@@ -267,3 +267,398 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. ЛК Worker — дизайн и кнопки по ТЗ (Мої відгуки, Мої вакансії, Моя робота)
 5. Ротация вакансий
 6. Monobank интеграция
+
+### Сессия 24.03.2026 (вечер, часть 2) — ЛК Заказчика (Employer dashboard)
+1. **employer_dashboard.html** — новый шаблон ЛК Заказчика, 6 кнопок в neumorphic стиле (аналогично Worker):
+   - Створити вакансію → /vacancy/create/ (с border-left accent)
+   - Поточні заявки → /vacancy/my/ (показывает count активных)
+   - Мої відгуки → /work/employer/reviews/
+   - Мої міста → ссылка на канал города (Channel по city)
+   - Що робити якщо? → /work/employer/faq/
+   - Допомога адміністратора → https://t.me/robochi_work_admin
+
+2. **vacancy_my_list.html** — страница «Поточні заявки»:
+   - Карточки вакансий: адрес, дата, время, люди (N/M), статус-бейдж
+   - Статусы: Очікує модерації (pending/yellow), Активна (approved/green), Йде зміна (active/blue)
+   - Клик → детальная страница вакансии
+
+3. **vacancy_detail.html** — детальная страница вакансии:
+   - Полная информация: адрес, дата, час, люди, оплата, спосіб, стать, паспорт, опис роботи
+   - Кнопка «Група з робітниками» → invite_link группы
+   - Кнопка «Управління вакансією» → модальное окно с: Повторний пошук, Перекличка Початок/Кінець роботи
+   - Список робітників (VacancyUser members)
+
+4. **Маршрутизация Employer в index.py**:
+   - Первый вход (нет ни одной вакансии) → redirect на /vacancy/create/ (без кнопки «Назад»)
+   - Повторный вход → employer_dashboard.html
+   - Контекст: channel, active_vacancies_count, reviews_count
+
+5. **vacancy_create view** — добавлен флаг is_first_visit (Vacancy.objects.filter(owner).exists()), передаётся в шаблон для скрытия кнопки «Назад»
+
+6. **vacancy_form_page.html** — убран header с меню, добавлена кнопка «← Назад» (скрыта при первом входе через is_first_visit)
+
+7. **employer_reviews.html** — страница просмотра отзывов (аналог worker_reviews)
+
+8. **employer_faq.html** — FAQ страница для заказчиков (5 вопросов: создание заявки, модерация, переклички, неявка рабочего, связь с админом)
+
+9. **CSS вынесен в глобальный styles.css** (telegram/static/css/styles.css):
+   - worker-btn, worker-btn__icon/text/title/sub, worker-btn--accent
+   - modal-overlay, modal-card, modal-text, modal-title
+   - page--worker-dashboard, page--employer-dashboard
+   - Убраны дублирующие <style> из worker_dashboard.html и employer_dashboard.html
+
+10. **Block registry** — больше не используется для Employer (заменён на прямой рендер employer_dashboard.html). Блоки VacancyCreateFormBlock, ActiveVacanciesPreviewBlock, ChannelPreviewBlock остаются как fallback
+
+**Новые файлы:**
+- work/views/employer.py (employer_reviews, employer_faq)
+- work/templates/work/employer_dashboard.html
+- work/templates/work/employer_reviews.html
+- work/templates/work/employer_faq.html
+- vacancy/templates/vacancy/vacancy_my_list.html
+- vacancy/templates/vacancy/vacancy_detail.html
+
+**Обновлённые файлы:**
+- work/views/index.py — маршрутизация Employer
+- work/urls.py — +employer_reviews, employer_faq
+- vacancy/views.py — +vacancy_my_list, vacancy_detail, is_first_visit в vacancy_create
+- vacancy/urls.py — +my/, <pk>/detail/
+- vacancy/templates/vacancy/vacancy_form_page.html — убран header, кнопка Назад
+- telegram/static/css/styles.css — глобальные стили кнопок и модалок
+- work/templates/work/worker_dashboard.html — убраны дублирующие <style>
+
+**Важно:** CSS живёт в telegram/static/css/styles.css (не в static/css/). STATICFILES_DIRS пуст, collectstatic берёт из app static/ папок. После изменений CSS: rm -rf staticfiles && collectstatic --noinput && restart gunicorn.
+
+**Приоритеты (обновлены):**
+1. AgreementText для employer/worker в admin
+2. ЛК администратора — наполнить функционалом
+3. ЛК Employer — Фаза 2: управление заявками (зупинити пошук, повторний пошук из ЛК, страница учасників, оплата)
+4. ЛК Worker — доработка: блокировка UI, запрос телефона
+5. Ротация вакансий
+6. Monobank интеграция
+
+### Сессия 25.03.2026 (вечер) — ЛК Адміністратора (Admin dashboard)
+1. **Полноценный ЛК Администратора** — work/views/admin_panel.py, 6 views:
+   - `admin_dashboard` — главная страница: кнопка «Відкрити Django Admin» + два таба (Користувачі / Вакансії) с фильтрами и поиском
+   - `admin_search_users` — поиск пользователей: карточки с Ім'я, ID (ссылка → Django admin), Username (ссылка → Telegram), Телефон, кнопка блокировки
+   - `admin_search_vacancies` — карта вакансий: Employer с вакансиями по городам, кнопка ГРУПА (invite_link), кнопка МОДЕРАЦІЯ для pending
+   - `admin_vacancy_card` — карточка вакансий пользователя (по user_id)
+   - `admin_block_user` — блокировка/разблокировка пользователя (POST, toggle is_active)
+   - `admin_moderate_vacancy` — форма модерации вакансии: данные вакансии + кнопка ЗАТВЕРДИТИ → status=approved + вызов Observer'ов (notify channels/group)
+
+2. **Кнопка в боте** — `service/telegram_markup_factory.py`: `admin_vacancy_reply_markup` теперь ведёт на `work:admin_moderate_vacancy` (ЛК), а не на Django admin `/admin/vacancy/vacancy/<id>/change/`. Кнопка переименована: «🔍 Посмотреть вакансию» → «Переглянути вакансію».
+
+3. **Employer dashboard** — подключён `employer_dashboard.html` через прямой рендер; redirect на `vacancy:create` при первом входе (нет вакансий).
+
+4. **index.py обновлён** — маршрутизация: admin → `admin_dashboard`, employer без вакансий → `vacancy:create`, employer с вакансиями → `employer_dashboard.html`.
+
+5. **work/urls.py расширен** — новые маршруты:
+   - `admin-panel/` → `admin_dashboard`
+   - `admin-panel/users/` → `admin_search_users`
+   - `admin-panel/vacancies/` → `admin_search_vacancies`
+   - `admin-panel/user/<int:user_id>/vacancies/` → `admin_vacancy_card`
+   - `admin-panel/user/<int:user_id>/block/` → `admin_block_user`
+   - `admin-panel/vacancy/<int:vacancy_id>/moderate/` → `admin_moderate_vacancy`
+   - `employer/reviews/` → `employer_reviews`
+   - `employer/faq/` → `employer_faq`
+
+**Новые/обновлённые файлы:**
+- work/views/admin_panel.py — все admin views
+- work/templates/work/admin_dashboard.html — dashboard с табами
+- work/templates/work/admin_moderate_vacancy.html — форма модерации
+- work/urls.py — расширен
+- work/views/index.py — обновлена маршрутизация
+- service/telegram_markup_factory.py — кнопка ведёт в ЛК
+
+**Приоритеты (обновлены 25.03.2026):**
+1. AgreementText для employer/worker в admin
+2. ЛК Employer — Фаза 2: управление заявками (зупинити пошук, повторний пошук из ЛК, страница учасників, оплата)
+3. ЛК Worker — доработка: блокировка UI, запрос телефона
+4. Ротация вакансий
+5. Monobank інтеграція
+
+### Сессия 28.03.2026 — ЛК Заказчика (Фаза 2) + баг-фиксы + правки
+
+**Фаза 2 — Управление заявками из ЛК:**
+1. `vacancy_stop_search` view — зупинити пошук з ЛК (заменяет кнопку в канале на «Пошук завершено»)
+2. `vacancy_members` view — страница учасників групи: ім'я, телефон, статус, кількість відгуків
+3. `vacancy_kick_member` view — видалення робітника з групи через ЛК (POST + confirm)
+4. Модалка «Управління вакансією» на vacancy_detail оновлена: Повторний пошук, Зупинити пошук (approved), Переклички Початок/Кінець (approved/active), Учасники групи
+5. URL: vacancy/my/, vacancy/<pk>/detail/, vacancy/<pk>/stop-search/, vacancy/<pk>/members/, vacancy/<pk>/kick/<user_id>/
+
+**Критичний баг-фікс:**
+6. `admin_moderate_vacancy` не назначала группу з пулу при approve → кнопка «Я ГОТОВИЙ ПРАЦЮВАТИ» не з'являлась в каналі. Додано `GroupService.get_available_group()` + STATUS_PROCESS перед approve
+7. Кнопка в каналі перейменована: «Відгукнутися на вакансію» → «Я ГОТОВИЙ ПРАЦЮВАТИ» (locale/uk)
+
+**Правки тексту вакансії в каналі:**
+8. Динамічна дата: vacancy_formatter тепер порівнює vacancy.date з date.today() → показує «Сьогодні» або «Завтра» динамічно (замість збереженого date_choice)
+9. Динамічна кількість: for_channel(show_needed=True) показує скільки ще потрібно робітників (needed / total), а не загальну кількість
+10. Локалізація: Sex→Стать (msgid "Gender"), Work time→Час роботи (msgid "Working hours"), Payment→Оплата, Need passport→Потрібен паспорт — розкоментовані та додані переводи в django.po
+
+**Автодобавлення Employer в групу:**
+11. `VacancyApprovedGroupObserver._add_employer_to_group()` — після модерації створює одноразове invite-посилання (member_limit=1, creates_join_request=False) та відправляє Employer кнопку «Перейти в групу вакансії» в бот
+
+**Інші правки:**
+12. `contact_phone` — додано в initial та save в admin_moderate_vacancy
+13. `input[type="tel"]` — додано в CSS форми модерації (admin_moderate_vacancy.html)
+14. `vacancy_feedback.html` — додано {% block header %}{% endblock %} (прибрано старий header з Меню)
+
+**Нові файли:**
+- vacancy/templates/vacancy/vacancy_members.html
+
+**Оновлені файли:**
+- vacancy/views.py — +vacancy_stop_search, vacancy_members, vacancy_kick_member
+- vacancy/urls.py — +stop-search/, members/, kick/
+- vacancy/services/vacancy_formatter.py — повністю переписаний (динамічна дата, кількість, нові msgid)
+- vacancy/services/observers/approved_group_observer.py — +_add_employer_to_group()
+- vacancy/templates/vacancy/vacancy_detail.html — оновлена модалка управління
+- vacancy/templates/vacancy/vacancy_feedback.html — прибрано header
+- work/views/admin_panel.py — +GroupService при approve, +contact_phone
+- work/templates/work/admin_moderate_vacancy.html — +input[type="tel"] CSS
+- locale/uk/LC_MESSAGES/django.po — нові та розкоментовані переводи
+
+**Пріоритети (оновлені):**
+1. Пункт 3 — Кольорові кнопки: Bot API додав style для InlineKeyboardButton — перевірити підтримку pyTelegramBotAPI
+2. Пункт 5 — Віджет часу: заміна на custom select
+3. Пункт 7 — Мультимісто для Employer (M2M, admin UI, форма)
+4. Фаза 3 — Оплата monobank UI в ЛК
+5. Блокування — модель (тип, термін, причина), автоблокування
+6. Продовження на завтра — розсилка, очікування, перестворення
+
+### Сессия 28.03.2026 (вечер) — Допрацювання ЛК Employer + аудит шаблонів
+
+**4 задачі виконано:**
+
+1. **Аудит header** — у 7 шаблонах, що наслідують base.html, додано порожній {% block header %}{% endblock %} для приховання старого header з кнопкою «Меню»:
+   - vacancy/: call.html, call_confirm.html, pre_call.html, refind_start.html, vacancy_feedback.html
+   - work/: index.html
+   - telegram/: check.html
+
+2. **Права Employer в групі вакансії** — в auto_approve() (chat_join_request handler) додано автоматичний промоут Employer до адміністратора групи при join:
+   - bot.approve → time.sleep(1) → GroupService.set_default_owner_permissions() → set_admin_custom_title('Роботодавець')
+   - Раніше промоут був тільки в chat_member_handler, який міг не спрацювати при join через chat_join_request
+   - import time перенесено в блок імпортів файлу
+
+3. **Аудит форми модерації** — admin_moderate_vacancy:
+   - Додано захист POST від повторної модерації: якщо vacancy.status вже APPROVED або ACTIVE → redirect на admin_vacancy_card
+   - Шаблон: кнопка submit замінюється на повідомлення «Вакансія вже пройшла модерацію» + всі поля disabled через JS
+   - Перевірено: contact_phone, map_link, date з date_choice — все коректно
+
+4. **Віджет вибору часу** — замінено нативний input type=time на custom select:
+   - TimeSelectWidget(forms.MultiWidget) — два select: години (00-23) та хвилини (00/15/30/45)
+   - TimeSelectField(forms.MultiValueField) — compress() збирає datetime.time
+   - Шаблон: vacancy/templates/vacancy/widgets/time_select.html
+   - CSS: .time-select-widget в telegram/static/css/styles.css
+   - VacancyAdminForm не зачіпалась
+   - Виправлено: format_output замінено на template_name (Django 5.x сумісність)
+
+**Нові файли:**
+- vacancy/templates/vacancy/widgets/time_select.html
+
+**Оновлені файли:**
+- vacancy/forms.py — +TimeSelectWidget, +TimeSelectField, start_time/end_time замінені
+- telegram/handlers/member/user/group.py — промоут owner в auto_approve(), +import time
+- work/views/admin_panel.py — +is_already_moderated, захист POST
+- work/templates/work/admin_moderate_vacancy.html — disabled form + повідомлення
+- telegram/static/css/styles.css — +.time-select-widget стилі
+- 7 шаблонів — додано {% block header %}{% endblock %}
+
+### Сессия 28.03.2026 (ніч, частина 2) — Мультимісто для Employer
+
+**Реалізовано повну підтримку розміщення вакансій в різних містах:**
+
+1. **Модель** — `UserWorkProfile` розширено:
+   - `multi_city_enabled` (BooleanField) — прапорець активації мультимісто
+   - `allowed_cities` (M2M → City) — дозволені міста для розміщення вакансій
+   - Міграція: work/migrations/0005_add_multi_city_fields.py
+
+2. **Адмін-панель** — `UserWorkProfileInline` в UserAdmin:
+   - Додано поля `multi_city_enabled` та `allowed_cities` (filter_horizontal)
+   - Адміністратор вмикає функцію та обирає міста для конкретного Employer
+
+3. **Форма створення вакансії** — `VacancyForm`:
+   - Додано поле `city` (ModelChoiceField)
+   - При мультимісті: `<select>` зі списком дозволених міст (allowed_cities + основне місто)
+   - Без мультимісто: HiddenInput з містом із профілю
+   - `save()` використовує обране місто для визначення каналу: `Channel.objects.get(city=selected_city)`
+   - Конструктор приймає `work_profile` kwarg
+
+4. **Шаблон форми** — `vacancy_form.html`:
+   - Вгорі під заголовком: поточне місто (текст) або випадаючий список міст
+
+5. **Дашборд Employer** — `employer_dashboard.html` + `index.py`:
+   - Кнопка «Мої міста» при мультимісті → окрема сторінка зі списком міст
+   - При одному місті → пряме посилання на канал
+
+6. **Сторінка «Мої міста»** — нова:
+   - View: `employer_cities` в work/views/employer.py
+   - Шаблон: work/templates/work/employer_cities.html
+   - URL: /work/employer/cities/ (work:employer_cities)
+   - Список міст з посиланнями на канали, основне місто позначено "(основне)"
+
+7. **Картки вакансій** — `vacancy_my_list.html`:
+   - Кожна картка підписана: місто + адреса (channel.city · address)
+
+8. **Модерація** — `admin_moderate_vacancy`:
+   - Форма отримує `work_profile` власника вакансії (не адміністратора)
+   - GET: `initial['city']` = vacancy.channel.city_id → правильне місто в формі
+   - POST: `vacancy.channel` оновлюється з обраного міста
+
+9. **Критичний фікс — публікація в правильний канал**:
+   - `approved_channel_observer.py` — замінено `Channel.objects.filter(city=vacancy.owner.work_profile.city)` → `vacancy.channel`
+   - `refind_observer.py` — аналогічно
+   - `vacancy/tasks/resend.py` (ротація) — аналогічно
+   - `vacancy/admin.py` (Django Admin save_model) — `Channel.objects.get(city=work_profile.city)` → використовує існуючий `vacancy.channel` якщо він вже встановлений
+
+**Нові файли:**
+- work/migrations/0005_add_multi_city_fields.py
+- work/templates/work/employer_cities.html
+
+**Оновлені файли:**
+- work/models.py — +multi_city_enabled, +allowed_cities
+- user/admin.py — UserWorkProfileInline +multi_city_enabled, +allowed_cities, +filter_horizontal
+- vacancy/forms.py — +city field, +City import, +work_profile kwarg, save() uses selected city
+- vacancy/views.py — vacancy_create передає work_profile в VacancyForm
+- vacancy/templates/vacancy/vacancy_form.html — city selector вгорі
+- vacancy/templates/vacancy/vacancy_my_list.html — місто в картках
+- work/views/index.py — city_channels контекст для мультимісто
+- work/views/employer.py — +employer_cities view
+- work/views/admin_panel.py — work_profile owner для модерації, city в initial, channel update
+- work/templates/work/employer_dashboard.html — мультимісто кнопка
+- work/urls.py — +employer/cities/
+- vacancy/services/observers/approved_channel_observer.py — vacancy.channel замість work_profile.city
+- vacancy/services/observers/refind_observer.py — vacancy.channel замість work_profile.city
+- vacancy/tasks/resend.py — vacancy.channel замість work_profile.city
+- vacancy/admin.py — умовне присвоєння channel
+- telegram/static/css/styles.css — +city-selector, +city-current стилі
+
+**Як активувати мультимісто для Employer:**
+1. Django Admin → Users → знайти Employer
+2. Work profile → ✅ Multi-city enabled
+3. Allowed cities → обрати додаткові міста
+4. Зберегти
+
+**Пріоритети (оновлені 29.03.2026):**
+1. Блокування — модель (тип, термін, причина), автоблокування
+2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+3. Ротація вакансій (Celery task кожні 5 хв)
+4. Monobank оплата — UI в ЛК
+5. Продовження на завтра — розсилка, очікування, перестворення
+
+### Сессия 28.03.2026 (ночь) — Кольорові кнопки + баг-фікси + локалізація
+
+**Виконано:**
+
+1. **pyTelegramBotAPI оновлено 4.27 → 4.32** — підтримка нового параметра `style` для `InlineKeyboardButton`
+
+2. **Кольорові inline-кнопки** — `style='danger'` (червоний) додано до 3 кнопок в `service/telegram_markup_factory.py`:
+   - «Я ГОТОВИЙ ПРАЦЮВАТИ» (`channel_vacancy_reply_markup`)
+   - «НАДІСЛАТИ ВІДГУК» (`group_url_feedback_reply_markup`)
+   - «НАДІСЛАТИ ВІДГУК» (`group_webapp_feedback_reply_markup`)
+   - Telegram Bot API підтримує: `danger` (червоний), `success` (зелений), `primary` (синій)
+
+3. **Локалізація тексту вакансії** — розкоментовані переклади в `locale/uk/LC_MESSAGES/django.po`:
+   - `from` → `з`, `to` → `до` (Час роботи: з 07:00 до 07:45)
+   - `Vacancy is close` → `Вакансію закрито`
+
+4. **Виправлено `vacancy_stop_search`** — view падав з `AttributeError: 'NoneType' object has no attribute 'user_links'`:
+   - Причина: викликався `VacancyIsFullObserver` напряму, який перевіряв `vacancy.group.user_links` (group=None для деяких вакансій)
+   - Рішення: замінено на прямий виклик — знаходить `ChannelMessage`, оновлює текст на «Вакансію закрито» через `TelegramStrategyFactory`, встановлює `status=STATUS_CLOSED`
+   - Додано імпорт `STATUS_CLOSED` в `vacancy/views.py`
+
+5. **Права бота в групах** — 2 групи мали статус `member` замість `administrator`:
+   - `Группа Вашей вакансии 2` (-1002831363986) — бот призначений адміном
+   - `Группа Вашей вакансии 3` (-1002590038330) — бот призначений адміном
+   - Помилка `not enough rights to manage chat invite link` усунена
+
+6. **Захист від подвійного створення вакансії:**
+   - Серверний: перед `vacancy_form.save()` перевірка на існуючу pending-вакансію з тими ж address/date/start_time → redirect замість створення дубля
+   - Фронтенд: JS `button.disabled=true` + текст «Зачекайте...» після натискання submit
+
+**Оновлені файли:**
+- service/telegram_markup_factory.py — style='danger' для 3 кнопок
+- vacancy/views.py — виправлено vacancy_stop_search, додано STATUS_CLOSED імпорт, захист від дублів
+- vacancy/templates/vacancy/vacancy_form.html — JS захист від подвійного submit
+- locale/uk/LC_MESSAGES/django.po — розкоментовані from/to/Vacancy is close
+- requirements (pyTelegramBotAPI 4.32.0)
+
+### Сессия 28.03.2026 (ніч, частина 2) — Мультимісто для Employer
+
+**Реалізовано повну підтримку розміщення вакансій в різних містах:**
+
+1. **Модель** — `UserWorkProfile` розширено:
+   - `multi_city_enabled` (BooleanField) — прапорець активації мультимісто
+   - `allowed_cities` (M2M → City) — дозволені міста для розміщення вакансій
+   - Міграція: work/migrations/0005_add_multi_city_fields.py
+
+2. **Адмін-панель** — `UserWorkProfileInline` в UserAdmin:
+   - Додано поля `multi_city_enabled` та `allowed_cities` (filter_horizontal)
+   - Адміністратор вмикає функцію та обирає міста для конкретного Employer
+
+3. **Форма створення вакансії** — `VacancyForm`:
+   - Додано поле `city` (ModelChoiceField)
+   - При мультимісті: `<select>` зі списком дозволених міст (allowed_cities + основне місто)
+   - Без мультимісто: HiddenInput з містом із профілю
+   - `save()` використовує обране місто для визначення каналу: `Channel.objects.get(city=selected_city)`
+   - Конструктор приймає `work_profile` kwarg
+
+4. **Шаблон форми** — `vacancy_form.html`:
+   - Вгорі під заголовком: поточне місто (текст) або випадаючий список міст
+
+5. **Дашборд Employer** — `employer_dashboard.html` + `index.py`:
+   - Кнопка «Мої міста» при мультимісті → окрема сторінка зі списком міст
+   - При одному місті → пряме посилання на канал
+
+6. **Сторінка «Мої міста»** — нова:
+   - View: `employer_cities` в work/views/employer.py
+   - Шаблон: work/templates/work/employer_cities.html
+   - URL: /work/employer/cities/ (work:employer_cities)
+   - Список міст з посиланнями на канали, основне місто позначено "(основне)"
+
+7. **Картки вакансій** — `vacancy_my_list.html`:
+   - Кожна картка підписана: місто + адреса (channel.city · address)
+
+8. **Модерація** — `admin_moderate_vacancy`:
+   - Форма отримує `work_profile` власника вакансії (не адміністратора)
+   - GET: `initial['city']` = vacancy.channel.city_id → правильне місто в формі
+   - POST: `vacancy.channel` оновлюється з обраного міста
+
+9. **Критичний фікс — публікація в правильний канал**:
+   - `approved_channel_observer.py` — замінено `Channel.objects.filter(city=vacancy.owner.work_profile.city)` → `vacancy.channel`
+   - `refind_observer.py` — аналогічно
+   - `vacancy/tasks/resend.py` (ротація) — аналогічно
+   - `vacancy/admin.py` (Django Admin save_model) — `Channel.objects.get(city=work_profile.city)` → використовує існуючий `vacancy.channel` якщо він вже встановлений
+
+**Нові файли:**
+- work/migrations/0005_add_multi_city_fields.py
+- work/templates/work/employer_cities.html
+
+**Оновлені файли:**
+- work/models.py — +multi_city_enabled, +allowed_cities
+- user/admin.py — UserWorkProfileInline +multi_city_enabled, +allowed_cities, +filter_horizontal
+- vacancy/forms.py — +city field, +City import, +work_profile kwarg, save() uses selected city
+- vacancy/views.py — vacancy_create передає work_profile в VacancyForm
+- vacancy/templates/vacancy/vacancy_form.html — city selector вгорі
+- vacancy/templates/vacancy/vacancy_my_list.html — місто в картках
+- work/views/index.py — city_channels контекст для мультимісто
+- work/views/employer.py — +employer_cities view
+- work/views/admin_panel.py — work_profile owner для модерації, city в initial, channel update
+- work/templates/work/employer_dashboard.html — мультимісто кнопка
+- work/urls.py — +employer/cities/
+- vacancy/services/observers/approved_channel_observer.py — vacancy.channel замість work_profile.city
+- vacancy/services/observers/refind_observer.py — vacancy.channel замість work_profile.city
+- vacancy/tasks/resend.py — vacancy.channel замість work_profile.city
+- vacancy/admin.py — умовне присвоєння channel
+- telegram/static/css/styles.css — +city-selector, +city-current стилі
+
+**Як активувати мультимісто для Employer:**
+1. Django Admin → Users → знайти Employer
+2. Work profile → ✅ Multi-city enabled
+3. Allowed cities → обрати додаткові міста
+4. Зберегти
+
+**Пріоритети (оновлені 29.03.2026):**
+1. Блокування — модель (тип, термін, причина), автоблокування
+2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+3. Ротація вакансій (Celery task кожні 5 хв)
+4. Monobank оплата — UI в ЛК
+5. Продовження на завтра — розсилка, очікування, перестворення

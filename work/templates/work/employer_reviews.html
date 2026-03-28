@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--reviews">
+    <div class="reviews-container">
+        <div class="vacancy-list-header">
+            <h1>Мої відгуки</h1>
+            <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+        </div>
+
+        {% if enriched_reviews %}
+            {% for item in enriched_reviews %}
+            <div class="review-card">
+                <div class="review-header">
+                    <span class="review-author">{{ item.review.owner.full_name|default:"Анонім" }}</span>
+                    <span class="review-date">{{ item.review.created_at|date:"d.m.Y" }}</span>
+                </div>
+                <p class="review-text">{{ item.review.text }}</p>
+                {% if item.vacancy %}
+                <span class="review-vacancy">📍 {{ item.vacancy.address|truncatechars:40 }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="vacancy-list-empty">
+                <p>Поки немає відгуків</p>
+            </div>
+        {% endif %}
+    </div>
+</main>
+
+<style>
+.page--reviews {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.reviews-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.review-card {
+    padding: 16px;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    margin-bottom: 12px;
+}
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 13px;
+    opacity: 0.8;
+}
+.review-author { font-weight: 600; }
+.review-text {
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+.review-vacancy {
+    font-size: 12px;
+    opacity: 0.7;
+}
+</style>
+{% endblock %}

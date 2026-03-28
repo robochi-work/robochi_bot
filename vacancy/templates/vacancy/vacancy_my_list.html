@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--vacancy-list">
+
+    <div class="vacancy-list-header">
+        <h1>Поточні заявки</h1>
+        <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+    </div>
+
+    {% if vacancy_list %}
+    <div class="vacancy-cards">
+        {% for item in vacancy_list %}
+        <a href="{% url 'vacancy:detail' pk=item.vacancy.pk %}" class="vacancy-card">
+            <div class="vacancy-card__top">
+                <span class="vacancy-card__address">📍 {% if item.vacancy.channel and item.vacancy.channel.city %}{{ item.vacancy.channel.city }} · {% endif %}{{ item.vacancy.address|truncatechars:50 }}</span>
+                <span class="vacancy-card__status vacancy-card__status--{{ item.vacancy.status }}">
+                    {{ item.status_label }}
+                </span>
+            </div>
+            <div class="vacancy-card__info">
+                <span>📅 {{ item.vacancy.date|date:"d.m.Y" }}</span>
+                <span>⏰ {{ item.vacancy.start_time|time:"H:i" }} – {{ item.vacancy.end_time|time:"H:i" }}</span>
+                <span>👥 {{ item.members_count }} / {{ item.vacancy.people_count }}</span>
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="vacancy-list-empty">
+        <p>Немає активних заявок</p>
+        <a href="{% url 'vacancy:create' %}" class="btn-primary">Створити вакансію</a>
+    </div>
+    {% endif %}
+
+</main>
+
+<style>
+.page--vacancy-list {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.vacancy-list-header {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.vacancy-list-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+}
+.btn-back {
+    font-size: 14px;
+    color: var(--accent-dark);
+    text-decoration: none;
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+}
+
+.vacancy-cards {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.vacancy-card {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    text-decoration: none !important;
+    color: var(--accent-dark) !important;
+    transition: all 0.2s ease-in-out;
+}
+.vacancy-card:active {
+    box-shadow: var(--btn-shadow-active);
+}
+
+.vacancy-card__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 10px;
+    gap: 8px;
+}
+.vacancy-card__address {
+    font-size: 15px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    flex: 1;
+    min-width: 0;
+}
+.vacancy-card__status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.vacancy-card__status--pending {
+    background: var(--message-warning-bg);
+}
+.vacancy-card__status--approved {
+    background: var(--message-success-bg);
+}
+.vacancy-card__status--active {
+    background: rgba(33,150,243,0.25);
+}
+
+.vacancy-card__info {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    opacity: 0.8;
+    flex-wrap: wrap;
+}
+
+.vacancy-list-empty {
+    text-align: center;
+    padding: 40px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    text-shadow: var(--btn-text-shadow);
+}
+
+@media (max-width: 420px) {
+    .vacancy-card {
+        padding: 14px 12px;
+        border-radius: 24px;
+    }
+    .vacancy-card__address { font-size: 14px; }
+    .vacancy-card__info { font-size: 12px; gap: 8px; }
+}
+</style>
+{% endblock %}

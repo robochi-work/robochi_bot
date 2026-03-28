@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--employer-dashboard">
+
+    <div class="worker-buttons">
+
+        {# 1. СТВОРИТИ ВАКАНСІЮ #}
+        <a href="{% url 'vacancy:create' %}" class="worker-btn worker-btn--accent">
+            <span class="worker-btn__icon">📝</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Створити вакансію</span>
+                <span class="worker-btn__sub">Нова заявка на пошук робітників</span>
+            </span>
+        </a>
+
+        {# 2. ПОТОЧНІ ЗАЯВКИ #}
+        <a href="{% url 'vacancy:my_list' %}" class="worker-btn">
+            <span class="worker-btn__icon">📋</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Поточні заявки</span>
+                <span class="worker-btn__sub">
+                    {% if active_vacancies_count %}
+                        {{ active_vacancies_count }} активн{{ active_vacancies_count|pluralize:"а,их,их" }}
+                    {% else %}
+                        Немає активних
+                    {% endif %}
+                </span>
+            </span>
+        </a>
+
+        {# 3. Мої відгуки #}
+        <a href="{% url 'work:employer_reviews' %}" class="worker-btn">
+            <span class="worker-btn__icon">⭐</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Мої відгуки</span>
+                <span class="worker-btn__sub">
+                    {% if reviews_count %}
+                        {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}
+                    {% else %}
+                        Поки немає
+                    {% endif %}
+                </span>
+            </span>
+        </a>
+
+        {# 4. Мої міста #}
+        {% if city_channels %}
+        <a href="{% url 'work:employer_cities' %}" class="worker-btn">
+            <span class="worker-btn__icon">🏙️</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Мої міста</span>
+                <span class="worker-btn__sub">{{ city_channels|length }} міст</span>
+            </span>
+        </a>
+        {% elif channel %}
+        <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
+            <span class="worker-btn__icon">🏙️</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Мої міста</span>
+                <span class="worker-btn__sub">{{ channel.title }}</span>
+            </span>
+        </a>
+        {% endif %}
+
+        {# 5. Що робити якщо? #}
+        <a href="{% url 'work:employer_faq' %}" class="worker-btn">
+            <span class="worker-btn__icon">❓</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Що робити якщо?</span>
+                <span class="worker-btn__sub">Часті питання</span>
+            </span>
+        </a>
+
+        {# 6. Допомога адміністратора #}
+        <a href="https://t.me/robochi_work_admin" target="_blank" class="worker-btn">
+            <span class="worker-btn__icon">🛟</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Допомога адміністратора</span>
+                <span class="worker-btn__sub">Зв'язатися</span>
+            </span>
+        </a>
+
+    </div>
+</main>
+{% endblock %}

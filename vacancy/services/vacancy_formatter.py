@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal, Optional
 
 from django.utils.translation import gettext as _, override
@@ -11,13 +12,34 @@ class VacancyTelegramTextFormatter:
     def __init__(self, vacancy: Vacancy):
         self.vacancy = vacancy
 
-    def base_format(self) -> str:
+    def _get_date_label(self) -> str:
+        """Dynamic: if vacancy.date == today -> Сьогодні, else Завтра."""
         with override('uk'):
+            if self.vacancy.date == date.today():
+                return _('Today')
+            else:
+                return _('Tomorrow')
+
+    def _get_needed_count(self) -> int:
+        """How many workers still needed."""
+        current = self.vacancy.members.count()
+        needed = self.vacancy.people_count - current
+        return max(needed, 0)
+
+    def base_format(self, show_needed: bool = False) -> str:
+        with override('uk'):
+            date_label = self._get_date_label()
+            people_display = self.vacancy.people_count
+            if show_needed:
+                needed = self._get_needed_count()
+                if needed < self.vacancy.people_count:
+                    people_display = f"{needed} ({_('of')} {self.vacancy.people_count})"
+
             return (
-                f"{self.vacancy.get_date_choice_display()} {self.vacancy.date.strftime('%d.%m.%Y')}\n"
-                f"{_('Sex')}: {self.vacancy.get_gender_display()}\n"
-                f"{_('Work time')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
-                f"{_('Number of People')}: {self.vacancy.people_count}\n"
+                f"{date_label} {self.vacancy.date.strftime('%d.%m.%Y')}\n"
+                f"{_('Gender')}: {self.vacancy.get_gender_display()}\n"
+                f"{_('Working hours')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
+                f"{_('Number of People')}: {people_display}\n"
                 f"<a href=\"{self.vacancy.map_link}\">{self.vacancy.address}</a>\n\n"
                 f"{self.vacancy.skills}\n\n"
                 + (f"{_('Need passport')}!\n" if self.vacancy.has_passport else "")
@@ -40,10 +62,11 @@ class VacancyTelegramTextFormatter:
     def for_channel(self, status: Optional[Literal['full']] = None) -> str:
         if status == 'full':
             with override('uk'):
+                date_label = self._get_date_label()
                 return (
-                    f"{self.vacancy.date.strftime('%d.%m.%Y')}\n"
-                    f"{_('Sex')}: {self.vacancy.get_gender_display()}\n"
-                    f"{_('Work time')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
+                    f"{date_label} {self.vacancy.date.strftime('%d.%m.%Y')}\n"
+                    f"{_('Gender')}: {self.vacancy.get_gender_display()}\n"
+                    f"{_('Working hours')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
                     f"{_('Number of People')}: {self.vacancy.people_count}\n\n"
                     f"{self.vacancy.skills}\n\n"
                     + (f"{_('Need passport')}!\n" if self.vacancy.has_passport else "")
@@ -52,7 +75,7 @@ class VacancyTelegramTextFormatter:
                     + f"{_('Vacancy is close')}"
                 )
         else:
-            return self.base_format()
+            return self.base_format(show_needed=True)
 
     def for_group(self) -> str:
         return self.base_format()

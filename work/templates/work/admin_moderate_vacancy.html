@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--admin-moderate">
+
+    <a href="javascript:history.back()" class="btn-secondary back-btn">← Назад</a>
+
+    <h2 class="moderate-title">Модерація вакансії</h2>
+
+    <div class="owner-card">
+        <div class="owner-row">
+            <span class="owner-label">Ім'я:</span>
+            <span class="owner-value">{{ target_user.full_name|default:'-' }}</span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">ID:</span>
+            <span class="owner-value">{{ target_user.pk }}</span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">Username:</span>
+            <span class="owner-value">
+                {% if target_user.username %}@{{ target_user.username }}{% else %}-{% endif %}
+            </span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">Статус:</span>
+            <span class="owner-value status-badge">{{ vacancy.get_status_display }}</span>
+        </div>
+    </div>
+
+    {% if vacancy.status != 'pending' %}
+    <div class="already-moderated">
+        ⚠️ Вакансія вже промодерована (статус: <strong>{{ vacancy.get_status_display }}</strong>). Редагування недоступне.
+    </div>
+    {% else %}
+    <form method="post" class="moderate-form">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit" class="btn-primary submit-btn">ЗАТВЕРДИТИ ВАКАНСІЮ</button>
+    </form>
+    {% endif %}
+
+</main>
+
+<style>
+    .page--admin-moderate {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        max-width: 520px;
+        margin: 0 auto;
+    }
+    .back-btn {
+        display: inline-block;
+        width: auto;
+        margin: 0;
+        padding: 10px 20px;
+        font-size: 14px;
+        align-self: flex-start;
+    }
+    .moderate-title {
+        font-size: 19px;
+        font-weight: 700;
+        text-shadow: var(--btn-text-shadow);
+        margin: 0;
+    }
+    .owner-card {
+        background: var(--btn-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--btn-shadow);
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .owner-row {
+        display: flex;
+        gap: 8px;
+        font-size: 14px;
+        align-items: baseline;
+    }
+    .owner-label {
+        font-weight: 700;
+        min-width: 72px;
+        opacity: 0.7;
+    }
+    .owner-value {
+        word-break: break-all;
+    }
+    .status-badge {
+        font-weight: 600;
+        opacity: 1;
+    }
+    .already-moderated {
+        background: var(--btn-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--btn-shadow);
+        padding: 16px;
+        font-size: 14px;
+        line-height: 1.5;
+        text-align: center;
+    }
+    .moderate-form {
+        background: var(--btn-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--btn-shadow);
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .moderate-form p {
+        margin: 0 0 4px;
+        font-size: 14px;
+    }
+    .moderate-form label {
+        font-weight: 600;
+        display: block;
+        margin-bottom: 4px;
+        opacity: 0.85;
+    }
+    .moderate-form input[type="text"],
+    .moderate-form input[type="number"],
+    .moderate-form input[type="time"],
+    .moderate-form input[type="url"],
+    .moderate-form input[type="tel"],
+    .moderate-form textarea,
+    .moderate-form select {
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: none;
+        background: var(--input-bg, rgba(0,0,0,0.08));
+        font-size: 14px;
+        box-sizing: border-box;
+    }
+    .submit-btn {
+        margin-top: 8px;
+        width: 100%;
+    }
+</style>
+{% endblock %}

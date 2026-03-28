@@ -6,8 +6,9 @@ from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
 from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE
-from vacancy.models import VacancyUser
+from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
+from work.choices import WorkProfileRole
 
 
 @login_required
@@ -16,18 +17,16 @@ def index(request: WSGIRequest):
 
     # If phone not confirmed, redirect to phone-required page
     if not user.phone_number:
-        return redirect('work:phone_required')
+        return redirect("work:phone_required")
 
     # Administrator — separate dashboard, skip wizard check
     if user.is_staff:
-        return render(request, 'work/admin_dashboard.html', {
-            'work_profile': getattr(user, 'work_profile', None),
-        })
+        return redirect("work:admin_dashboard")
 
-    profile = getattr(user, 'work_profile', None)
+    profile = getattr(user, "work_profile", None)
 
     # Worker — dedicated dashboard
-    if profile and profile.role == 'worker':
+    if profile and profile.role == "worker":
         # City channel link
         channel = None
         if profile.city:
@@ -43,7 +42,7 @@ def index(request: WSGIRequest):
         vacancy_user = (
             VacancyUser.objects
             .filter(user=user, status=Status.MEMBER)
-            .select_related('vacancy', 'vacancy__group')
+            .select_related("vacancy", "vacancy__group")
             .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
             .first()
         )
@@ -54,22 +53,71 @@ def index(request: WSGIRequest):
         reviews_count = UserFeedback.objects.filter(user=user).count()
 
         context = {
-            'work_profile': profile,
-            'channel': channel,
-            'current_vacancy': current_vacancy,
-            'reviews_count': reviews_count,
+            "work_profile": profile,
+            "channel": channel,
+            "current_vacancy": current_vacancy,
+            "reviews_count": reviews_count,
         }
-        return render(request, 'work/worker_dashboard.html', context)
+        return render(request, "work/worker_dashboard.html", context)
 
-    # Employer — standard block-based dashboard
+    # Employer — dedicated dashboard
+    if profile and profile.role == WorkProfileRole.EMPLOYER:
+        # First visit: no vacancies yet → redirect to create
+        if Vacancy.objects.filter(owner=user).count() == 0:
+            return redirect("vacancy:create")
+
+        # Active vacancies count
+        active_vacancies_count = Vacancy.objects.filter(
+            owner=user,
+            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+        ).count()
+
+        # Reviews count
+        reviews_count = UserFeedback.objects.filter(user=user).count()
+
+        # City channel link (single city)
+        channel = None
+        if profile.city:
+            channel = Channel.objects.filter(
+                city=profile.city,
+                is_active=True,
+                has_bot_administrator=True,
+                invite_link__isnull=False,
+            ).first()
+
+        # Multi-city: collect all city channels
+        city_channels = None
+        if profile.multi_city_enabled:
+            allowed_ids = list(profile.allowed_cities.values_list('id', flat=True))
+            if profile.city_id:
+                allowed_ids.append(profile.city_id)
+            city_channels = list(
+                Channel.objects.filter(
+                    city_id__in=allowed_ids,
+                    is_active=True,
+                    has_bot_administrator=True,
+                    invite_link__isnull=False,
+                ).select_related('city')
+            )
+
+        context = {
+            "work_profile": profile,
+            "active_vacancies_count": active_vacancies_count,
+            "reviews_count": reviews_count,
+            "channel": channel,
+            "city_channels": city_channels,
+        }
+        return render(request, "work/employer_dashboard.html", context)
+
+    # Fallback — block-based dashboard
     blocks = []
     for block in block_registry.get_visible_blocks(request):
         ctx = block.get_context(request)
-        ctx['block'] = block
+        ctx["block"] = block
         blocks.append(ctx)
 
     context = {
         "rendered_blocks": blocks,
-        'work_profile': profile,
+        "work_profile": profile,
     }
-    return render(request, 'work/index.html', context=context)
+    return render(request, "work/index.html", context=context)

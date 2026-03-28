@@ -29,12 +29,10 @@ def get_active_vacancies() -> QuerySet[Vacancy]:
 
 def resend_vacancies_to_channel(vacancies: Iterable[Vacancy]):
     for vacancy in vacancies:
-        channel = Channel.objects.get(
-            city=vacancy.owner.work_profile.city,
-            is_active=True,
-            has_bot_administrator=True,
-            invite_link__isnull=False,
-        )
+        # Use vacancy's assigned channel (supports multi-city)
+        channel = vacancy.channel
+        if not channel:
+            continue
 
         deleter = MessageDeleter(bot)
         service = MessageDeleteService(deleter)

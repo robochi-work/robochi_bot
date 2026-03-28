@@ -189,3 +189,41 @@ python manage.py shell -c "from telegram.handlers.set_commands import setup_bot_
 - `work/views/index.py` — редирект на phone_required если нет phone_number
 - `work/views/work_profile.py` — questionnaire_redirect: редирект на phone_required если нет phone_number
 - `telegram/views.py` — authenticate_web_app: редирект на /work/phone-required/ если нет phone_number
+
+## ЛК Администратора и ЛК Employer (добавлено 25.03.2026)
+
+### work/views/admin_panel.py — 6 views ЛК Администратора
+- `admin_dashboard` — главный дашборд с табами Користувачі / Вакансії, карта вакансий
+- `admin_search_users` — поиск пользователей (AJAX, по имени/username/phone)
+- `admin_search_vacancies` — поиск вакансий (AJAX, по заголовку/работодателю)
+- `admin_vacancy_card` — детальная карточка вакансии для администратора
+- `admin_block_user` — блокировка/разблокировка пользователя (POST)
+- `admin_moderate_vacancy` — форма модерации вакансии (approve/reject)
+
+Доступ: только `user.is_staff == True`. Все views проверяют это условие.
+
+### work/views/employer.py — views ЛК Employer
+- `employer_reviews` — страница отзывов работодателя
+- `employer_faq` — страница FAQ для работодателя
+
+### Маршрутизация index.py (обновлено 25.03.2026)
+`work/views/index.py` — логика редиректа в зависимости от роли:
+- `user.is_staff` → redirect `work:admin_dashboard`
+- Employer + 0 вакансий → redirect `vacancy:create`
+- Employer + есть вакансии → render `employer_dashboard.html`
+- Worker → render `worker_dashboard.html`
+
+### Шаблоны ЛК Администратора
+- `work/templates/work/admin_dashboard.html` — дашборд с табами, поиск, карта вакансий
+- `work/templates/work/admin_search_results.html` — результаты поиска (partial для AJAX)
+- `work/templates/work/admin_vacancy_card.html` — карточка вакансии
+- `work/templates/work/admin_moderate_vacancy.html` — форма модерации
+
+### Шаблоны ЛК Employer
+- `work/templates/work/employer_dashboard.html` — главный дашборд работодателя
+- `work/templates/work/employer_reviews.html` — отзывы
+- `work/templates/work/employer_faq.html` — FAQ
+
+### service/telegram_markup_factory.py (обновлено 25.03.2026)
+- `admin_vacancy_reply_markup` — кнопка "Модерувати" теперь ведёт на ЛК Администратора
+  (`/work/admin-panel/vacancy/<id>/moderate/`), а НЕ на `/admin/vacancy/vacancy/<id>/change/`

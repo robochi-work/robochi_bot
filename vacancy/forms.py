@@ -10,6 +10,7 @@ from django.forms import Form
 from django.utils.translation import gettext_lazy as _
 
 from telegram.choices import CallType
+from city.models import City
 from telegram.models import Channel
 from user.models import User
 from work.models import UserWorkProfile
@@ -19,6 +20,47 @@ from .choices import (
     PAYMENT_UNIT_CHOICES, PAYMENT_SHIFT, PAYMENT_METHOD_CHOICES, GENDER_MALE, PAYMENT_CASH
 )
 from .models import Vacancy, VacancyUser
+
+
+class TimeSelectWidget(forms.MultiWidget):
+    template_name = 'vacancy/widgets/time_select.html'
+
+    def __init__(self, attrs=None):
+        hour_choices = [(str(h).zfill(2), str(h).zfill(2)) for h in range(24)]
+        minute_choices = [('00', '00'), ('15', '15'), ('30', '30'), ('45', '45')]
+        widgets = [
+            forms.Select(choices=hour_choices, attrs={'class': 'time-select-hour'}),
+            forms.Select(choices=minute_choices, attrs={'class': 'time-select-minute'}),
+        ]
+        super().__init__(widgets, attrs)
+
+    def decompress(self, value):
+        if isinstance(value, d.time):
+            minute = value.minute
+            minute = min([0, 15, 30, 45], key=lambda x: abs(x - minute))
+            return [str(value.hour).zfill(2), str(minute).zfill(2)]
+        if isinstance(value, str) and ':' in value:
+            parts = value.split(':')
+            return [parts[0].zfill(2), parts[1].zfill(2)]
+        return ['07', '00']
+
+
+class TimeSelectField(forms.MultiValueField):
+    def __init__(self, *args, **kwargs):
+        hour_choices = [(f'{h:02d}', f'{h:02d}') for h in range(24)]
+        minute_choices = [('00', '00'), ('15', '15'), ('30', '30'), ('45', '45')]
+        fields = [
+            forms.ChoiceField(choices=hour_choices),
+            forms.ChoiceField(choices=minute_choices),
+        ]
+        kwargs['widget'] = TimeSelectWidget()
+        kwargs.setdefault('require_all_fields', True)
+        super().__init__(fields=fields, *args, **kwargs)
+
+    def compress(self, data_list):
+        if data_list and len(data_list) == 2:
+            return d.time(int(data_list[0]), int(data_list[1]))
+        return None
 
 
 class VacancyAdminForm(forms.ModelForm):
@@ -94,8 +136,8 @@ class VacancyForm(forms.Form):
         label=_('Address')
     )
     map_link = forms.URLField(required=False, label=_('Map Link (is not required)'))
-    start_time = forms.TimeField(label=_('Start Time'), widget=forms.TimeInput(attrs={'type': 'time'}))
-    end_time = forms.TimeField(label=_('End Time'), widget=forms.TimeInput(attrs={'type': 'time'}))
+    start_time = TimeSelectField(label=_('Start Time'))
+    end_time = TimeSelectField(label=_('End Time'))
     payment_amount = forms.DecimalField(max_digits=8, decimal_places=2, label=_('Payment Amount'))
     payment_unit = forms.ChoiceField(
         choices=PAYMENT_UNIT_CHOICES,
@@ -108,9 +150,42 @@ class VacancyForm(forms.Form):
         initial=PAYMENT_CASH,
     )
     skills = forms.CharField(widget=forms.Textarea(attrs={'rows': 7}), label=_('What will they do'))
+    contact_phone = forms.CharField(
+        max_length=20, required=False,
+        label=_('Contact phone'),
+        widget=forms.TextInput(attrs={'type': 'tel', 'placeholder': '+380...'})
+    )
+
+    city = forms.ModelChoiceField(
+        queryset=None,
+        required=False,
+        label=_('City'),
+        widget=forms.Select(attrs={'class': 'city-select'}),
+    )
 
     def __init__(self, *args, **kwargs):
+        self.work_profile = kwargs.pop('work_profile', None)
         super().__init__(*args, **kwargs)
+
+        # Configure city field based on multi_city_enabled
+        if self.work_profile and self.work_profile.multi_city_enabled:
+            # All allowed cities + main city
+            allowed_ids = list(self.work_profile.allowed_cities.values_list('id', flat=True))
+            if self.work_profile.city_id:
+                allowed_ids.append(self.work_profile.city_id)
+            self.fields['city'].queryset = City.objects.filter(id__in=allowed_ids)
+            if self.work_profile.city_id:
+                self.fields['city'].initial = self.work_profile.city_id
+            self.fields['city'].required = True
+        else:
+            # Single city — hide field, set to profile city
+            self.fields['city'].widget = forms.HiddenInput()
+            if self.work_profile and self.work_profile.city:
+                self.fields['city'].queryset = City.objects.filter(id=self.work_profile.city_id)
+                self.fields['city'].initial = self.work_profile.city_id
+            else:
+                self.fields['city'].queryset = City.objects.none()
+
         today = date.today()
         tomorrow_str = (today + timedelta(days=1)).strftime('%d.%m.%Y')
         self.fields['date_choice'].choices = [
@@ -148,6 +223,11 @@ class VacancyForm(forms.Form):
         data = self.cleaned_data
         work_profile = UserWorkProfile.objects.get(user=owner)
 
+        # Determine city: from form field (multi-city) or from profile
+        selected_city = data.get('city')
+        if not selected_city:
+            selected_city = work_profile.city
+
         return Vacancy.objects.create(
             owner=owner,
             status=status,
@@ -165,7 +245,8 @@ class VacancyForm(forms.Form):
             payment_unit=data.get('payment_unit'),
             payment_method=data.get('payment_method'),
             skills=data.get('skills'),
-            channel=Channel.objects.get(city=work_profile.city),
+            contact_phone=data.get('contact_phone', ''),
+            channel=Channel.objects.get(city=selected_city),
         )
 
 

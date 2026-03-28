@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.translation import gettext as _
 from telegram.choices import CallStatus, CallType, Status
 from user.models import User, UserFeedback
-from vacancy.choices import STATUS_PENDING
+from vacancy.choices import STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_CLOSED
 from vacancy.forms import VacancyForm, VacancyCallForm, CallTypes, VacancyUserFeedbackForm
 from vacancy.models import Vacancy, VacancyUserCall, VacancyUser
 from vacancy.services.call import create_vacancy_call
@@ -22,17 +22,37 @@ from vacancy.tasks.call import before_start_call, after_first_call_check
 
 
 def vacancy_create(request):
+    work_profile = getattr(request.user, 'work_profile', None)
     if request.method == 'POST':
-        vacancy_form = VacancyForm(request.POST)
+        vacancy_form = VacancyForm(request.POST, work_profile=work_profile)
         if vacancy_form.is_valid():
+            # Защита от двойного создания: проверяем дубль за последние 60 секунд
+            from django.utils import timezone
+            from datetime import timedelta
+            recent = Vacancy.objects.filter(
+                owner=request.user,
+                status=STATUS_PENDING,
+                address=vacancy_form.cleaned_data.get('address', ''),
+                date=vacancy_form.cleaned_data.get('date') or vacancy_form.cleaned_data.get('date_choice'),
+                start_time=vacancy_form.cleaned_data.get('start_time'),
+            ).first()
+            if recent:
+                return redirect('index')
             new_vacancy = vacancy_form.save(owner=request.user, status=STATUS_PENDING)
             vacancy_publisher.notify(events.VACANCY_CREATED, data={'vacancy': new_vacancy, 'request': request})
             return redirect('index')
 
     else:
-        vacancy_form = VacancyForm()
+        vacancy_form = VacancyForm(work_profile=work_profile)
 
-    return render(request, 'vacancy/vacancy_form_page.html', {'form': vacancy_form})
+
+    # First visit = employer has never created any vacancy
+    is_first_visit = not Vacancy.objects.filter(owner=request.user).exists()
+    return render(request, 'vacancy/vacancy_form_page.html', {
+        'form': vacancy_form,
+        'is_first_visit': is_first_visit,
+        'work_profile': work_profile,
+    })
 
 
 def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vacancy, call_type: CallType):
@@ -166,3 +186,137 @@ def vacancy_user_feedback(request: WSGIRequest, pk: int) -> HttpResponse:
 
 def vacancy_test_task(request):
     return HttpResponse(status=200)
+
+
+@login_required
+def vacancy_my_list(request):
+    """List of all employer's vacancies with statuses."""
+    statuses = [STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]
+    vacancies = (
+        Vacancy.objects
+        .filter(owner=request.user, status__in=statuses)
+        .select_related('group', 'channel')
+        .order_by('-date', '-start_time')
+    )
+
+    STATUS_LABELS = {
+        STATUS_PENDING: 'Очікує модерації',
+        STATUS_APPROVED: 'Активна (пошук)',
+        STATUS_ACTIVE: 'Йде зміна',
+        'closed': 'Завершена',
+    }
+
+    vacancy_list = []
+    for v in vacancies:
+        vacancy_list.append({
+            'vacancy': v,
+            'status_label': STATUS_LABELS.get(v.status, v.get_status_display()),
+            'members_count': v.members.count(),
+        })
+
+    return render(request, 'vacancy/vacancy_my_list.html', {
+        'vacancy_list': vacancy_list,
+        'work_profile': getattr(request.user, 'work_profile', None),
+    })
+
+
+@login_required
+def vacancy_detail(request, pk):
+    """Detail page for a single vacancy with management buttons."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    STATUS_LABELS = {
+        STATUS_PENDING: 'Очікує модерації',
+        STATUS_APPROVED: 'Активна (пошук)',
+        STATUS_ACTIVE: 'Йде зміна',
+        'closed': 'Завершена',
+    }
+
+    members = vacancy.members.select_related('user')
+
+    return render(request, 'vacancy/vacancy_detail.html', {
+        'vacancy': vacancy,
+        'status_label': STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
+        'members': members,
+        'members_count': members.count(),
+        'work_profile': getattr(request.user, 'work_profile', None),
+    })
+
+
+@login_required
+def vacancy_stop_search(request, pk):
+    """Stop search: remove button from channel, notify admins."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
+        from telegram.handlers.bot_instance import bot
+        from telegram.models import ChannelMessage
+        from service.notifications import NotificationMethod
+        from service.telegram_strategy_factory import TelegramStrategyFactory
+        from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+        # Update channel message to "Пошук завершено" (no button)
+        if vacancy.channel:
+            text = VacancyTelegramTextFormatter(vacancy).for_channel(status='full')
+            channel_message = ChannelMessage.objects.filter(
+                channel_id=vacancy.channel.id,
+                extra__vacancy_id=vacancy.id,
+            ).order_by('-id').first()
+            if channel_message:
+                strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                try:
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                except Exception as e:
+                    import logging
+                    logging.warning(f'Failed to update channel message: {e}')
+
+        # Set status to closed
+        vacancy.status = STATUS_CLOSED
+        vacancy.save(update_fields=['status'])
+
+    return redirect('vacancy:detail', pk=pk)
+
+
+@login_required
+def vacancy_members(request, pk):
+    """Page showing all users who joined the vacancy group."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    all_users = (
+        VacancyUser.objects
+        .filter(vacancy=vacancy)
+        .select_related('user')
+        .order_by('-created_at')
+    )
+
+    members_list = []
+    for vu in all_users:
+        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
+        members_list.append({
+            'vacancy_user': vu,
+            'user': vu.user,
+            'status': vu.get_status_display(),
+            'is_member': vu.status == 'member',
+            'feedbacks_count': feedbacks,
+        })
+
+    return render(request, 'vacancy/vacancy_members.html', {
+        'vacancy': vacancy,
+        'members_list': members_list,
+        'work_profile': getattr(request.user, 'work_profile', None),
+    })
+
+
+@login_required
+def vacancy_kick_member(request, pk, user_id):
+    """Kick a worker from vacancy group."""
+    if request.method != 'POST':
+        return redirect('vacancy:members', pk=pk)
+
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    from telegram.service.group import GroupService
+    if vacancy.group:
+        GroupService.kick_user(chat_id=vacancy.group.id, user_id=user_id)
+
+    return redirect('vacancy:members', pk=pk)

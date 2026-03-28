@@ -1,3 +1,5 @@
+import time
+
 from telebot.types import ChatMemberUpdated, ChatPermissions, ChatJoinRequest
 from django.utils.translation import gettext as _
 
@@ -59,6 +61,16 @@ def auto_approve(req: ChatJoinRequest):
         # Vacancy owner always passes
         if vacancy.owner == user:
             bot.approve_chat_join_request(req.chat.id, req.from_user.id)
+            time.sleep(1)
+            GroupService.set_default_owner_permissions(
+                chat_id=req.chat.id,
+                user_id=req.from_user.id,
+            )
+            GroupService.set_admin_custom_title(
+                chat_id=req.chat.id,
+                user_id=req.from_user.id,
+                custom_title='Роботодавець',
+            )
             return
 
         # Check: already in another active vacancy

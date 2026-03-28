@@ -157,6 +157,16 @@ sequenceDiagram
 - templates
 - forms
 - session/auth (для Mini App)
+- ЛК Администратора (work/views/admin_panel.py) — добавлено 25.03.2026
+- ЛК Employer (work/views/employer.py) — добавлено 25.03.2026
+
+Маршрутизация по роли (work/views/index.py):
+```
+is_staff → admin_dashboard
+Employer (0 вакансий) → vacancy:create
+Employer → employer_dashboard
+Worker → worker_dashboard
+```
 
 ### Зона 3 — API layer (добавлена 16.03.2026)
 Что входит:

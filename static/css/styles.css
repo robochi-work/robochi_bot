@@ -749,3 +749,137 @@ a.info,
     margin: 20px 0;
     text-align: center;
 }
+
+/* ---------- Dashboard button cards (worker + employer) ---------- */
+.worker-buttons {
+    width: 100%;
+    max-width: 520px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0 auto;
+}
+
+.worker-btn {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 18px 16px;
+    border: none;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    cursor: pointer;
+    text-decoration: none !important;
+    color: var(--accent-dark) !important;
+    transition: all 0.2s ease-in-out;
+    text-align: left;
+    font-family: inherit;
+    font-size: inherit;
+}
+.worker-btn:active {
+    box-shadow: var(--btn-shadow-active);
+}
+.worker-btn__icon {
+    font-size: 28px;
+    margin-right: 14px;
+    flex-shrink: 0;
+    width: 36px;
+    text-align: center;
+}
+.worker-btn__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.worker-btn__title {
+    font-size: 16px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+    margin-bottom: 2px;
+}
+.worker-btn__sub {
+    font-size: 13px;
+    font-weight: 400;
+    opacity: 0.75;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.worker-btn--accent {
+    border-left: 4px solid var(--steel-bottom);
+}
+
+/* ---------- Modal overlay ---------- */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+.modal-card {
+    background: var(--btn-bg);
+    border-radius: var(--card-radius);
+    padding: 28px 20px;
+    max-width: 340px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.modal-text {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    line-height: 1.5;
+    text-shadow: var(--btn-text-shadow);
+}
+.modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-shadow: var(--btn-text-shadow);
+}
+
+/* ---------- Dashboard pages ---------- */
+.page--worker-dashboard,
+.page--employer-dashboard {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+
+@media (max-width: 420px) {
+    .worker-btn {
+        padding: 14px 12px;
+        border-radius: 24px;
+    }
+    .worker-btn__icon { font-size: 24px; margin-right: 10px; }
+    .worker-btn__title { font-size: 15px; }
+}
+
+/* ---------- Time select widget ---------- */
+.time-select-widget {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.time-select-widget select {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: var(--default-border-radius);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    appearance: none;
+    -webkit-appearance: none;
+}
+.time-select-widget .time-separator {
+    font-size: 20px;
+    font-weight: bold;
+}

@@ -3,7 +3,7 @@
 This file describes the structure of the robochi_bot repository so that
 AI assistants understand where code and configuration live.
 
-Last updated: 16.03.2026
+Last updated: 25.03.2026
 
 ## Root
 
@@ -42,11 +42,23 @@ Cities (TranslatableModel via django-parler).
 Current cities: Київ(1), Одеса(2), Дніпро(3), Харків(4)
 
 ### work/
-Work profiles, registration wizard, dashboard blocks.
+Work profiles, registration wizard, dashboard blocks, admin panel.
 - UserWorkProfile, AgreementText models
 - wizard (django-formtools): role → city → agreement steps
 - block_registry: ChannelPreviewBlock, VacancyCreateFormBlock, ActiveVacanciesPreviewBlock
 - work/service/: work_profile.py, publisher.py, events.py, subscriber_setup.py
+- work/views/admin_panel.py — ЛК Администратора (6 views):
+  admin_dashboard, admin_search_users, admin_search_vacancies,
+  admin_vacancy_card, admin_block_user, admin_moderate_vacancy
+- work/views/employer.py — ЛК Employer: employer_reviews, employer_faq
+- work/views/index.py — роутинг по роли: admin→admin_dashboard, employer→employer_dashboard, worker→worker_dashboard
+- work/templates/work/admin_dashboard.html — дашборд с табами и картой вакансий
+- work/templates/work/admin_search_results.html — partial результаты поиска (AJAX)
+- work/templates/work/admin_vacancy_card.html — карточка вакансии для админа
+- work/templates/work/admin_moderate_vacancy.html — форма модерации вакансии
+- work/templates/work/employer_dashboard.html — дашборд работодателя
+- work/templates/work/employer_reviews.html — отзывы работодателя
+- work/templates/work/employer_faq.html — FAQ для работодателя
 
 ### telegram/
 Telegram bot integration and WebApp authentication.
@@ -61,6 +73,8 @@ Vacancy lifecycle, worker matching, call-checks.
 - Observer/Publisher pattern for vacancy events
 - Celery tasks for call-checks and rotation
 - vacancy/services/: call.py, vacancy_status.py, vacancy_formatter.py
+- vacancy/templates/vacancy/vacancy_my_list.html — список вакансий работодателя
+- vacancy/templates/vacancy/vacancy_detail.html — детальная страница вакансии
 
 ### payment/
 Monobank Acquiring payment integration.
@@ -80,6 +94,7 @@ REST API built with Django REST Framework.
 Shared services used across apps.
 - notifications.py, broadcast_service.py
 - telegram_strategies.py, telegram_markup_factory.py
+  (admin_vacancy_reply_markup: кнопка "Модерувати" → /work/admin-panel/vacancy/<id>/moderate/)
 
 ## Templates
 

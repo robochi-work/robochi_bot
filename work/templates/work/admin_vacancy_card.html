@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--admin-vacancy-card">
+
+    <a href="javascript:history.back()" class="btn-secondary back-btn">← Назад</a>
+
+    <div class="user-header-card">
+        <div class="user-header__row">
+            <span class="user-header__label">Ім'я:</span>
+            <span class="user-header__value">{{ target_user.full_name|default:'-' }}</span>
+        </div>
+        <div class="user-header__row">
+            <span class="user-header__label">ID:</span>
+            <span class="user-header__value">
+                <a href="/admin/user/user/{{ target_user.pk }}/change/" class="user-link">{{ target_user.pk }}</a>
+            </span>
+        </div>
+        <div class="user-header__row">
+            <span class="user-header__label">Username:</span>
+            <span class="user-header__value">
+                {% if target_user.username %}
+                <a href="https://t.me/{{ target_user.username }}" target="_blank" class="user-link">@{{ target_user.username }}</a>
+                {% else %}-{% endif %}
+            </span>
+        </div>
+        <div class="user-header__row">
+            <span class="user-header__label">Телефон:</span>
+            <span class="user-header__value">{{ target_user.phone_number|default:'-' }}</span>
+        </div>
+    </div>
+
+    <h2 class="section-title">Вакансії по містах</h2>
+
+    {% if not cities_vacancies %}
+    <p class="vacancies-empty">Вакансій не знайдено</p>
+    {% endif %}
+
+    {% for city_name, vacancies in cities_vacancies.items %}
+    <div class="city-block">
+        <div class="city-header" onclick="toggleCity(this)">
+            <span class="city-name">{{ city_name }}</span>
+            <span class="city-count">{{ vacancies|length }}</span>
+            <span class="city-arrow">▼</span>
+        </div>
+        <div class="city-vacancies" style="display:none;">
+            {% for vacancy in vacancies %}
+            <div class="vacancy-item">
+                <div class="vacancy-row">
+                    <span class="vacancy-label">Дата:</span>
+                    <span class="vacancy-value">{{ vacancy.date }}</span>
+                </div>
+                <div class="vacancy-row">
+                    <span class="vacancy-label">Час:</span>
+                    <span class="vacancy-value">{{ vacancy.start_time }}–{{ vacancy.end_time }}</span>
+                </div>
+                <div class="vacancy-row">
+                    <span class="vacancy-label">Адреса:</span>
+                    <span class="vacancy-value">{{ vacancy.address|default:'-' }}</span>
+                </div>
+                <div class="vacancy-row">
+                    <span class="vacancy-label">Статус:</span>
+                    <span class="vacancy-value">{{ vacancy.get_status_display }}</span>
+                </div>
+                <div class="vacancy-row">
+                    <span class="vacancy-label">Людей:</span>
+                    <span class="vacancy-value">{{ vacancy.people_count }}</span>
+                </div>
+                {% if vacancy.group and vacancy.group.invite_link %}
+                <a href="{{ vacancy.group.invite_link }}" target="_blank" class="btn-secondary vacancy-group-btn">ГРУПА</a>
+                {% endif %}
+                {% if vacancy.status == 'pending' %}
+                <a href="{% url 'work:admin_moderate_vacancy' vacancy.pk %}" class="btn-primary vacancy-moderate-btn">МОДЕРАЦІЯ</a>
+                {% endif %}
+                {% if vacancy.status != 'pending' and vacancy.status != 'closed' %}
+                <form method='post' action="{% url 'work:admin_close_vacancy' vacancy.pk %}" style='display:inline;margin-top:6px;'>
+                    {% csrf_token %}
+                    <button type='submit' class='btn-danger vacancy-close-btn' onclick="return confirm('Закрити вакансію та звільнити групу?')">ЗАКРИТИ</button>
+                </form>
+                {% endif %}
+                {% if vacancy.status == 'closed' and vacancy.group %}
+                <form method='post' action="{% url 'work:admin_close_vacancy' vacancy.pk %}" style='display:inline;margin-top:6px;'>
+                    {% csrf_token %}
+                    <button type='submit' class='btn-danger vacancy-close-btn' onclick="return confirm('Звільнити групу?')">ЗВІЛЬНИТИ ГРУПУ</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+</main>
+
+<script>
+function toggleCity(header) {
+    var content = header.nextElementSibling;
+    var arrow = header.querySelector('.city-arrow');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        arrow.textContent = '▲';
+    } else {
+        content.style.display = 'none';
+        arrow.textContent = '▼';
+    }
+}
+</script>
+
+<style>
+    .page--admin-vacancy-card {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 520px;
+        margin: 0 auto;
+    }
+    .back-btn {
+        display: inline-block;
+        width: auto;
+        margin: 0;
+        padding: 10px 20px;
+        font-size: 14px;
+        align-self: flex-start;
+    }
+    .user-header-card {
+        background: var(--btn-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--btn-shadow);
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .user-header__row {
+        display: flex;
+        gap: 8px;
+        font-size: 14px;
+        align-items: baseline;
+    }
+    .user-header__label {
+        font-weight: 700;
+        min-width: 72px;
+        opacity: 0.7;
+    }
+    .user-header__value {
+        word-break: break-all;
+    }
+    .user-link {
+        color: var(--accent-dark);
+        font-weight: 600;
+        text-decoration: underline;
+    }
+    .section-title {
+        font-size: 19px;
+        font-weight: 700;
+        text-shadow: var(--btn-text-shadow);
+        margin: 4px 0 0;
+    }
+    .vacancies-empty {
+        font-size: 15px;
+        opacity: 0.7;
+        text-align: center;
+        padding: 24px 0;
+    }
+    .city-block {
+        background: var(--btn-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--btn-shadow);
+        overflow: hidden;
+    }
+    .city-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 16px;
+        cursor: pointer;
+        user-select: none;
+        font-weight: 700;
+        font-size: 15px;
+    }
+    .city-header:active {
+        box-shadow: var(--btn-shadow-active);
+    }
+    .city-name {
+        flex: 1;
+        text-shadow: var(--btn-text-shadow);
+    }
+    .city-count {
+        background: rgba(0,0,0,0.12);
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 13px;
+    }
+    .city-arrow {
+        font-size: 12px;
+        opacity: 0.6;
+    }
+    .city-vacancies {
+        border-top: 1px solid rgba(0,0,0,0.1);
+        padding: 4px 0;
+    }
+    .vacancy-item {
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        border-bottom: 1px solid rgba(0,0,0,0.07);
+    }
+    .vacancy-item:last-child {
+        border-bottom: none;
+    }
+    .vacancy-row {
+        display: flex;
+        gap: 8px;
+        font-size: 14px;
+    }
+    .vacancy-label {
+        font-weight: 700;
+        min-width: 64px;
+        opacity: 0.7;
+    }
+    .vacancy-value {
+        word-break: break-word;
+    }
+    .vacancy-group-btn {
+        margin: 6px 0 0;
+        padding: 8px 18px;
+        font-size: 13px;
+        align-self: flex-start;
+        width: auto;
+        display: inline-block;
+    }
+    .vacancy-moderate-btn {
+        margin: 6px 0 0;
+        padding: 8px 18px;
+        font-size: 13px;
+        align-self: flex-start;
+        width: auto;
+        display: inline-block;
+    }
+    .btn-danger, .vacancy-close-btn {
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+</style>
+{% endblock %}
