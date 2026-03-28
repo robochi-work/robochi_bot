@@ -152,6 +152,9 @@ def admin_moderate_vacancy(request, vacancy_id):
     vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
     work_profile = getattr(request.user, 'work_profile', None)
 
+    if request.method == 'POST' and vacancy.status != STATUS_PENDING:
+        return redirect('work:admin_vacancy_card', user_id=vacancy.owner_id)
+
     if request.method == 'POST':
         form = VacancyForm(request.POST)
         if form.is_valid():
