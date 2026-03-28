@@ -22,45 +22,26 @@ from .models import Vacancy, VacancyUser
 
 
 class TimeSelectWidget(forms.MultiWidget):
+    template_name = 'vacancy/widgets/time_select.html'
+
     def __init__(self, attrs=None):
-        hour_choices = [(f'{h:02d}', f'{h:02d}') for h in range(24)]
+        hour_choices = [(str(h).zfill(2), str(h).zfill(2)) for h in range(24)]
         minute_choices = [('00', '00'), ('15', '15'), ('30', '30'), ('45', '45')]
         widgets = [
-            forms.Select(choices=hour_choices),
-            forms.Select(choices=minute_choices),
+            forms.Select(choices=hour_choices, attrs={'class': 'time-select-hour'}),
+            forms.Select(choices=minute_choices, attrs={'class': 'time-select-minute'}),
         ]
         super().__init__(widgets, attrs)
 
     def decompress(self, value):
-        if value:
-            if hasattr(value, 'hour'):
-                minute_rounded = round(value.minute / 15) * 15 % 60
-                return [f'{value.hour:02d}', f'{minute_rounded:02d}']
-            if isinstance(value, str) and ':' in value:
-                parts = value.split(':')
-                hour = parts[0].zfill(2)
-                minute_rounded = round(int(parts[1]) / 15) * 15 % 60
-                return [hour, f'{minute_rounded:02d}']
+        if isinstance(value, d.time):
+            minute = value.minute
+            minute = min([0, 15, 30, 45], key=lambda x: abs(x - minute))
+            return [str(value.hour).zfill(2), str(minute).zfill(2)]
+        if isinstance(value, str) and ':' in value:
+            parts = value.split(':')
+            return [parts[0].zfill(2), parts[1].zfill(2)]
         return ['07', '00']
-
-    def render(self, name, value, attrs=None):
-        if not isinstance(value, list):
-            value = self.decompress(value)
-        final_attrs = self.build_attrs(attrs or {})
-        id_ = final_attrs.get('id', '')
-        rendered = []
-        for i, widget in enumerate(self.widgets):
-            widget_attrs = dict(final_attrs)
-            if id_:
-                widget_attrs['id'] = f'{id_}_{i}'
-            rendered.append(widget.render(f'{name}_{i}', value[i] if i < len(value) else '', widget_attrs))
-        return mark_safe(
-            f'<div class="time-select-widget">'
-            f'{rendered[0]}'
-            f'<span class="time-separator">:</span>'
-            f'{rendered[1]}'
-            f'</div>'
-        )
 
 
 class TimeSelectField(forms.MultiValueField):
