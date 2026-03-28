@@ -36,7 +36,7 @@ msgstr "Переглянути вакансію"
 
 #: service/telegram_markup_factory.py:25
 msgid "Apply for vacancy"
-msgstr "Відгукнутися на вакансію"
+msgstr "Я ГОТОВИЙ ПРАЦЮВАТИ"
 
 #: service/telegram_markup_factory.py:31
 msgid "View feedback"
@@ -2414,8 +2414,8 @@ msgstr "Зберегти зміни"
 #~ msgid "Successful"
 #~ msgstr "Успішно"
 
-#~ msgid "Payment"
-#~ msgstr "Оплата"
+msgid "Payment"
+msgstr "Оплата"
 
 #~ msgid "Payments"
 #~ msgstr "Платежі"
@@ -2435,8 +2435,8 @@ msgstr "Зберегти зміни"
 #~ msgid "to"
 #~ msgstr "до"
 
-#~ msgid "Need passport"
-#~ msgstr "Потрібен паспорт"
+msgid "Need passport"
+msgstr "Потрібен паспорт"
 
 #~ msgid "uah"
 #~ msgstr "грн"
@@ -2518,3 +2518,12 @@ msgstr "Правила користування сервісом:"
 #: work/templates/work/work_profile/step_agreement.html
 msgid "I agree"
 msgstr "ЗГОДЕН"
+
+msgid "Contact phone"
+msgstr "Контактний номер телефону"
+
+msgid "Working hours"
+msgstr "Час роботи"
+
+msgid "of"
+msgstr "з"

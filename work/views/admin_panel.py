@@ -170,6 +170,25 @@ def admin_moderate_vacancy(request, vacancy_id):
                 vacancy.payment_unit = data['payment_unit']
                 vacancy.payment_method = data['payment_method']
                 vacancy.skills = data['skills']
+                vacancy.contact_phone = data.get('contact_phone', '')
+                # Assign group from pool (same logic as Django Admin save_model)
+                if not vacancy.group:
+                    from telegram.service.group import GroupService
+                    from telegram.choices import STATUS_PROCESS
+                    group = GroupService.get_available_group()
+                    if group:
+                        vacancy.group = group
+                        group.status = STATUS_PROCESS
+                        group.save(update_fields=['status'])
+                    else:
+                        form.add_error(None, 'Немає вільних груп для вакансії. Спробуйте пізніше.')
+                        return render(request, 'work/admin_moderate_vacancy.html', {
+                            'form': form,
+                            'vacancy': vacancy,
+                            'target_user': vacancy.owner,
+                            'work_profile': work_profile,
+                        })
+
                 vacancy.status = STATUS_APPROVED
                 vacancy.save()
                 vacancy_publisher.notify(VACANCY_APPROVED_EVENT, {'vacancy': vacancy, 'request': request})
@@ -190,6 +209,7 @@ def admin_moderate_vacancy(request, vacancy_id):
             'payment_unit': vacancy.payment_unit,
             'payment_method': vacancy.payment_method,
             'skills': vacancy.skills,
+            'contact_phone': vacancy.contact_phone,
         }
         form = VacancyForm(initial=initial)
 

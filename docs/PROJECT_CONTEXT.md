@@ -375,3 +375,51 @@ AuthIdentity модель (user/models.py) — связывает User с про
 3. ЛК Worker — доработка: блокировка UI, запрос телефона
 4. Ротация вакансий
 5. Monobank інтеграція
+
+### Сессия 28.03.2026 — ЛК Заказчика (Фаза 2) + баг-фиксы + правки
+
+**Фаза 2 — Управление заявками из ЛК:**
+1. `vacancy_stop_search` view — зупинити пошук з ЛК (заменяет кнопку в канале на «Пошук завершено»)
+2. `vacancy_members` view — страница учасників групи: ім'я, телефон, статус, кількість відгуків
+3. `vacancy_kick_member` view — видалення робітника з групи через ЛК (POST + confirm)
+4. Модалка «Управління вакансією» на vacancy_detail оновлена: Повторний пошук, Зупинити пошук (approved), Переклички Початок/Кінець (approved/active), Учасники групи
+5. URL: vacancy/my/, vacancy/<pk>/detail/, vacancy/<pk>/stop-search/, vacancy/<pk>/members/, vacancy/<pk>/kick/<user_id>/
+
+**Критичний баг-фікс:**
+6. `admin_moderate_vacancy` не назначала группу з пулу при approve → кнопка «Я ГОТОВИЙ ПРАЦЮВАТИ» не з'являлась в каналі. Додано `GroupService.get_available_group()` + STATUS_PROCESS перед approve
+7. Кнопка в каналі перейменована: «Відгукнутися на вакансію» → «Я ГОТОВИЙ ПРАЦЮВАТИ» (locale/uk)
+
+**Правки тексту вакансії в каналі:**
+8. Динамічна дата: vacancy_formatter тепер порівнює vacancy.date з date.today() → показує «Сьогодні» або «Завтра» динамічно (замість збереженого date_choice)
+9. Динамічна кількість: for_channel(show_needed=True) показує скільки ще потрібно робітників (needed / total), а не загальну кількість
+10. Локалізація: Sex→Стать (msgid "Gender"), Work time→Час роботи (msgid "Working hours"), Payment→Оплата, Need passport→Потрібен паспорт — розкоментовані та додані переводи в django.po
+
+**Автодобавлення Employer в групу:**
+11. `VacancyApprovedGroupObserver._add_employer_to_group()` — після модерації створює одноразове invite-посилання (member_limit=1, creates_join_request=False) та відправляє Employer кнопку «Перейти в групу вакансії» в бот
+
+**Інші правки:**
+12. `contact_phone` — додано в initial та save в admin_moderate_vacancy
+13. `input[type="tel"]` — додано в CSS форми модерації (admin_moderate_vacancy.html)
+14. `vacancy_feedback.html` — додано {% block header %}{% endblock %} (прибрано старий header з Меню)
+
+**Нові файли:**
+- vacancy/templates/vacancy/vacancy_members.html
+
+**Оновлені файли:**
+- vacancy/views.py — +vacancy_stop_search, vacancy_members, vacancy_kick_member
+- vacancy/urls.py — +stop-search/, members/, kick/
+- vacancy/services/vacancy_formatter.py — повністю переписаний (динамічна дата, кількість, нові msgid)
+- vacancy/services/observers/approved_group_observer.py — +_add_employer_to_group()
+- vacancy/templates/vacancy/vacancy_detail.html — оновлена модалка управління
+- vacancy/templates/vacancy/vacancy_feedback.html — прибрано header
+- work/views/admin_panel.py — +GroupService при approve, +contact_phone
+- work/templates/work/admin_moderate_vacancy.html — +input[type="tel"] CSS
+- locale/uk/LC_MESSAGES/django.po — нові та розкоментовані переводи
+
+**Пріоритети (оновлені):**
+1. Пункт 3 — Кольорові кнопки: Bot API додав style для InlineKeyboardButton — перевірити підтримку pyTelegramBotAPI
+2. Пункт 5 — Віджет часу: заміна на custom select
+3. Пункт 7 — Мультимісто для Employer (M2M, admin UI, форма)
+4. Фаза 3 — Оплата monobank UI в ЛК
+5. Блокування — модель (тип, термін, причина), автоблокування
+6. Продовження на завтра — розсилка, очікування, перестворення

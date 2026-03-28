@@ -110,15 +110,25 @@
         <a href="{% url 'vacancy:refind' pk=vacancy.pk %}" class="btn-primary" style="margin-bottom:10px;">
             🔄 Повторний пошук
         </a>
+        <a href="{% url 'vacancy:stop_search' pk=vacancy.pk %}" class="btn-primary" style="margin-bottom:10px;"
+           onclick="return confirm('Зупинити пошук робітників?')">
+            ⏹️ Зупинити пошук
+        </a>
         {% endif %}
 
+        {% if vacancy.status == 'approved' or vacancy.status == 'active' %}
         <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="btn-primary" style="margin-bottom:10px;">
             ▶️ Перекличка: Початок роботи
         </a>
 
         <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='after_start' %}" class="btn-primary" style="margin-bottom:10px;">
-            ⏹️ Перекличка: Кінець роботи
+            🏁 Перекличка: Кінець роботи
         </a>
+
+        <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="btn-primary" style="margin-bottom:10px;">
+            👥 Учасники групи
+        </a>
+        {% endif %}
 
         <button type="button" class="btn-secondary" onclick="closeManageModal()" style="margin-top:10px;">
             Закрити

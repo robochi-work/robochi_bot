@@ -77,5 +77,11 @@
         {{ form.payment_method.errors }}
     </div>
 
+    <div class="column">
+        <label for="{{ form.contact_phone.id_for_label }}">{% trans "Contact phone" %}:</label>
+        {{ form.contact_phone }}
+        {{ form.contact_phone.errors }}
+    </div>
+
     <button type="submit">{% trans "Create vacancy" %}</button>
 </form>

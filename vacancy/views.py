@@ -228,3 +228,65 @@ def vacancy_detail(request, pk):
         'members_count': members.count(),
         'work_profile': getattr(request.user, 'work_profile', None),
     })
+
+
+@login_required
+def vacancy_stop_search(request, pk):
+    """Stop search: remove button from channel, notify admins."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
+        from vacancy.services.observers.subscriber_setup import vacancy_publisher
+        from vacancy.services.observers.events import VACANCY_CLOSE_FORCIBLY, VACANCY_CLOSE
+        from vacancy.services.observers.member_observer import VacancyIsFullObserver
+        from vacancy.services.observers.subscriber_setup import telegram_notifier
+
+        # Update channel message to "Пошук завершено" (no button)
+        VacancyIsFullObserver(telegram_notifier).update('stop_search', data={'vacancy': vacancy})
+
+    return redirect('vacancy:detail', pk=pk)
+
+
+@login_required
+def vacancy_members(request, pk):
+    """Page showing all users who joined the vacancy group."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    all_users = (
+        VacancyUser.objects
+        .filter(vacancy=vacancy)
+        .select_related('user')
+        .order_by('-created_at')
+    )
+
+    members_list = []
+    for vu in all_users:
+        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
+        members_list.append({
+            'vacancy_user': vu,
+            'user': vu.user,
+            'status': vu.get_status_display(),
+            'is_member': vu.status == 'member',
+            'feedbacks_count': feedbacks,
+        })
+
+    return render(request, 'vacancy/vacancy_members.html', {
+        'vacancy': vacancy,
+        'members_list': members_list,
+        'work_profile': getattr(request.user, 'work_profile', None),
+    })
+
+
+@login_required
+def vacancy_kick_member(request, pk, user_id):
+    """Kick a worker from vacancy group."""
+    if request.method != 'POST':
+        return redirect('vacancy:members', pk=pk)
+
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    from telegram.service.group import GroupService
+    if vacancy.group:
+        GroupService.kick_user(chat_id=vacancy.group.id, user_id=user_id)
+
+    return redirect('vacancy:members', pk=pk)

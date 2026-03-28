@@ -65,6 +65,10 @@ class Vacancy(models.Model):
         blank=True,
         null=True,
     )
+    contact_phone = models.CharField(
+        max_length=20, blank=True, default='',
+        verbose_name=_('Contact phone')
+    )
     extra = models.JSONField(blank=True, default=dict)
 
     def __str__(self):

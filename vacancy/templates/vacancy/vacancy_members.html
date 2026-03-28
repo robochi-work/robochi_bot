@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--members">
+    <div class="members-container">
+
+        <div class="vacancy-list-header">
+            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="btn-back">← Заявка</a>
+            <h1>Учасники</h1>
+        </div>
+
+        {% if members_list %}
+        <div class="members-cards">
+            {% for item in members_list %}
+            <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
+                <div class="member-card__top">
+                    <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
+                    <span class="member-card__status">{{ item.status }}</span>
+                </div>
+                <div class="member-card__info">
+                    {% if item.user.phone_number %}
+                    <a href="tel:{{ item.user.phone_number }}" class="member-card__phone">📞 {{ item.user.phone_number }}</a>
+                    {% endif %}
+                    {% if item.feedbacks_count %}
+                    <span>⭐ {{ item.feedbacks_count }} відгук{{ item.feedbacks_count|pluralize:"ів,и,ів" }}</span>
+                    {% endif %}
+                </div>
+                {% if item.is_member %}
+                <div class="member-card__actions">
+                    <form method="post" action="{% url 'vacancy:kick_member' pk=vacancy.pk user_id=item.user.pk %}"
+                          onsubmit="return confirm('Видалити {{ item.user.full_name|default:"цього робітника" }} з групи?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-kick">Видалити з групи</button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="vacancy-list-empty">
+            <p>Ще немає учасників</p>
+        </div>
+        {% endif %}
+
+    </div>
+</main>
+
+<style>
+.page--members {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.members-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.members-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.member-card {
+    padding: 16px;
+    border-radius: var(--btn-radius);
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+}
+.member-card--inactive {
+    opacity: 0.6;
+}
+.member-card__top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+.member-card__name {
+    font-size: 15px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+}
+.member-card__status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.08);
+}
+.member-card__info {
+    display: flex;
+    gap: 12px;
+    font-size: 13px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.member-card__phone {
+    color: var(--accent-dark);
+    text-decoration: none;
+    font-weight: 600;
+}
+.member-card__actions {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0,0,0,0.08);
+}
+.btn-kick {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 12px;
+    background: var(--message-error-bg);
+    color: #b71c1c;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+</style>
+{% endblock %}

@@ -108,6 +108,11 @@ class VacancyForm(forms.Form):
         initial=PAYMENT_CASH,
     )
     skills = forms.CharField(widget=forms.Textarea(attrs={'rows': 7}), label=_('What will they do'))
+    contact_phone = forms.CharField(
+        max_length=20, required=False,
+        label=_('Contact phone'),
+        widget=forms.TextInput(attrs={'type': 'tel', 'placeholder': '+380...'})
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -165,6 +170,7 @@ class VacancyForm(forms.Form):
             payment_unit=data.get('payment_unit'),
             payment_method=data.get('payment_method'),
             skills=data.get('skills'),
+            contact_phone=data.get('contact_phone', ''),
             channel=Channel.objects.get(city=work_profile.city),
         )
 
