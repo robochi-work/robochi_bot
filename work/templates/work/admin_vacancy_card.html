@@ -75,6 +75,18 @@
                 {% if vacancy.status == 'pending' %}
                 <a href="{% url 'work:admin_moderate_vacancy' vacancy.pk %}" class="btn-primary vacancy-moderate-btn">МОДЕРАЦІЯ</a>
                 {% endif %}
+                {% if vacancy.status != 'pending' and vacancy.status != 'closed' %}
+                <form method='post' action="{% url 'work:admin_close_vacancy' vacancy.pk %}" style='display:inline;margin-top:6px;'>
+                    {% csrf_token %}
+                    <button type='submit' class='btn-danger vacancy-close-btn' onclick="return confirm('Закрити вакансію та звільнити групу?')">ЗАКРИТИ</button>
+                </form>
+                {% endif %}
+                {% if vacancy.status == 'closed' and vacancy.group %}
+                <form method='post' action="{% url 'work:admin_close_vacancy' vacancy.pk %}" style='display:inline;margin-top:6px;'>
+                    {% csrf_token %}
+                    <button type='submit' class='btn-danger vacancy-close-btn' onclick="return confirm('Звільнити групу?')">ЗВІЛЬНИТИ ГРУПУ</button>
+                </form>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -229,6 +241,16 @@ function toggleCity(header) {
         align-self: flex-start;
         width: auto;
         display: inline-block;
+    }
+    .btn-danger, .vacancy-close-btn {
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
     }
 </style>
 {% endblock %}

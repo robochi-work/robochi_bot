@@ -246,6 +246,30 @@ def admin_moderate_vacancy(request, vacancy_id):
 
 @staff_required
 @require_POST
+def admin_close_vacancy(request, vacancy_id):
+    """Force-close a vacancy and release its group."""
+    from vacancy.services.observers.subscriber_setup import vacancy_publisher
+    from vacancy.services.observers.events import VACANCY_CLOSE
+
+    vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
+    if vacancy.status != STATUS_CLOSED:
+        vacancy_publisher.notify(VACANCY_CLOSE, data={'vacancy': vacancy})
+    elif vacancy.group:
+        # Already closed but group stuck — release it
+        from telegram.choices import STATUS_AVAILABLE as GROUP_AVAILABLE
+        vacancy.group.status = GROUP_AVAILABLE
+        vacancy.group.save(update_fields=['status'])
+        vacancy.group = None
+        vacancy.save(update_fields=['group'])
+
+    referer = request.META.get('HTTP_REFERER', '')
+    if referer:
+        return redirect(referer)
+    return redirect('work:admin_vacancy_card', user_id=vacancy.owner_id)
+
+
+@staff_required
+@require_POST
 def admin_block_user(request, user_id):
     """Block/unblock a user."""
     target_user = get_object_or_404(User, pk=user_id)

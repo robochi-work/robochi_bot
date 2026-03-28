@@ -15,6 +15,7 @@ from work.views.admin_panel import (
     admin_vacancy_card,
     admin_block_user,
     admin_moderate_vacancy,
+    admin_close_vacancy,
 )
 
 app_name = 'work'
@@ -38,4 +39,5 @@ urlpatterns = [
     path('admin-panel/user/<int:user_id>/vacancies/', admin_vacancy_card, name='admin_vacancy_card'),
     path('admin-panel/user/<int:user_id>/block/', admin_block_user, name='admin_block_user'),
     path('admin-panel/vacancy/<int:vacancy_id>/moderate/', admin_moderate_vacancy, name='admin_moderate_vacancy'),
+    path('admin-panel/vacancy/<int:vacancy_id>/close/', admin_close_vacancy, name='admin_close_vacancy'),
 ]
