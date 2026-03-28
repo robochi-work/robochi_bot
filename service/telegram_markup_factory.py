@@ -38,11 +38,11 @@ def group_url_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     }
     url = get_payload_url(payload=payload)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_('Send feedback'), url=url))
+    markup.add(InlineKeyboardButton(text=_('Send feedback'), url=url, style='primary'))
     return markup
 
 def group_webapp_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     url = settings.BASE_URL.rstrip('/') + reverse('vacancy:feedback', kwargs={'pk': vacancy.pk})
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_('Send feedback'), web_app=WebAppInfo(url=url)))
+    markup.add(InlineKeyboardButton(text=_('Send feedback'), web_app=WebAppInfo(url=url), style='primary'))
     return markup
