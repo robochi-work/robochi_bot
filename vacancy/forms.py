@@ -21,6 +21,66 @@ from .choices import (
 from .models import Vacancy, VacancyUser
 
 
+class TimeSelectWidget(forms.MultiWidget):
+    def __init__(self, attrs=None):
+        hour_choices = [(f'{h:02d}', f'{h:02d}') for h in range(24)]
+        minute_choices = [('00', '00'), ('15', '15'), ('30', '30'), ('45', '45')]
+        widgets = [
+            forms.Select(choices=hour_choices),
+            forms.Select(choices=minute_choices),
+        ]
+        super().__init__(widgets, attrs)
+
+    def decompress(self, value):
+        if value:
+            if hasattr(value, 'hour'):
+                minute_rounded = round(value.minute / 15) * 15 % 60
+                return [f'{value.hour:02d}', f'{minute_rounded:02d}']
+            if isinstance(value, str) and ':' in value:
+                parts = value.split(':')
+                hour = parts[0].zfill(2)
+                minute_rounded = round(int(parts[1]) / 15) * 15 % 60
+                return [hour, f'{minute_rounded:02d}']
+        return ['07', '00']
+
+    def render(self, name, value, attrs=None):
+        if not isinstance(value, list):
+            value = self.decompress(value)
+        final_attrs = self.build_attrs(attrs or {})
+        id_ = final_attrs.get('id', '')
+        rendered = []
+        for i, widget in enumerate(self.widgets):
+            widget_attrs = dict(final_attrs)
+            if id_:
+                widget_attrs['id'] = f'{id_}_{i}'
+            rendered.append(widget.render(f'{name}_{i}', value[i] if i < len(value) else '', widget_attrs))
+        return mark_safe(
+            f'<div class="time-select-widget">'
+            f'{rendered[0]}'
+            f'<span class="time-separator">:</span>'
+            f'{rendered[1]}'
+            f'</div>'
+        )
+
+
+class TimeSelectField(forms.MultiValueField):
+    def __init__(self, *args, **kwargs):
+        hour_choices = [(f'{h:02d}', f'{h:02d}') for h in range(24)]
+        minute_choices = [('00', '00'), ('15', '15'), ('30', '30'), ('45', '45')]
+        fields = [
+            forms.ChoiceField(choices=hour_choices),
+            forms.ChoiceField(choices=minute_choices),
+        ]
+        kwargs['widget'] = TimeSelectWidget()
+        kwargs.setdefault('require_all_fields', True)
+        super().__init__(fields=fields, *args, **kwargs)
+
+    def compress(self, data_list):
+        if data_list and len(data_list) == 2:
+            return d.time(int(data_list[0]), int(data_list[1]))
+        return None
+
+
 class VacancyAdminForm(forms.ModelForm):
     date = forms.DateField(required=False)
     start_time = forms.TimeField(
@@ -94,8 +154,8 @@ class VacancyForm(forms.Form):
         label=_('Address')
     )
     map_link = forms.URLField(required=False, label=_('Map Link (is not required)'))
-    start_time = forms.TimeField(label=_('Start Time'), widget=forms.TimeInput(attrs={'type': 'time'}))
-    end_time = forms.TimeField(label=_('End Time'), widget=forms.TimeInput(attrs={'type': 'time'}))
+    start_time = TimeSelectField(label=_('Start Time'))
+    end_time = TimeSelectField(label=_('End Time'))
     payment_amount = forms.DecimalField(max_digits=8, decimal_places=2, label=_('Payment Amount'))
     payment_unit = forms.ChoiceField(
         choices=PAYMENT_UNIT_CHOICES,

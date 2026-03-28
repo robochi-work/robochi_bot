@@ -861,3 +861,25 @@ a.info,
     .worker-btn__icon { font-size: 24px; margin-right: 10px; }
     .worker-btn__title { font-size: 15px; }
 }
+
+/* ---------- Time select widget ---------- */
+.time-select-widget {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.time-select-widget select {
+    flex: 1;
+    padding: 12px;
+    font-size: 16px;
+    border: 1px solid var(--border-color, #ccc);
+    border-radius: var(--default-border-radius);
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    appearance: none;
+    -webkit-appearance: none;
+}
+.time-select-widget .time-separator {
+    font-size: 20px;
+    font-weight: bold;
+}
