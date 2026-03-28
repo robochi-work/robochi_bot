@@ -469,3 +469,48 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. Ротація вакансій (Celery task кожні 5 хв)
 5. Monobank оплата — UI в ЛК
 6. Продовження на завтра — розсилка, очікування, перестворення
+
+### Сессия 28.03.2026 (ночь) — Кольорові кнопки + баг-фікси + локалізація
+
+**Виконано:**
+
+1. **pyTelegramBotAPI оновлено 4.27 → 4.32** — підтримка нового параметра `style` для `InlineKeyboardButton`
+
+2. **Кольорові inline-кнопки** — `style='danger'` (червоний) додано до 3 кнопок в `service/telegram_markup_factory.py`:
+   - «Я ГОТОВИЙ ПРАЦЮВАТИ» (`channel_vacancy_reply_markup`)
+   - «НАДІСЛАТИ ВІДГУК» (`group_url_feedback_reply_markup`)
+   - «НАДІСЛАТИ ВІДГУК» (`group_webapp_feedback_reply_markup`)
+   - Telegram Bot API підтримує: `danger` (червоний), `success` (зелений), `primary` (синій)
+
+3. **Локалізація тексту вакансії** — розкоментовані переклади в `locale/uk/LC_MESSAGES/django.po`:
+   - `from` → `з`, `to` → `до` (Час роботи: з 07:00 до 07:45)
+   - `Vacancy is close` → `Вакансію закрито`
+
+4. **Виправлено `vacancy_stop_search`** — view падав з `AttributeError: 'NoneType' object has no attribute 'user_links'`:
+   - Причина: викликався `VacancyIsFullObserver` напряму, який перевіряв `vacancy.group.user_links` (group=None для деяких вакансій)
+   - Рішення: замінено на прямий виклик — знаходить `ChannelMessage`, оновлює текст на «Вакансію закрито» через `TelegramStrategyFactory`, встановлює `status=STATUS_CLOSED`
+   - Додано імпорт `STATUS_CLOSED` в `vacancy/views.py`
+
+5. **Права бота в групах** — 2 групи мали статус `member` замість `administrator`:
+   - `Группа Вашей вакансии 2` (-1002831363986) — бот призначений адміном
+   - `Группа Вашей вакансии 3` (-1002590038330) — бот призначений адміном
+   - Помилка `not enough rights to manage chat invite link` усунена
+
+6. **Захист від подвійного створення вакансії:**
+   - Серверний: перед `vacancy_form.save()` перевірка на існуючу pending-вакансію з тими ж address/date/start_time → redirect замість створення дубля
+   - Фронтенд: JS `button.disabled=true` + текст «Зачекайте...» після натискання submit
+
+**Оновлені файли:**
+- service/telegram_markup_factory.py — style='danger' для 3 кнопок
+- vacancy/views.py — виправлено vacancy_stop_search, додано STATUS_CLOSED імпорт, захист від дублів
+- vacancy/templates/vacancy/vacancy_form.html — JS захист від подвійного submit
+- locale/uk/LC_MESSAGES/django.po — розкоментовані from/to/Vacancy is close
+- requirements (pyTelegramBotAPI 4.32.0)
+
+**Пріоритети (оновлені 28.03.2026):**
+1. Мультимісто для Employer (M2M, admin UI, форма)
+2. Блокування — модель (тип, термін, причина), автоблокування
+3. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+4. Ротація вакансій (Celery task кожні 5 хв)
+5. Monobank оплата — UI в ЛК
+6. Продовження на завтра — розсилка, очікування, перестворення
