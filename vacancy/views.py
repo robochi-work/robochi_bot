@@ -10,7 +10,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.translation import gettext as _
 from telegram.choices import CallStatus, CallType, Status
 from user.models import User, UserFeedback
-from vacancy.choices import STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE
+from vacancy.choices import STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_CLOSED
 from vacancy.forms import VacancyForm, VacancyCallForm, CallTypes, VacancyUserFeedbackForm
 from vacancy.models import Vacancy, VacancyUserCall, VacancyUser
 from vacancy.services.call import create_vacancy_call
@@ -25,6 +25,18 @@ def vacancy_create(request):
     if request.method == 'POST':
         vacancy_form = VacancyForm(request.POST)
         if vacancy_form.is_valid():
+            # Защита от двойного создания: проверяем дубль за последние 60 секунд
+            from django.utils import timezone
+            from datetime import timedelta
+            recent = Vacancy.objects.filter(
+                owner=request.user,
+                status=STATUS_PENDING,
+                address=vacancy_form.cleaned_data.get('address', ''),
+                date=vacancy_form.cleaned_data.get('date') or vacancy_form.cleaned_data.get('date_choice'),
+                start_time=vacancy_form.cleaned_data.get('start_time'),
+            ).first()
+            if recent:
+                return redirect('index')
             new_vacancy = vacancy_form.save(owner=request.user, status=STATUS_PENDING)
             vacancy_publisher.notify(events.VACANCY_CREATED, data={'vacancy': new_vacancy, 'request': request})
             return redirect('index')
@@ -236,13 +248,30 @@ def vacancy_stop_search(request, pk):
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
-        from vacancy.services.observers.subscriber_setup import vacancy_publisher
-        from vacancy.services.observers.events import VACANCY_CLOSE_FORCIBLY, VACANCY_CLOSE
-        from vacancy.services.observers.member_observer import VacancyIsFullObserver
-        from vacancy.services.observers.subscriber_setup import telegram_notifier
+        from telegram.handlers.bot_instance import bot
+        from telegram.models import ChannelMessage
+        from service.notifications import NotificationMethod
+        from service.telegram_strategy_factory import TelegramStrategyFactory
+        from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
         # Update channel message to "Пошук завершено" (no button)
-        VacancyIsFullObserver(telegram_notifier).update('stop_search', data={'vacancy': vacancy})
+        if vacancy.channel:
+            text = VacancyTelegramTextFormatter(vacancy).for_channel(status='full')
+            channel_message = ChannelMessage.objects.filter(
+                channel_id=vacancy.channel.id,
+                extra__vacancy_id=vacancy.id,
+            ).order_by('-id').first()
+            if channel_message:
+                strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                try:
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                except Exception as e:
+                    import logging
+                    logging.warning(f'Failed to update channel message: {e}')
+
+        # Set status to closed
+        vacancy.status = STATUS_CLOSED
+        vacancy.save(update_fields=['status'])
 
     return redirect('vacancy:detail', pk=pk)
 

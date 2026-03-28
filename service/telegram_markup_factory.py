@@ -22,7 +22,7 @@ def admin_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
 def channel_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup()
     if vacancy.group and vacancy.group.invite_link:
-        markup.add(InlineKeyboardButton(text=_('Apply for vacancy'), url=vacancy.group.invite_link))
+        markup.add(InlineKeyboardButton(text=_('Apply for vacancy'), url=vacancy.group.invite_link, style='danger'))
     return markup
 
 def admin_vacancy_feedback_reply_markup(feedback: UserFeedback) -> InlineKeyboardMarkup:
@@ -38,11 +38,11 @@ def group_url_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     }
     url = get_payload_url(payload=payload)
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_('Send feedback'), url=url))
+    markup.add(InlineKeyboardButton(text=_('Send feedback'), url=url, style='danger'))
     return markup
 
 def group_webapp_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     url = settings.BASE_URL.rstrip('/') + reverse('vacancy:feedback', kwargs={'pk': vacancy.pk})
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_('Send feedback'), web_app=WebAppInfo(url=url)))
+    markup.add(InlineKeyboardButton(text=_('Send feedback'), web_app=WebAppInfo(url=url), style='danger'))
     return markup

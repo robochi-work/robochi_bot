@@ -2429,11 +2429,11 @@ msgstr "Оплата"
 #~ msgid "Work time"
 #~ msgstr "Робочий час"
 
-#~ msgid "from"
-#~ msgstr "з"
+msgid "from"
+msgstr "з"
 
-#~ msgid "to"
-#~ msgstr "до"
+msgid "to"
+msgstr "до"
 
 msgid "Need passport"
 msgstr "Потрібен паспорт"
@@ -2441,8 +2441,8 @@ msgstr "Потрібен паспорт"
 #~ msgid "uah"
 #~ msgstr "грн"
 
-#~ msgid "Vacancy is close"
-#~ msgstr "Вакансію закрито"
+msgid "Vacancy is close"
+msgstr "Вакансію закрито"
 
 #~ msgid "To facilitate communication, please provide some information about yourself."
 #~ msgstr "Для зручності спілкування, будь ласка, надайте деяку інформацію про себе."
