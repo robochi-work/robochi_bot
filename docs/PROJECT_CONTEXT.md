@@ -462,13 +462,87 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - telegram/static/css/styles.css — +.time-select-widget стилі
 - 7 шаблонів — додано {% block header %}{% endblock %}
 
-**Пріоритети (оновлені 28.03.2026):**
-1. Мультимісто для Employer (M2M, admin UI, форма)
-2. Блокування — модель (тип, термін, причина), автоблокування
-3. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
-4. Ротація вакансій (Celery task кожні 5 хв)
-5. Monobank оплата — UI в ЛК
-6. Продовження на завтра — розсилка, очікування, перестворення
+### Сессия 28.03.2026 (ніч, частина 2) — Мультимісто для Employer
+
+**Реалізовано повну підтримку розміщення вакансій в різних містах:**
+
+1. **Модель** — `UserWorkProfile` розширено:
+   - `multi_city_enabled` (BooleanField) — прапорець активації мультимісто
+   - `allowed_cities` (M2M → City) — дозволені міста для розміщення вакансій
+   - Міграція: work/migrations/0005_add_multi_city_fields.py
+
+2. **Адмін-панель** — `UserWorkProfileInline` в UserAdmin:
+   - Додано поля `multi_city_enabled` та `allowed_cities` (filter_horizontal)
+   - Адміністратор вмикає функцію та обирає міста для конкретного Employer
+
+3. **Форма створення вакансії** — `VacancyForm`:
+   - Додано поле `city` (ModelChoiceField)
+   - При мультимісті: `<select>` зі списком дозволених міст (allowed_cities + основне місто)
+   - Без мультимісто: HiddenInput з містом із профілю
+   - `save()` використовує обране місто для визначення каналу: `Channel.objects.get(city=selected_city)`
+   - Конструктор приймає `work_profile` kwarg
+
+4. **Шаблон форми** — `vacancy_form.html`:
+   - Вгорі під заголовком: поточне місто (текст) або випадаючий список міст
+
+5. **Дашборд Employer** — `employer_dashboard.html` + `index.py`:
+   - Кнопка «Мої міста» при мультимісті → окрема сторінка зі списком міст
+   - При одному місті → пряме посилання на канал
+
+6. **Сторінка «Мої міста»** — нова:
+   - View: `employer_cities` в work/views/employer.py
+   - Шаблон: work/templates/work/employer_cities.html
+   - URL: /work/employer/cities/ (work:employer_cities)
+   - Список міст з посиланнями на канали, основне місто позначено "(основне)"
+
+7. **Картки вакансій** — `vacancy_my_list.html`:
+   - Кожна картка підписана: місто + адреса (channel.city · address)
+
+8. **Модерація** — `admin_moderate_vacancy`:
+   - Форма отримує `work_profile` власника вакансії (не адміністратора)
+   - GET: `initial['city']` = vacancy.channel.city_id → правильне місто в формі
+   - POST: `vacancy.channel` оновлюється з обраного міста
+
+9. **Критичний фікс — публікація в правильний канал**:
+   - `approved_channel_observer.py` — замінено `Channel.objects.filter(city=vacancy.owner.work_profile.city)` → `vacancy.channel`
+   - `refind_observer.py` — аналогічно
+   - `vacancy/tasks/resend.py` (ротація) — аналогічно
+   - `vacancy/admin.py` (Django Admin save_model) — `Channel.objects.get(city=work_profile.city)` → використовує існуючий `vacancy.channel` якщо він вже встановлений
+
+**Нові файли:**
+- work/migrations/0005_add_multi_city_fields.py
+- work/templates/work/employer_cities.html
+
+**Оновлені файли:**
+- work/models.py — +multi_city_enabled, +allowed_cities
+- user/admin.py — UserWorkProfileInline +multi_city_enabled, +allowed_cities, +filter_horizontal
+- vacancy/forms.py — +city field, +City import, +work_profile kwarg, save() uses selected city
+- vacancy/views.py — vacancy_create передає work_profile в VacancyForm
+- vacancy/templates/vacancy/vacancy_form.html — city selector вгорі
+- vacancy/templates/vacancy/vacancy_my_list.html — місто в картках
+- work/views/index.py — city_channels контекст для мультимісто
+- work/views/employer.py — +employer_cities view
+- work/views/admin_panel.py — work_profile owner для модерації, city в initial, channel update
+- work/templates/work/employer_dashboard.html — мультимісто кнопка
+- work/urls.py — +employer/cities/
+- vacancy/services/observers/approved_channel_observer.py — vacancy.channel замість work_profile.city
+- vacancy/services/observers/refind_observer.py — vacancy.channel замість work_profile.city
+- vacancy/tasks/resend.py — vacancy.channel замість work_profile.city
+- vacancy/admin.py — умовне присвоєння channel
+- telegram/static/css/styles.css — +city-selector, +city-current стилі
+
+**Як активувати мультимісто для Employer:**
+1. Django Admin → Users → знайти Employer
+2. Work profile → ✅ Multi-city enabled
+3. Allowed cities → обрати додаткові міста
+4. Зберегти
+
+**Пріоритети (оновлені 29.03.2026):**
+1. Блокування — модель (тип, термін, причина), автоблокування
+2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+3. Ротація вакансій (Celery task кожні 5 хв)
+4. Monobank оплата — UI в ЛК
+5. Продовження на завтра — розсилка, очікування, перестворення
 
 ### Сессия 28.03.2026 (ночь) — Кольорові кнопки + баг-фікси + локалізація
 
@@ -507,10 +581,84 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - locale/uk/LC_MESSAGES/django.po — розкоментовані from/to/Vacancy is close
 - requirements (pyTelegramBotAPI 4.32.0)
 
-**Пріоритети (оновлені 28.03.2026):**
-1. Мультимісто для Employer (M2M, admin UI, форма)
-2. Блокування — модель (тип, термін, причина), автоблокування
-3. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
-4. Ротація вакансій (Celery task кожні 5 хв)
-5. Monobank оплата — UI в ЛК
-6. Продовження на завтра — розсилка, очікування, перестворення
+### Сессия 28.03.2026 (ніч, частина 2) — Мультимісто для Employer
+
+**Реалізовано повну підтримку розміщення вакансій в різних містах:**
+
+1. **Модель** — `UserWorkProfile` розширено:
+   - `multi_city_enabled` (BooleanField) — прапорець активації мультимісто
+   - `allowed_cities` (M2M → City) — дозволені міста для розміщення вакансій
+   - Міграція: work/migrations/0005_add_multi_city_fields.py
+
+2. **Адмін-панель** — `UserWorkProfileInline` в UserAdmin:
+   - Додано поля `multi_city_enabled` та `allowed_cities` (filter_horizontal)
+   - Адміністратор вмикає функцію та обирає міста для конкретного Employer
+
+3. **Форма створення вакансії** — `VacancyForm`:
+   - Додано поле `city` (ModelChoiceField)
+   - При мультимісті: `<select>` зі списком дозволених міст (allowed_cities + основне місто)
+   - Без мультимісто: HiddenInput з містом із профілю
+   - `save()` використовує обране місто для визначення каналу: `Channel.objects.get(city=selected_city)`
+   - Конструктор приймає `work_profile` kwarg
+
+4. **Шаблон форми** — `vacancy_form.html`:
+   - Вгорі під заголовком: поточне місто (текст) або випадаючий список міст
+
+5. **Дашборд Employer** — `employer_dashboard.html` + `index.py`:
+   - Кнопка «Мої міста» при мультимісті → окрема сторінка зі списком міст
+   - При одному місті → пряме посилання на канал
+
+6. **Сторінка «Мої міста»** — нова:
+   - View: `employer_cities` в work/views/employer.py
+   - Шаблон: work/templates/work/employer_cities.html
+   - URL: /work/employer/cities/ (work:employer_cities)
+   - Список міст з посиланнями на канали, основне місто позначено "(основне)"
+
+7. **Картки вакансій** — `vacancy_my_list.html`:
+   - Кожна картка підписана: місто + адреса (channel.city · address)
+
+8. **Модерація** — `admin_moderate_vacancy`:
+   - Форма отримує `work_profile` власника вакансії (не адміністратора)
+   - GET: `initial['city']` = vacancy.channel.city_id → правильне місто в формі
+   - POST: `vacancy.channel` оновлюється з обраного міста
+
+9. **Критичний фікс — публікація в правильний канал**:
+   - `approved_channel_observer.py` — замінено `Channel.objects.filter(city=vacancy.owner.work_profile.city)` → `vacancy.channel`
+   - `refind_observer.py` — аналогічно
+   - `vacancy/tasks/resend.py` (ротація) — аналогічно
+   - `vacancy/admin.py` (Django Admin save_model) — `Channel.objects.get(city=work_profile.city)` → використовує існуючий `vacancy.channel` якщо він вже встановлений
+
+**Нові файли:**
+- work/migrations/0005_add_multi_city_fields.py
+- work/templates/work/employer_cities.html
+
+**Оновлені файли:**
+- work/models.py — +multi_city_enabled, +allowed_cities
+- user/admin.py — UserWorkProfileInline +multi_city_enabled, +allowed_cities, +filter_horizontal
+- vacancy/forms.py — +city field, +City import, +work_profile kwarg, save() uses selected city
+- vacancy/views.py — vacancy_create передає work_profile в VacancyForm
+- vacancy/templates/vacancy/vacancy_form.html — city selector вгорі
+- vacancy/templates/vacancy/vacancy_my_list.html — місто в картках
+- work/views/index.py — city_channels контекст для мультимісто
+- work/views/employer.py — +employer_cities view
+- work/views/admin_panel.py — work_profile owner для модерації, city в initial, channel update
+- work/templates/work/employer_dashboard.html — мультимісто кнопка
+- work/urls.py — +employer/cities/
+- vacancy/services/observers/approved_channel_observer.py — vacancy.channel замість work_profile.city
+- vacancy/services/observers/refind_observer.py — vacancy.channel замість work_profile.city
+- vacancy/tasks/resend.py — vacancy.channel замість work_profile.city
+- vacancy/admin.py — умовне присвоєння channel
+- telegram/static/css/styles.css — +city-selector, +city-current стилі
+
+**Як активувати мультимісто для Employer:**
+1. Django Admin → Users → знайти Employer
+2. Work profile → ✅ Multi-city enabled
+3. Allowed cities → обрати додаткові міста
+4. Зберегти
+
+**Пріоритети (оновлені 29.03.2026):**
+1. Блокування — модель (тип, термін, причина), автоблокування
+2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+3. Ротація вакансій (Celery task кожні 5 хв)
+4. Monobank оплата — UI в ЛК
+5. Продовження на завтра — розсилка, очікування, перестворення

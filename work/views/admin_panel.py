@@ -126,7 +126,10 @@ def admin_vacancy_card(request, user_id):
 
     vacancies = (
         Vacancy.objects
-        .filter(owner=target_user)
+        .filter(
+            owner=target_user,
+            status__in=[STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE],
+        )
         .select_related('group', 'channel', 'channel__city')
         .order_by('-date', '-start_time')
     )

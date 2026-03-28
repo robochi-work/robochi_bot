@@ -17,17 +17,30 @@ class VacancyApprovedGroupObserver(Observer):
         vacancy = data['vacancy']
         sent_in_group = vacancy.extra.get('sent_in_group', None)
         if not sent_in_group:
-            self.notifier.notify(
-                recipient=SimpleNamespace(chat_id=vacancy.group.id,),
-                method=NotificationMethod.TEXT,
-                text=VacancyTelegramTextFormatter(vacancy).for_group(),
-                reply_markup=group_url_feedback_reply_markup(vacancy),
-                vacancy=vacancy,
-            )
+            from telegram.handlers.bot_instance import bot
+            import logging
+
+            try:
+                message = bot.send_message(
+                    chat_id=vacancy.group.id,
+                    text=VacancyTelegramTextFormatter(vacancy).for_group(),
+                    reply_markup=group_url_feedback_reply_markup(vacancy),
+                    parse_mode='HTML',
+                )
+                if message:
+                    try:
+                        bot.pin_chat_message(
+                            chat_id=vacancy.group.id,
+                            message_id=message.message_id,
+                            disable_notification=True,
+                        )
+                    except Exception as e:
+                        logging.warning(f'Failed to pin message in group {vacancy.group.id}: {e}')
+            except Exception as e:
+                logging.warning(f'Failed to send message to group {vacancy.group.id}: {e}')
+
             vacancy.extra['sent_in_group'] = True
             vacancy.save(update_fields=['extra'])
-
-            # Auto-add employer to the vacancy group
             self._add_employer_to_group(vacancy)
 
     def _add_employer_to_group(self, vacancy) -> None:

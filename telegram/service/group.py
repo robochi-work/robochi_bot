@@ -104,15 +104,14 @@ class GroupService:
             bot.promote_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
-                can_promote_members=True,
-
+                can_promote_members=False,
+                can_restrict_members=True,
+                can_delete_messages=True,
+                can_pin_messages=True,
+                can_invite_users=False,
                 can_change_info=False,
                 can_post_messages=False,
                 can_edit_messages=False,
-                can_delete_messages=False,
-                can_invite_users=False,
-                can_restrict_members=False,
-                can_pin_messages=False,
                 is_anonymous=False,
                 can_manage_chat=False,
                 can_manage_video_chats=False,
@@ -122,8 +121,9 @@ class GroupService:
                 can_edit_stories=False,
                 can_delete_stories=False,
             )
-        except:
-            ...
+        except Exception as e:
+            import logging
+            logging.warning(f'Failed to promote owner {user_id=} in {chat_id=}: {e}')
     @classmethod
     def set_default_admin_permissions(cls, chat_id: int, user_id: int):
         try:
