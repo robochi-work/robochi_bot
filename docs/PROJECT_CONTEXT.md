@@ -180,6 +180,25 @@ AuthIdentity модель (user/models.py) — связывает User с про
 5. **Новые файлы**: work/views/worker.py, work/templates/work/worker_dashboard.html, worker_reviews.html, worker_faq.html
 6. **Обновлены**: work/views/index.py (маршрутизация по role), work/urls.py (+ worker_reviews, worker_faq)
 
+## Система блокировок (UserBlock)
+
+Модель UserBlock (user/models.py): block_type (temporary/permanent), reason (manual/rollcall_reject/employer_uncheck/unpaid/other), blocked_by (FK User, null=авто), blocked_until (информационное поле), comment, is_active, created_at.
+
+BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporarily_blocked, get_active_block, block_user, unblock_user, auto_block_rollcall_reject, auto_block_employer_unpaid.
+
+Принцип: временная блокировка бессрочная — не истекает автоматически, снимается только вручную админом или системой при оплате. Поле blocked_until — информационное (ориентировочный срок для справки).
+
+Постоянная блокировка: user.is_active=False, бан в канале города, блокировка при /start в боте.
+Временная блокировка: запрет Worker нажимать 'Я ГОТОВИЙ ПРАЦЮВАТИ', запрет Employer создавать вакансии.
+
+Автоблокировки (temporary, бессрочные):
+- Неявка на перекличку (check_before_20_start в call_observer)
+- Снятие галочки заказчиком на перекличке старта (VacancyStartCallFailObserver)
+- Снятие галочки заказчиком на перекличке окончания (VacancyAfterStartCallFailObserver)
+- Employer: неоплаченный счёт (auto_block_employer_unpaid)
+
+Интеграция: /start хэндлер, chat_join_request хэндлер, vacancy_create view, worker/employer dashboard шаблоны. Django Admin: UserBlockInline + BlockedFilter + display_block_status. ЛК Админа: модальное окно блокировки на admin_vacancy_card.
+
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом
@@ -584,11 +603,10 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. Зберегти
 
 **Пріоритети (оновлені 29.03.2026):**
-1. Блокування — модель (тип, термін, причина), автоблокування
-2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
-3. Ротація вакансій (Celery task кожні 5 хв)
-4. Monobank оплата — UI в ЛК
-5. Продовження на завтра — розсилка, очікування, перестворення
+1. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+2. Ротація вакансій (Celery task кожні 5 хв)
+3. Monobank оплата — UI в ЛК
+4. Продовження на завтра — розсилка, очікування, перестворення
 
 ### Сессия 28.03.2026 (ночь) — Кольорові кнопки + баг-фікси + локалізація
 
@@ -703,8 +721,7 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. Зберегти
 
 **Пріоритети (оновлені 29.03.2026):**
-1. Блокування — модель (тип, термін, причина), автоблокування
-2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
-3. Ротація вакансій (Celery task кожні 5 хв)
-4. Monobank оплата — UI в ЛК
-5. Продовження на завтра — розсилка, очікування, перестворення
+1. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+2. Ротація вакансій (Celery task кожні 5 хв)
+3. Monobank оплата — UI в ЛК
+4. Продовження на завтра — розсилка, очікування, перестворення
