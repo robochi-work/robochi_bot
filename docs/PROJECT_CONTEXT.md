@@ -16,7 +16,7 @@
 
 ## Django-приложения (9 штук)
 - config/ — settings (base, local, production), urls, wsgi, celery config
-- user/ — User (extends AbstractUser, PK=Telegram ID), UserFeedback, AuthIdentity, user/services.py
+- user/ — User (extends AbstractUser, PK=Telegram ID), UserFeedback (rating: like/dislike/none, is_auto: bool), AuthIdentity, user/services.py
 - city/ — City (TranslatableModel, django-parler). Текущие: Київ(1), Одеса(2), Дніпро(3), Харків(4)
 - work/ — UserWorkProfile, AgreementText, wizard (formtools), dashboard blocks (block_registry)
 - telegram/ — Channel, Group, ChannelMessage, GroupMessage, UserInGroup, bot handlers, webhook, WebApp auth
@@ -37,7 +37,10 @@
 - /vacancy/create/ → создание вакансии
 - /vacancy/<pk>/call/<type>/ → переклички
 - /vacancy/<pk>/refind/ → повторный поиск
-- /vacancy/<pk>/feedback/ → отзывы
+- /vacancy/<pk>/feedback/<user_id>/ → форма відгуку (лайк/дизлайк + текст)
+- /vacancy/<pk>/users/ → список учасників з модальним вікном
+- /vacancy/<pk>/user/<user_id>/reviews/ → рейтинг + відгуки конкретного користувача
+- /vacancy/<pk>/send-contact/ → POST, worker отримує телефон замовника в бот
 
 Новые (DRF REST API):
 - /api/v1/auth/telegram/ → POST, получение JWT по Telegram initData
@@ -97,6 +100,9 @@ AuthIdentity модель (user/models.py) — связывает User с про
 ## Observer/Publisher
 - VacancyEventPublisher — VACANCY_CREATED, APPROVED, REJECTED, NEW_MEMBER, LEFT_MEMBER, CALL events, REFIND, CLOSE, DELETE, FEEDBACK
 - WorkEventPublisher — WORK_PROFILE_COMPLETED
+- AutoRatingObserver (`vacancy/services/observers/auto_rating.py`) — автоматические UserFeedback (is_auto=True):
+  - Worker: +like за успешное завершение вакансии (AFTER_START_CALL_SUCCESS), +dislike за провал переклички
+  - Employer: +like за оплату, +dislike за отмену/непоявление
 - Подписки: vacancy/services/observers/subscriber_setup.py, work/service/subscriber_setup.py
 
 ## Celery Tasks (vacancy/tasks/)
@@ -725,3 +731,77 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 2. Ротація вакансій (Celery task кожні 5 хв)
 3. Monobank оплата — UI в ЛК
 4. Продовження на завтра — розсилка, очікування, перестворення
+
+### Сессия 29.03.2026 (вечір) — Система відгуків і рейтингу
+
+**Виконано:**
+
+1. **UserFeedback модель оновлена** — нові поля:
+   - `rating` (CharField): `like` / `dislike` / `none`
+   - `is_auto` (BooleanField, default=False) — автоматично створені системою
+   - Міграція: `user/migrations/0016_userfeedback_is_auto_userfeedback_rating_and_more.py`
+
+2. **AutoRatingObserver** (`vacancy/services/observers/auto_rating.py`) — автоматичні відгуки (is_auto=True):
+   - Worker: `+like` при успішному завершенні вакансії (AFTER_START_CALL_SUCCESS)
+   - Worker: `+dislike` за провал переклички
+   - Employer: `+like` за оплату, `+dislike` за відміну/неоплату
+
+3. **vacancy_feedback.html** — перероблена форма відгуку:
+   - Вибір рейтингу: лайк 👍 / дизлайк 👎 / без оцінки (radio-кнопки)
+   - Текстове поле (необов'язкове)
+
+4. **vacancy_user_list.html** — список учасників з модальним вікном:
+   - Список карток: ім'я → клік → модальне вікно
+   - Модальне: «Залишити відгук», «Подивитись відгуки», «Подивитися контакти»
+   - Контакти залежать від ролі:
+     - `employer` → href на `vacancy:members` (сторінка з телефонами)
+     - `worker` → fetch POST на `vacancy:send_contact` → бот надсилає телефон замовника
+
+5. **vacancy_user_reviews.html** — рейтинг і відгуки користувача:
+   - Ім'я, лайки 👍 / дизлайки 👎, список текстових відгуків з датою
+
+6. **vacancy_send_contact view** — новий endpoint:
+   - POST, тільки для worker
+   - Надсилає: `Контактний телефон замовника за вакансією {address}: {phone}`
+   - Телефон: `vacancy.contact_phone` або `vacancy.owner.phone_number`
+   - Повертає `JsonResponse({'ok': True})` або `{'ok': False, 'error': '...'}`
+
+7. **ЛК Worker і Employer** — «Мій рейтинг / Мої відгуки»:
+   - % лайків, прогрес-бар, список відгуків з адресою вакансії (з `extra.vacancy_id`)
+
+8. **Перейменування:**
+   - «Поточні заявки» → «Поточні вакансії» (employer_dashboard.html, vacancy_my_list.html, employer_faq.html)
+   - Кнопка в групі «Відгуки/Контакти» → «Надіслати відгук» (telegram_markup_factory.py)
+
+9. **UserFeedbackAdmin** — новий клас в `user/admin.py`:
+   - `list_display`: id, user, owner, rating, is_auto, short_text, created_at
+   - `list_editable = ('rating',)` — редагування рейтингу прямо зі списку
+   - `readonly_fields`: owner, user, is_auto, extra, created_at
+
+10. **Фікс UserBlockInline** — додано `fk_name = 'user'` (усуває конфлікт FK при двох FK на User в UserBlock)
+
+**Нові файли:**
+- `user/migrations/0016_userfeedback_is_auto_userfeedback_rating_and_more.py`
+- `vacancy/services/observers/auto_rating.py`
+- `vacancy/templates/vacancy/vacancy_user_list.html`
+- `vacancy/templates/vacancy/vacancy_user_reviews.html`
+
+**Оновлені файли:**
+- `user/models.py` — +rating, +is_auto в UserFeedback
+- `user/admin.py` — +UserFeedbackAdmin, +fk_name='user' в UserBlockInline
+- `vacancy/views.py` — +vacancy_send_contact, vacancy_user_list з user_role/contact_phone в контексті
+- `vacancy/urls.py` — +`<pk>/send-contact/` (name='send_contact')
+- `vacancy/forms.py` — VacancyUserFeedbackForm оновлена (rating + text)
+- `vacancy/templates/vacancy/vacancy_feedback.html` — лайк/дизлайк UI
+- `work/templates/work/worker_reviews.html` — рейтинг-бар
+- `work/templates/work/employer_reviews.html` — рейтинг-бар
+- `vacancy/services/observers/subscriber_setup.py` — підписка AutoRatingObserver
+- `work/templates/work/employer_dashboard.html` — Поточні вакансії
+- `vacancy/templates/vacancy/vacancy_my_list.html` — Поточні вакансії
+- `work/templates/work/employer_faq.html` — Поточні вакансії
+- `service/telegram_markup_factory.py` — кнопка «Надіслати відгук»
+
+**Пріоритети (оновлені 29.03.2026, вечір):**
+1. ЛК Worker — блокировка UI при блокуванні
+2. Ротація вакансій (Celery task кожні 5 хв)
+3. Monobank оплата — UI в ЛК
