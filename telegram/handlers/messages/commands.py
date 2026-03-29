@@ -169,9 +169,12 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
 
 @bot.message_handler(commands=['help'])
 def admin_help(message):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(text='Написати адміністратору', url='https://t.me/robochi_work_admin'))
     bot.send_message(
         message.chat.id,
-        'Зв\'яжіться з адміністратором: @robochi_work_admin',
+        'Натисніть кнопку нижче для зв\'язку з адміністратором:',
+        reply_markup=markup,
     )
 
 
