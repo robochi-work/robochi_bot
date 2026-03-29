@@ -111,7 +111,7 @@ def process_start_payload(payload: str, message) -> bool:
         data = decode_start_param(payload)
 
         if data.get("type") == 'feedback':
-            url = settings.BASE_URL.rstrip('/') + reverse('vacancy:feedback', kwargs={'pk': data.get("vacancy_id")})
+            url = settings.BASE_URL.rstrip('/') + reverse('vacancy:user_list', kwargs={'pk': data.get("vacancy_id")})
             markup = InlineKeyboardMarkup()
             markup.add(
                 InlineKeyboardButton(
@@ -121,7 +121,7 @@ def process_start_payload(payload: str, message) -> bool:
             )
             get_bot().send_message(
                 message.chat.id,
-                text=_('Send feedback'),
+                text=_('Надіслати відгук'),
                 reply_markup=markup
             )
             return True

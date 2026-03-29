@@ -4,6 +4,7 @@ from .approved_channel_observer import VacancyApprovedChannelObserver
 from .approved_group_observer import VacancyApprovedGroupObserver
 from .call_observer import VacancyAfterStartCallObserver, VacancyAfterStartCallFailObserver, VacancyStartCallObserver, \
     VacancyStartCallFailObserver, VacancyBeforeCallObserver, VacancyAfterStartCallSuccessObserver
+from .auto_rating import AutoRatingObserver
 from .feedback import VacancyFeedbackAdminObserver
 from .member_observer import VacancyIsFullObserver, VacancySlotFreedObserver
 from .publisher import VacancyEventPublisher
@@ -46,6 +47,12 @@ vacancy_publisher.subscribe(VACANCY_AFTER_START_CALL_SUCCESS, VacancyAfterStartC
 vacancy_publisher.subscribe(VACANCY_AFTER_START_CALL_FAIL, VacancyAfterStartCallFailObserver(telegram_notifier))
 
 vacancy_publisher.subscribe(VACANCY_NEW_FEEDBACK, VacancyFeedbackAdminObserver(telegram_notifier))
+
+auto_rating_observer = AutoRatingObserver()
+vacancy_publisher.subscribe(VACANCY_START_CALL_FAIL, auto_rating_observer)
+vacancy_publisher.subscribe(VACANCY_AFTER_START_CALL_FAIL, auto_rating_observer)
+vacancy_publisher.subscribe(VACANCY_AFTER_START_CALL_SUCCESS, auto_rating_observer)
+vacancy_publisher.subscribe(VACANCY_CLOSE, auto_rating_observer)
 
 vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyStatusClosedObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyDeleteMessagesObserver(telegram_notifier))

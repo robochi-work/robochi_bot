@@ -5,28 +5,60 @@
 
 {% block body %}
 <main class="page page--reviews">
-    <div class="reviews-header">
-        <a href="/" class="back-link">← Назад</a>
-        <h2>Мої відгуки</h2>
-    </div>
+    <div class="reviews-container">
 
-    <div class="reviews-list">
-        {% for item in enriched_reviews %}
-        <div class="review-card">
-            <div class="review-meta">
-                <span class="review-author">{{ item.review.owner.full_name|default:"Замовник" }}</span>
-                <span class="review-date">{{ item.review.created_at|date:"d.m.Y" }}</span>
-            </div>
-            {% if item.vacancy %}
-            <div class="review-vacancy">📍 {{ item.vacancy.address|truncatechars:50 }}</div>
+        <div class="reviews-header">
+            <a href="/" class="back-link">← Назад</a>
+            <h2>Мій рейтинг / Мої відгуки</h2>
+        </div>
+
+        <!-- Rating block -->
+        <div class="rating-block">
+            {% if total_count == 0 %}
+                <div class="rating-empty">Ще немає оцінок</div>
+            {% else %}
+                <div class="rating-row">
+                    <div class="rating-item">
+                        <span class="rating-icon">👍</span>
+                        <span class="rating-count">{{ likes_count }}</span>
+                    </div>
+                    <div class="rating-divider"></div>
+                    <div class="rating-item">
+                        <span class="rating-icon">👎</span>
+                        <span class="rating-count">{{ dislikes_count }}</span>
+                    </div>
+                </div>
+                <div class="rating-bar-wrap">
+                    <div class="rating-bar-fill" style="width: {{ rating_percent }}%"></div>
+                </div>
+                <div class="rating-percent">{{ rating_percent }}% позитивних</div>
             {% endif %}
-            <div class="review-text">{{ item.review.text }}</div>
         </div>
-        {% empty %}
-        <div class="reviews-empty">
-            <p>У вас поки немає відгуків</p>
+
+        <!-- Reviews with text only -->
+        <h3 class="section-title">Відгуки</h3>
+        <div class="reviews-list">
+            {% for item in enriched_reviews %}
+            {% if item.review.text %}
+            <div class="review-card">
+                <div class="review-meta">
+                    <span class="review-rating">
+                        {% if item.rating == 'like' %}👍{% elif item.rating == 'dislike' %}👎{% endif %}
+                    </span>
+                    <span class="review-date">{{ item.review.created_at|date:"d.m.Y" }}</span>
+                </div>
+                {% if item.vacancy %}
+                <div class="review-vacancy">📍 {{ item.vacancy.address|truncatechars:50 }}</div>
+                {% endif %}
+                <div class="review-text">{{ item.review.text }}</div>
+            </div>
+            {% endif %}
+            {% endfor %}
         </div>
-        {% endfor %}
+        <div id="no-text-reviews" class="reviews-empty" style="display:none">
+            <p>Ще немає відгуків</p>
+        </div>
+
     </div>
 </main>
 
@@ -37,6 +69,11 @@
     align-items: stretch;
     min-height: 100vh;
 }
+.reviews-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
 .reviews-header {
     display: flex;
     align-items: center;
@@ -44,7 +81,7 @@
     margin-bottom: 20px;
 }
 .reviews-header h2 {
-    font-size: 18px;
+    font-size: 17px;
     font-weight: 700;
     text-shadow: var(--btn-text-shadow);
     margin: 0;
@@ -57,13 +94,75 @@
     text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
     flex-shrink: 0;
 }
+
+/* Rating block */
+.rating-block {
+    background: var(--btn-bg);
+    box-shadow: var(--btn-shadow);
+    border-radius: var(--btn-radius);
+    padding: 18px 16px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+.rating-empty {
+    font-size: 15px;
+    opacity: 0.6;
+    text-shadow: var(--btn-text-shadow);
+}
+.rating-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 14px;
+}
+.rating-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.rating-icon { font-size: 28px; }
+.rating-count {
+    font-size: 20px;
+    font-weight: 700;
+    text-shadow: var(--btn-text-shadow);
+}
+.rating-divider {
+    width: 1px;
+    height: 40px;
+    background: rgba(0,0,0,0.12);
+}
+.rating-bar-wrap {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(0,0,0,0.1);
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.rating-bar-fill {
+    height: 100%;
+    background: #4caf50;
+    border-radius: 3px;
+}
+.rating-percent {
+    font-size: 13px;
+    opacity: 0.7;
+    font-weight: 600;
+}
+
+/* Reviews list */
+.section-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0 0 12px;
+    text-shadow: var(--btn-text-shadow);
+    opacity: 0.8;
+}
 .reviews-list {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-width: 520px;
-    width: 100%;
-    margin: 0 auto;
 }
 .review-card {
     background: var(--card-bg);
@@ -77,15 +176,8 @@
     align-items: center;
     margin-bottom: 6px;
 }
-.review-author {
-    font-weight: 600;
-    font-size: 14px;
-    text-shadow: var(--btn-text-shadow);
-}
-.review-date {
-    font-size: 12px;
-    opacity: 0.6;
-}
+.review-rating { font-size: 18px; }
+.review-date { font-size: 12px; opacity: 0.6; }
 .review-vacancy {
     font-size: 13px;
     opacity: 0.7;
@@ -97,10 +189,19 @@
 }
 .reviews-empty {
     text-align: center;
-    padding: 40px 20px;
+    padding: 30px 20px;
     font-size: 15px;
     opacity: 0.7;
     text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
 }
 </style>
+
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+    var cards = document.querySelectorAll('.review-card');
+    if (cards.length === 0) {
+        document.getElementById('no-text-reviews').style.display = '';
+    }
+});
+</script>
 {% endblock %}

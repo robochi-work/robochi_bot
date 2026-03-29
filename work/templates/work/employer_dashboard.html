@@ -44,7 +44,7 @@
         <a href="{% url 'vacancy:my_list' %}" class="worker-btn">
             <span class="worker-btn__icon">📋</span>
             <span class="worker-btn__text">
-                <span class="worker-btn__title">Поточні заявки</span>
+                <span class="worker-btn__title">Поточні вакансії</span>
                 <span class="worker-btn__sub">
                     {% if active_vacancies_count %}
                         {{ active_vacancies_count }} активн{{ active_vacancies_count|pluralize:"а,их,их" }}
@@ -59,7 +59,7 @@
         <a href="{% url 'work:employer_reviews' %}" class="worker-btn">
             <span class="worker-btn__icon">⭐</span>
             <span class="worker-btn__text">
-                <span class="worker-btn__title">Мої відгуки</span>
+                <span class="worker-btn__title">Мій рейтинг / Мої відгуки</span>
                 <span class="worker-btn__sub">
                     {% if reviews_count %}
                         {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}

@@ -14,6 +14,7 @@ from work.choices import WorkProfileRole
 
 class UserBlockInline(admin.TabularInline):
     model = UserBlock
+    fk_name = 'user'
     extra = 0
     fields = ('block_type', 'reason', 'blocked_by', 'blocked_until', 'comment', 'is_active', 'created_at')
     readonly_fields = ('created_at',)
@@ -208,3 +209,16 @@ class UserAdmin(BaseUserAdmin):
                 return obj.get_gender_display()
             return _('Not set')
         return "-"
+
+
+@admin.register(UserFeedback)
+class UserFeedbackAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'owner', 'rating', 'is_auto', 'short_text', 'created_at')
+    list_filter = ('rating', 'is_auto', 'created_at')
+    search_fields = ('user__username', 'user__full_name', 'owner__username', 'owner__full_name', 'text')
+    list_editable = ('rating',)
+    readonly_fields = ('owner', 'user', 'is_auto', 'extra', 'created_at')
+
+    @admin.display(description='Текст')
+    def short_text(self, obj):
+        return obj.text[:50] if obj.text else '-'

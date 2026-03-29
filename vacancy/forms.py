@@ -286,12 +286,18 @@ class VacancyCallForm(forms.Form):
         return f"{obj.user.full_name or f'Ім’я не визначене <{obj.user.id}>'} "
 
 class VacancyUserFeedbackForm(forms.Form):
-    vacancy = forms.IntegerField(widget=forms.HiddenInput)
-    users = forms.ChoiceField(widget=forms.RadioSelect)
-    text = forms.CharField(widget=forms.Textarea, required=True)
+    rating = forms.ChoiceField(
+        choices=[('like', 'Лайк'), ('dislike', 'Дизлайк')],
+        required=False,
+        widget=forms.RadioSelect,
+    )
+    text = forms.CharField(widget=forms.Textarea, required=False)
 
-    def __init__(self, *args, vacancy: Vacancy, users: Iterable[User], **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["vacancy"].initial = vacancy.pk
-        self.fields["users"].choices = [(u.id, str(u.full_name)) for u in users]
-        self.fields["users"].required = True
+    def clean(self):
+        cleaned_data = super().clean()
+        rating = cleaned_data.get('rating')
+        text = (cleaned_data.get('text') or '').strip()
+        if not rating and not text:
+            raise forms.ValidationError('Вкажіть оцінку або залиште відгук.')
+        cleaned_data['text'] = text
+        return cleaned_data

@@ -5,7 +5,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.handlers.wsgi import WSGIRequest
-from django.http import HttpResponse, HttpRequest
+from django.http import HttpResponse, HttpRequest, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.translation import gettext as _
 from telegram.choices import CallStatus, CallType, Status
@@ -162,31 +162,75 @@ def vacancy_call(request: WSGIRequest, pk: int, call_type: CallType) -> HttpResp
     return render(request, 'vacancy/call.html', context={'form': form, 'call_type': call_type})
 
 
-def vacancy_user_feedback(request: WSGIRequest, pk: int) -> HttpResponse:
+def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpResponse:
     vacancy = get_object_or_404(Vacancy, pk=pk)
-
-    users = [vm.user for vm in vacancy.members] + [vacancy.owner]
-    filtered_users = [u for u in users if u.id != request.user.id]
+    target_user = get_object_or_404(User, pk=user_id)
 
     if request.method == 'POST':
-        form = VacancyUserFeedbackForm(request.POST, vacancy=vacancy, users=filtered_users)
+        form = VacancyUserFeedbackForm(request.POST)
         if form.is_valid():
-            target_user_id = form.cleaned_data['users']
-            target_user = User.objects.get(pk=target_user_id)
-
+            rating = form.cleaned_data.get('rating') or 'none'
+            text = form.cleaned_data.get('text', '')
             feedback = UserFeedback.objects.create(
                 owner=request.user,
                 user=target_user,
-                text=form.cleaned_data['text'],
+                text=text,
+                rating=rating,
                 extra={'vacancy_id': vacancy.pk},
             )
             vacancy_publisher.notify(VACANCY_NEW_FEEDBACK, data={'vacancy': vacancy, 'feedback': feedback})
             messages.success(request, _('Feedback has been sent.'))
             return redirect('index')
     else:
-        form = VacancyUserFeedbackForm(vacancy=vacancy, users=filtered_users)
+        form = VacancyUserFeedbackForm()
 
-    return render(request, 'vacancy/vacancy_feedback.html', context={'form': form, 'vacancy': vacancy})
+    return render(request, 'vacancy/vacancy_feedback.html', context={
+        'form': form,
+        'vacancy': vacancy,
+        'target_user': target_user,
+    })
+
+
+def vacancy_user_list(request: WSGIRequest, pk: int) -> HttpResponse:
+    vacancy = get_object_or_404(Vacancy, pk=pk)
+
+    all_users = [vm.user for vm in vacancy.members.select_related('user')]
+    if vacancy.owner_id != request.user.id:
+        all_users.append(vacancy.owner)
+    users = [u for u in all_users if u.id != request.user.id]
+
+    work_profile = getattr(request.user, 'work_profile', None)
+    user_role = work_profile.role if work_profile else None
+    contact_phone = vacancy.contact_phone or getattr(vacancy.owner, 'phone_number', None)
+
+    return render(request, 'vacancy/vacancy_user_list.html', context={
+        'vacancy': vacancy,
+        'users': users,
+        'user_role': user_role,
+        'contact_phone': contact_phone,
+    })
+
+
+def vacancy_user_reviews(request: WSGIRequest, pk: int, user_id: int) -> HttpResponse:
+    vacancy = get_object_or_404(Vacancy, pk=pk)
+    target_user = get_object_or_404(User, pk=user_id)
+
+    feedbacks = (
+        UserFeedback.objects
+        .filter(user=target_user)
+        .select_related('owner')
+        .order_by('-created_at')
+    )
+    likes = feedbacks.filter(rating='like').count()
+    dislikes = feedbacks.filter(rating='dislike').count()
+
+    return render(request, 'vacancy/vacancy_user_reviews.html', context={
+        'vacancy': vacancy,
+        'target_user': target_user,
+        'feedbacks': feedbacks,
+        'likes': likes,
+        'dislikes': dislikes,
+    })
 
 def vacancy_test_task(request):
     return HttpResponse(status=200)
@@ -309,6 +353,31 @@ def vacancy_members(request, pk):
         'members_list': members_list,
         'work_profile': getattr(request.user, 'work_profile', None),
     })
+
+
+@login_required
+def vacancy_send_contact(request: WSGIRequest, pk: int) -> JsonResponse:
+    """Send vacancy owner's contact phone to the worker via bot."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'Method not allowed'}, status=405)
+
+    work_profile = getattr(request.user, 'work_profile', None)
+    if not work_profile or work_profile.role != 'worker':
+        return JsonResponse({'ok': False, 'error': 'Only workers can request contacts'}, status=403)
+
+    vacancy = get_object_or_404(Vacancy, pk=pk)
+    phone = vacancy.contact_phone or getattr(vacancy.owner, 'phone_number', None)
+    if not phone:
+        return JsonResponse({'ok': False, 'error': 'Телефон замовника не вказано'})
+
+    try:
+        from telegram.handlers.bot_instance import bot
+        text = f'Контактний телефон замовника за вакансією {vacancy.address}: {phone}'
+        bot.send_message(chat_id=request.user.telegram_id, text=text)
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+    return JsonResponse({'ok': True})
 
 
 @login_required

@@ -129,7 +129,20 @@ class UserFeedback(models.Model):
         related_name='feedbacks_received',
         verbose_name=_('Feedback recipient'),
     )
-    text = models.TextField()
+    RATING_CHOICES = [
+        ('like', 'Лайк'),
+        ('dislike', 'Дизлайк'),
+        ('none', 'Без оцінки'),
+    ]
+
+    text = models.TextField(blank=True, default='')
+    rating = models.CharField(
+        max_length=10,
+        choices=RATING_CHOICES,
+        default='none',
+        verbose_name='Оцінка',
+    )
+    is_auto = models.BooleanField(default=False, verbose_name='Автоматичний')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Created at'))
 
     extra = models.JSONField(blank=True, default=dict)

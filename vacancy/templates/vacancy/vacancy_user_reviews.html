@@ -4,69 +4,86 @@
 {% block header %}{% endblock %}
 
 {% block body %}
-<main class="page page--reviews">
+<main class="page page--user-reviews">
     <div class="reviews-container">
 
         <div class="reviews-header">
-            <a href="/" class="back-link">← Назад</a>
-            <h2>Мій рейтинг / Мої відгуки</h2>
+            <a href="{% url 'vacancy:user_list' pk=vacancy.pk %}" class="back-link">← Назад</a>
+            <h2>{{ target_user.full_name|default:"Без імені" }}</h2>
         </div>
 
         <!-- Rating block -->
         <div class="rating-block">
-            {% if total_count == 0 %}
+            {% with total=likes|add:dislikes %}
+            {% if total == 0 %}
                 <div class="rating-empty">Ще немає оцінок</div>
             {% else %}
                 <div class="rating-row">
-                    <div class="rating-item">
+                    <div class="rating-item rating-item--like">
                         <span class="rating-icon">👍</span>
-                        <span class="rating-count">{{ likes_count }}</span>
+                        <span class="rating-count">{{ likes }}</span>
                     </div>
                     <div class="rating-divider"></div>
-                    <div class="rating-item">
+                    <div class="rating-item rating-item--dislike">
                         <span class="rating-icon">👎</span>
-                        <span class="rating-count">{{ dislikes_count }}</span>
+                        <span class="rating-count">{{ dislikes }}</span>
                     </div>
                 </div>
+                {% if total > 0 %}
                 <div class="rating-bar-wrap">
-                    <div class="rating-bar-fill" style="width: {{ rating_percent }}%"></div>
+                    <div class="rating-bar-fill" style="width: {% widthratio likes total 100 %}%"></div>
                 </div>
-                <div class="rating-percent">{{ rating_percent }}% позитивних</div>
+                <div class="rating-percent">
+                    {% widthratio likes total 100 %}% позитивних
+                </div>
+                {% endif %}
             {% endif %}
+            {% endwith %}
         </div>
 
-        <!-- Reviews with text only -->
+        <!-- Feedbacks with text -->
         <h3 class="section-title">Відгуки</h3>
         <div class="reviews-list">
-            {% for item in enriched_reviews %}
-            {% if item.review.text %}
+            {% for fb in feedbacks %}
+            {% if fb.text %}
             <div class="review-card">
                 <div class="review-meta">
                     <span class="review-rating">
-                        {% if item.rating == 'like' %}👍{% elif item.rating == 'dislike' %}👎{% endif %}
+                        {% if fb.rating == 'like' %}👍{% elif fb.rating == 'dislike' %}👎{% endif %}
                     </span>
-                    <span class="review-date">{{ item.review.created_at|date:"d.m.Y" }}</span>
+                    <span class="review-date">{{ fb.created_at|date:"d.m.Y" }}</span>
                 </div>
-                {% if item.vacancy %}
-                <div class="review-vacancy">📍 {{ item.vacancy.address|truncatechars:50 }}</div>
-                {% endif %}
-                <div class="review-text">{{ item.review.text }}</div>
+                <div class="review-text">{{ fb.text }}</div>
             </div>
             {% endif %}
+            {% empty %}
             {% endfor %}
+
+            {% with has_text=feedbacks|length %}
+            {% comment %}check for any text feedbacks{% endcomment %}
+            {% endwith %}
         </div>
+
+        {% with text_count=feedbacks.count %}
+        {% if text_count == 0 %}
+        <div class="reviews-empty">
+            <p>Ще немає відгуків</p>
+        </div>
+        {% else %}
+        {# Check if all feedbacks have empty text — emit a message below the loop #}
         <div id="no-text-reviews" class="reviews-empty" style="display:none">
             <p>Ще немає відгуків</p>
         </div>
+        {% endif %}
+        {% endwith %}
 
     </div>
 </main>
 
 <style>
-.page--reviews {
+.page--user-reviews {
     padding: 16px 14px;
     justify-content: flex-start;
-    align-items: stretch;
     min-height: 100vh;
 }
 .reviews-container {
@@ -81,10 +98,14 @@
     margin-bottom: 20px;
 }
 .reviews-header h2 {
-    font-size: 17px;
+    font-size: 18px;
     font-weight: 700;
     text-shadow: var(--btn-text-shadow);
     margin: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .back-link {
     color: var(--accent-dark);
@@ -122,7 +143,9 @@
     align-items: center;
     gap: 4px;
 }
-.rating-icon { font-size: 28px; }
+.rating-icon {
+    font-size: 28px;
+}
 .rating-count {
     font-size: 20px;
     font-weight: 700;
@@ -144,6 +167,7 @@
     height: 100%;
     background: #4caf50;
     border-radius: 3px;
+    transition: width 0.4s ease;
 }
 .rating-percent {
     font-size: 13px;
@@ -174,14 +198,14 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
-.review-rating { font-size: 18px; }
-.review-date { font-size: 12px; opacity: 0.6; }
-.review-vacancy {
-    font-size: 13px;
-    opacity: 0.7;
-    margin-bottom: 6px;
+.review-rating {
+    font-size: 18px;
+}
+.review-date {
+    font-size: 12px;
+    opacity: 0.6;
 }
 .review-text {
     font-size: 14px;
@@ -197,10 +221,12 @@
 </style>
 
 <script>
+// Show "no text reviews" message if no review cards were rendered
 window.addEventListener('DOMContentLoaded', function() {
     var cards = document.querySelectorAll('.review-card');
-    if (cards.length === 0) {
-        document.getElementById('no-text-reviews').style.display = '';
+    var noText = document.getElementById('no-text-reviews');
+    if (noText && cards.length === 0) {
+        noText.style.display = '';
     }
 });
 </script>
