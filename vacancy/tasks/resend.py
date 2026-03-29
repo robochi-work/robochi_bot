@@ -1,9 +1,8 @@
 import logging
 from types import SimpleNamespace
 from typing import Iterable
-from datetime import datetime, timedelta
+from datetime import timedelta
 
-from django.db.models import QuerySet
 from django.utils import timezone
 from celery import shared_task
 
@@ -11,64 +10,48 @@ from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
 from service.telegram_markup_factory import channel_vacancy_reply_markup
 from telegram.handlers.bot_instance import bot
-from telegram.models import Channel
 from telegram.service.message_delete import MessageDeleter, MessageDeleteService
 from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
 from vacancy.models import Vacancy
 from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
-Minutes = int
 logger = logging.getLogger(__name__)
 
 
-def get_active_vacancies() -> QuerySet[Vacancy]:
-    vacancies = Vacancy.objects.filter(
-        status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+def resend_vacancy_to_channel(vacancy: Vacancy):
+    """Delete old message and republish vacancy with button."""
+    channel = vacancy.channel
+    if not channel:
+        return
+
+    deleter = MessageDeleter(bot)
+    service = MessageDeleteService(deleter)
+    service.delete_in_channel_by_vacancy(vacancy)
+
+    TelegramNotifier(bot).notify(
+        recipient=SimpleNamespace(chat_id=channel.id),
+        method=NotificationMethod.TEXT,
+        text=VacancyTelegramTextFormatter(vacancy).for_channel(),
+        reply_markup=channel_vacancy_reply_markup(vacancy),
+        vacancy=vacancy,
     )
-    return vacancies
 
-def resend_vacancies_to_channel(vacancies: Iterable[Vacancy]):
-    for vacancy in vacancies:
-        # Use vacancy's assigned channel (supports multi-city)
-        channel = vacancy.channel
-        if not channel:
-            continue
-
-        deleter = MessageDeleter(bot)
-        service = MessageDeleteService(deleter)
-        service.delete_in_channel_by_vacancy(vacancy)
-
-        TelegramNotifier(bot).notify(
-            recipient=SimpleNamespace(chat_id=channel.id, ),
-            method=NotificationMethod.TEXT,
-            text=VacancyTelegramTextFormatter(vacancy).for_channel(),
-            reply_markup=channel_vacancy_reply_markup(vacancy),
-            vacancy=vacancy,
-        )
 
 @shared_task
 def resend_vacancies_to_channel_task():
-    vacancies = get_active_vacancies()
+    """Rotation: republish vacancies with active search button every 5 minutes."""
+    vacancies = Vacancy.objects.filter(
+        status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+        search_active=True,
+    )
 
-    naive_now = datetime.now()
-    aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
-    filtered_vacancies = []
     for vacancy in vacancies:
         try:
-            if vacancy.people_count > vacancy.members.count():
-                message = vacancy.last_channel_message
-                if (message and message.created_at < timezone.now() - timedelta(minutes=5)) or not message:
+            message = vacancy.last_channel_message
+            # Only republish if 5+ minutes since last publication (or no message)
+            if message and message.created_at >= timezone.now() - timedelta(minutes=5):
+                continue
 
-                    start_naive = datetime.combine(vacancy.date, vacancy.start_time)
-                    start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
-
-                    if aware_now > start_aware:
-                        if vacancy.extra.get('start_pre_call') == 'need':
-                            filtered_vacancies.append(vacancy)
-                    else:
-                        filtered_vacancies.append(vacancy)
+            resend_vacancy_to_channel(vacancy)
         except Exception as e:
-            logger.warning(f'Error resending vacancies to channel: {e}')
-            ...
-
-    resend_vacancies_to_channel(filtered_vacancies)
+            logger.warning(f'Error in rotation for vacancy {vacancy.id}: {e}')

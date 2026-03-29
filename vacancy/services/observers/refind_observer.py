@@ -6,7 +6,6 @@ from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
 from service.telegram_markup_factory import channel_vacancy_reply_markup, admin_vacancy_reply_markup
 from telegram.handlers.bot_instance import bot
-from telegram.models import Channel
 from telegram.service.message_delete import MessageDeleteService, MessageDeleter
 from .publisher import Observer
 from ..vacancy_formatter import VacancyTelegramTextFormatter
@@ -20,7 +19,6 @@ class VacancyRefindChannelObserver(Observer):
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data['vacancy']
         if vacancy.status != STATUS_CLOSED:
-            # Use vacancy's assigned channel (supports multi-city)
             channel = vacancy.channel
 
             deleter = MessageDeleter(bot)
@@ -34,6 +32,11 @@ class VacancyRefindChannelObserver(Observer):
                 reply_markup=channel_vacancy_reply_markup(vacancy),
                 vacancy=vacancy,
             )
+
+            # Activate search flag
+            vacancy.search_active = True
+            vacancy.save(update_fields=['search_active'])
+
 
 class VacancyRefindAdminObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):

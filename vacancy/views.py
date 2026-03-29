@@ -343,7 +343,8 @@ def vacancy_stop_search(request, pk):
 
         # Set status to closed
         vacancy.status = STATUS_CLOSED
-        vacancy.save(update_fields=['status'])
+        vacancy.search_active = False
+        vacancy.save(update_fields=['status', 'search_active'])
 
     return redirect('vacancy:detail', pk=pk)
 

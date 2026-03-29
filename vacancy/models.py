@@ -70,6 +70,7 @@ class Vacancy(models.Model):
         verbose_name=_('Contact phone')
     )
     extra = models.JSONField(blank=True, default=dict)
+    search_active = models.BooleanField(default=False, verbose_name='Search active (button visible)')
 
     def __str__(self):
         return f'<{self.pk}>: {self.people_count}× ({self.get_status_display()})'
