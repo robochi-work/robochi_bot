@@ -33,3 +33,21 @@
 - telegram/static/js/lifecycle.js — 4 сигнала обнаружения resume (activated, visibilitychange, focus, heartbeat)
 - При resume: re-expand, disableVerticalSwipes, DOM reflow, CustomEvent tma:resumed
 - templates/base.html — подключение lifecycle.js
+
+## 5. Webhook и безопасность токена
+
+### Проблема
+Webhook сбрасывался через 1 секунду после установки. Причина: старый токен использовался другим процессом.
+
+### Решение
+- Перегенерирован токен через BotFather (старый утёк в git)
+- .env убран из git (.gitignore)
+- Gunicorn EnvironmentFile перенаправлен с /etc/robochi_bot.env на /home/webuser/robochi_bot/.env
+- Токены в /root/robochi_bot/.env и /etc/robochi_bot.env заменены на DISABLED
+
+## 6. Команда /help и MenuButton
+
+- /help — inline-кнопка "Написати адміністратору" (ссылка на @robochi_work_admin)
+- В группах: отправляет в личку пользователю, удаляет команду из группы
+- Старые команды /start и /info заменены на одну /help
+- MenuButton по умолчанию → /telegram/check-web-app/ (auth endpoint)
