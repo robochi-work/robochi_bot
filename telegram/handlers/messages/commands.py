@@ -166,6 +166,15 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
         logger.error(f"START FAILED: {type(e).__name__}: {e}", exc_info=True)
 
 
+
+@bot.message_handler(commands=['help'])
+def admin_help(message):
+    bot.send_message(
+        message.chat.id,
+        'Зв\'яжіться з адміністратором: @robochi_work_admin',
+    )
+
+
 @bot.message_handler(commands=['info'])
 @bot.callback_query_handler(func=F(Storage.menu.filter()))
 def send_info(message):
