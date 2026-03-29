@@ -171,11 +171,28 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
 def admin_help(message):
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text='Написати адміністратору', url='https://t.me/robochi_work_admin'))
-    bot.send_message(
-        message.chat.id,
-        'Натисніть кнопку нижче для зв\'язку з адміністратором:',
-        reply_markup=markup,
-    )
+    # In groups: reply to user privately, delete command message
+    if message.chat.type in ['group', 'supergroup']:
+        try:
+            bot.send_message(
+                message.from_user.id,
+                'Натисніть кнопку нижче для зв\'язку з адміністратором:',
+                reply_markup=markup,
+            )
+            bot.delete_message(message.chat.id, message.message_id)
+        except Exception:
+            # User hasn't started bot privately — send in group
+            bot.send_message(
+                message.chat.id,
+                'Натисніть кнопку нижче для зв\'язку з адміністратором:',
+                reply_markup=markup,
+            )
+    else:
+        bot.send_message(
+            message.chat.id,
+            'Натисніть кнопку нижче для зв\'язку з адміністратором:',
+            reply_markup=markup,
+        )
 
 
 @bot.message_handler(commands=['info'])
