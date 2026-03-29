@@ -75,12 +75,8 @@ def ask_phone(message: Message, user: User, **kwargs):
 @user_required
 def default_start(message: Message, user: User, **kwargs):
     bot = get_bot()
-    try:
-        next_path = '/' if user.work_profile.is_completed else '/work/wizard/'
-    except Exception:
-        next_path = '/work/wizard/'
     check_url = reverse('telegram:telegram_check_web_app')
-    url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
+    url = settings.BASE_URL.rstrip('/') + check_url
 
     # Set MenuButton "ПОЧАТИ" -> WebApp
     try:

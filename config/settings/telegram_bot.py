@@ -15,3 +15,10 @@ TELEGRAM_BOT_ALL_GROUP_CONTENT_TYPES = [
 TELEGRAM_WEBHOOK_SECRET = (os.getenv("TELEGRAM_WEBHOOK_SECRET") or "").strip()
 if not TELEGRAM_WEBHOOK_SECRET:
     raise ValueError("TELEGRAM_WEBHOOK_SECRET is not set")
+TELEGRAM_BOT_ALLOWED_UPDATES = [
+    'message',
+    'callback_query',
+    'my_chat_member',
+    'chat_member',
+    'chat_join_request',
+]
