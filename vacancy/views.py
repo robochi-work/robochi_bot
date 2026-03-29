@@ -47,7 +47,30 @@ def vacancy_create(request):
             return redirect('index')
 
     else:
-        vacancy_form = VacancyForm(work_profile=work_profile)
+        # Pre-fill form from last vacancy as template (except date_choice)
+        initial = {}
+        last_vacancy = (
+            Vacancy.objects
+            .filter(owner=request.user)
+            .order_by('-id')
+            .first()
+        )
+        if last_vacancy:
+            initial = {
+                'gender': last_vacancy.gender,
+                'people_count': last_vacancy.people_count,
+                'has_passport': last_vacancy.has_passport,
+                'address': last_vacancy.address,
+                'map_link': last_vacancy.map_link,
+                'start_time': last_vacancy.start_time,
+                'end_time': last_vacancy.end_time,
+                'payment_amount': last_vacancy.payment_amount,
+                'payment_unit': last_vacancy.payment_unit,
+                'payment_method': last_vacancy.payment_method,
+                'skills': last_vacancy.skills,
+                'contact_phone': last_vacancy.contact_phone,
+            }
+        vacancy_form = VacancyForm(initial=initial, work_profile=work_profile)
 
 
     # First visit = employer has never created any vacancy
