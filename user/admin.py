@@ -1,13 +1,24 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import AdminPasswordChangeForm
+from django.db.models import Q
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 
 from .forms import UserChangeForm, UserCreationForm
-from .models import User, AuthIdentity, UserFeedback
+from .models import User, AuthIdentity, UserFeedback, UserBlock
+from .choices import BlockType
 from work.models import UserWorkProfile
 from work.choices import WorkProfileRole
+
+
+class UserBlockInline(admin.TabularInline):
+    model = UserBlock
+    extra = 0
+    fields = ('block_type', 'reason', 'blocked_by', 'blocked_until', 'comment', 'is_active', 'created_at')
+    readonly_fields = ('created_at',)
+    verbose_name = 'Блокування'
+    verbose_name_plural = 'Блокування'
 
 
 class AuthIdentityInline(admin.TabularInline):
@@ -47,6 +58,39 @@ class UserFeedbackReceivedInline(admin.TabularInline):
         return False
 
 
+class BlockedFilter(admin.SimpleListFilter):
+    title = _('Block status')
+    parameter_name = 'blocked'
+
+    def lookups(self, request, model_admin):
+        return [
+            ('active', 'Активне блокування'),
+            ('permanent', 'Постійне'),
+            ('temporary', 'Тимчасове'),
+            ('none', 'Без блокування'),
+        ]
+
+    def queryset(self, request, queryset):
+        if self.value() == 'active':
+            return queryset.filter(
+                Q(blocks__is_active=True, blocks__block_type=BlockType.PERMANENT) |
+                Q(blocks__is_active=True, blocks__block_type=BlockType.TEMPORARY)
+            ).distinct()
+        if self.value() == 'permanent':
+            return queryset.filter(blocks__is_active=True, blocks__block_type=BlockType.PERMANENT).distinct()
+        if self.value() == 'temporary':
+            return queryset.filter(
+                blocks__is_active=True,
+                blocks__block_type=BlockType.TEMPORARY,
+            ).distinct()
+        if self.value() == 'none':
+            return queryset.exclude(
+                Q(blocks__is_active=True, blocks__block_type=BlockType.PERMANENT) |
+                Q(blocks__is_active=True, blocks__block_type=BlockType.TEMPORARY)
+            ).distinct()
+        return queryset
+
+
 class RoleFilter(admin.SimpleListFilter):
     title = _('Role')
     parameter_name = 'role'
@@ -79,13 +123,14 @@ class UserAdmin(BaseUserAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
     change_password_form = AdminPasswordChangeForm
-    inlines = [UserWorkProfileInline, AuthIdentityInline, UserFeedbackReceivedInline]
+    inlines = [UserWorkProfileInline, AuthIdentityInline, UserFeedbackReceivedInline, UserBlockInline]
 
     list_display = (
         'id', 'telegram_link', 'full_name', 'phone_number',
         'display_role', 'display_city', 'display_gender', 'is_staff', 'is_active',
+        'display_block_status',
     )
-    list_filter = (RoleFilter, CityFilter, 'gender', 'is_staff', 'is_active')
+    list_filter = (RoleFilter, CityFilter, BlockedFilter, 'gender', 'is_staff', 'is_active')
     search_fields = ('username', 'full_name', 'phone_number')
     ordering = ('id',)
 
@@ -145,6 +190,15 @@ class UserAdmin(BaseUserAdmin):
         if profile and profile.city:
             return profile.city.safe_translation_getter('name', any_language=True)
         return "-"
+
+    @admin.display(description=_('Block'))
+    def display_block_status(self, obj):
+        active = obj.blocks.filter(is_active=True).order_by('-created_at').first()
+        if not active:
+            return '✅'
+        if active.block_type == BlockType.PERMANENT:
+            return format_html('<span style="color:#c0392b">🔴 Постійне</span>')
+        return format_html('<span style="color:#e67e22">🟡 Тимчасове</span>')
 
     @admin.display(description=_('Gender'))
     def display_gender(self, obj):

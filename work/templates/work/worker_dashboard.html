@@ -6,10 +6,29 @@
 {% block body %}
 <main class="page page--worker-dashboard">
 
+    {% if is_blocked and active_block %}
+    <div class="block-alert {% if active_block.block_type == 'permanent' %}block-alert--permanent{% else %}block-alert--temporary{% endif %}">
+        {% if active_block.block_type == 'permanent' %}
+        🔴 Вас заблоковано в системі. Зверніться до адміністратора для розблокування.
+        {% else %}
+        🟡 Вас тимчасово заблоковано{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}. Причина: {{ active_block.get_reason_display }}.
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="worker-buttons">
 
         {# 1. Мої вакансії — link to city channel #}
         {% if channel %}
+        {% if is_blocked %}
+        <a href="#" onclick="return false;" class="worker-btn disabled">
+            <span class="worker-btn__icon">📋</span>
+            <span class="worker-btn__text">
+                <span class="worker-btn__title">Мої вакансії</span>
+                <span class="worker-btn__sub">{{ channel.title }}</span>
+            </span>
+        </a>
+        {% else %}
         <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
             <span class="worker-btn__icon">📋</span>
             <span class="worker-btn__text">
@@ -17,6 +36,7 @@
                 <span class="worker-btn__sub">{{ channel.title }}</span>
             </span>
         </a>
+        {% endif %}
         {% endif %}
 
         {# 2. Моя робота — link to current vacancy group or modal #}
@@ -93,4 +113,20 @@ document.getElementById('no-vacancy-modal').addEventListener('click', function(e
     if (e.target === this) closeNoVacancyModal();
 });
 </script>
+<style>
+.block-alert {
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin: 12px 16px 0;
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.5;
+}
+.block-alert--permanent { background: rgba(255, 59, 48, 0.15); }
+.block-alert--temporary { background: rgba(255, 204, 0, 0.15); }
+.worker-btn.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+</style>
 {% endblock %}

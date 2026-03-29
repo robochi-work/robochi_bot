@@ -121,6 +121,8 @@ def admin_search_vacancies(request):
 @staff_required
 def admin_vacancy_card(request, user_id):
     """Vacancy card page for a specific employer."""
+    from user.services import BlockService
+
     target_user = get_object_or_404(User, pk=user_id)
     profile = getattr(target_user, 'work_profile', None)
 
@@ -145,6 +147,7 @@ def admin_vacancy_card(request, user_id):
         'target_user': target_user,
         'target_profile': profile,
         'cities_vacancies': cities_vacancies,
+        'active_block': BlockService.get_active_block(target_user),
         'work_profile': getattr(request.user, 'work_profile', None),
     })
 
@@ -269,14 +272,70 @@ def admin_close_vacancy(request, vacancy_id):
 
 
 @staff_required
-@require_POST
 def admin_block_user(request, user_id):
     """Block/unblock a user."""
+    from user.services import BlockService
+    from datetime import timedelta
+    from django.utils import timezone
+
     target_user = get_object_or_404(User, pk=user_id)
-    target_user.is_active = not target_user.is_active
-    target_user.save(update_fields=['is_active'])
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'block':
+            block_type = request.POST.get('block_type', 'temporary')
+            reason = request.POST.get('reason', 'manual')
+            comment = request.POST.get('comment', '')
+            duration_days = request.POST.get('duration_days')
+
+            blocked_until = None
+            if block_type == 'temporary' and duration_days:
+                blocked_until = timezone.now() + timedelta(days=int(duration_days))
+
+            block = BlockService.block_user(
+                user=target_user,
+                block_type=block_type,
+                reason=reason,
+                blocked_by=request.user,
+                blocked_until=blocked_until,
+                comment=comment,
+            )
+
+            try:
+                from telegram.handlers.bot_instance import get_bot
+                if block_type == 'permanent':
+                    text = 'Вас постійно заблоковано в системі robochi_bot.\nДля розблокування зверніться до адміністратора.'
+                else:
+                    days_text = f' на {duration_days} днів' if duration_days else ''
+                    text = f'Вас тимчасово заблоковано{days_text}.\nПричина: {block.get_reason_display()}\nДля розблокування зверніться до адміністратора.'
+                get_bot().send_message(target_user.id, text)
+            except Exception:
+                pass
+
+            if block_type == 'permanent':
+                try:
+                    from telegram.handlers.bot_instance import get_bot
+                    profile = getattr(target_user, 'work_profile', None)
+                    if profile and profile.city:
+                        from telegram.models import Channel
+                        channel = Channel.objects.filter(city=profile.city).first()
+                        if channel:
+                            get_bot().ban_chat_member(channel.id, target_user.id)
+                except Exception:
+                    pass
+
+        elif action == 'unblock':
+            block_id = request.POST.get('block_id')
+            if block_id:
+                BlockService.unblock_user(int(block_id))
+                try:
+                    from telegram.handlers.bot_instance import get_bot
+                    get_bot().send_message(target_user.id, 'Вас розблоковано. Ви знову можете користуватися сервісом.')
+                except Exception:
+                    pass
 
     referer = request.META.get('HTTP_REFERER', '')
     if referer:
         return redirect(referer)
-    return redirect('work:admin_dashboard')
+    return redirect('work:admin_vacancy_card', user_id=user_id)

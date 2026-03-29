@@ -22,6 +22,10 @@ from vacancy.tasks.call import before_start_call, after_first_call_check
 
 
 def vacancy_create(request):
+    from user.services import BlockService
+    if BlockService.is_blocked(request.user):
+        return redirect('index')
+
     work_profile = getattr(request.user, 'work_profile', None)
     if request.method == 'POST':
         vacancy_form = VacancyForm(request.POST, work_profile=work_profile)

@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 
-from user.choices import USER_GENDER_CHOICES
+from user.choices import USER_GENDER_CHOICES, BlockType, BlockReason
 
 
 class CustomUserManager(UserManager):
@@ -70,6 +70,50 @@ class AuthIdentity(models.Model):
 
     def __str__(self):
         return f"{self.provider}:{self.provider_uid} → {self.user}"
+
+
+class UserBlock(models.Model):
+    user = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='blocks',
+        verbose_name=_('User'),
+    )
+    block_type = models.CharField(
+        max_length=20,
+        choices=BlockType.choices,
+        verbose_name=_('Block type'),
+    )
+    reason = models.CharField(
+        max_length=30,
+        choices=BlockReason.choices,
+        default=BlockReason.MANUAL,
+        verbose_name=_('Reason'),
+    )
+    blocked_by = models.ForeignKey(
+        'User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='blocks_issued',
+        verbose_name=_('Blocked by'),
+    )
+    blocked_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name=_('Blocked until'),
+    )
+    comment = models.TextField(blank=True, default='', verbose_name=_('Comment'))
+    is_active = models.BooleanField(default=True, verbose_name=_('Is active'))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('Created at'))
+
+    class Meta:
+        verbose_name = _('Блокування користувача')
+        verbose_name_plural = _('Блокування користувачів')
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.user} — {self.block_type} ({self.reason})'
 
 
 class UserFeedback(models.Model):

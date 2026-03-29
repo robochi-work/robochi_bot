@@ -23,6 +23,7 @@ from telegram.handlers.common import ButtonStorage, F, CallbackStorage
 from vacancy.services.observers.subscriber_setup import telegram_notifier
 from work.choices import WorkProfileRole
 from user.models import User
+from user.services import BlockService
 
 
 @user_required
@@ -150,6 +151,13 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
             result = process_start_payload(parts[1], message)
             if result:
                 return
+
+    if BlockService.is_permanently_blocked(user):
+        get_bot().send_message(
+            message.chat.id,
+            'Вас заблоковано в системі robochi_bot.\nДля розблокування зверніться до адміністратора.',
+        )
+        return
 
     try:
         if not user.phone_number:

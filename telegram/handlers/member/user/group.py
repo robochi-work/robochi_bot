@@ -7,6 +7,7 @@ from telegram.models import Group, UserInGroup, Status
 from telegram.handlers.bot_instance import bot
 from telegram.service.group import GroupService
 from user.models import User
+from user.services import BlockService
 from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE, GENDER_ANY
 from vacancy.models import Vacancy, VacancyUser
 
@@ -39,11 +40,26 @@ def auto_approve(req: ChatJoinRequest):
             return
 
         # Blocked users
-        if not user.is_active:
+        if BlockService.is_permanently_blocked(user):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text="Ви заблоковані в системі. Зверніться до адміністратора."
+                text="Вас постійно заблоковано в системі. Зверніться до адміністратора.",
+            )
+            return
+        elif BlockService.is_temporarily_blocked(user):
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            bot.send_message(
+                req.from_user.id,
+                text="Вас тимчасово заблоковано. Ви не можете брати участь у вакансіях. Зверніться до адміністратора для розблокування.",
+            )
+            return
+        elif not user.is_active:
+            # Legacy fallback: is_active=False without UserBlock record
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            bot.send_message(
+                req.from_user.id,
+                text="Ви заблоковані в системі. Зверніться до адміністратора.",
             )
             return
 

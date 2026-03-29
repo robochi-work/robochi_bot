@@ -10,7 +10,9 @@ from service.broadcast_service import TelegramBroadcastService
 from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
 from telegram.choices import Status, CallType, CallStatus
+from telegram.handlers.bot_instance import get_bot
 from telegram.service.group import GroupService
+from user.services import BlockService
 from vacancy.models import Vacancy, VacancyUserCall
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.call_markup import get_before_start_call_markup, get_start_call_markup, get_final_call_markup, \
@@ -66,6 +68,14 @@ class VacancyBeforeCallObserver(Observer):
 
             if kick:
                 GroupService.kick_user(chat_id=member.vacancy.group.id, user_id=member.user.id)
+                BlockService.auto_block_rollcall_reject(user=member.user)
+                try:
+                    get_bot().send_message(
+                        member.user.id,
+                        'Вас тимчасово заблоковано за неявку на перекличку.\nТермін: 24 години.\nДля розблокування зверніться до адміністратора.',
+                    )
+                except Exception:
+                    pass
 
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy: Vacancy = data['vacancy']
@@ -110,7 +120,14 @@ class VacancyStartCallFailObserver(Observer):
                 recipient=SimpleNamespace(chat_id=call.vacancy_user.user.id),
                 text=text,
             )
-
+            BlockService.auto_block_rollcall_reject(user=call.vacancy_user.user, blocked_by=vacancy.owner)
+            try:
+                get_bot().send_message(
+                    call.vacancy_user.user.id,
+                    'Вас тимчасово заблоковано за неявку на перекличку.\nТермін: 24 години.\nДля розблокування зверніться до адміністратора.',
+                )
+            except Exception:
+                pass
 
 
 class VacancyAfterStartCallObserver(Observer):
@@ -158,4 +175,11 @@ class VacancyAfterStartCallFailObserver(Observer):
                 recipient=SimpleNamespace(chat_id=call.vacancy_user.user.id),
                 text=text,
             )
-
+            BlockService.auto_block_rollcall_reject(user=call.vacancy_user.user, blocked_by=vacancy.owner)
+            try:
+                get_bot().send_message(
+                    call.vacancy_user.user.id,
+                    'Вас тимчасово заблоковано за неявку на перекличку.\nТермін: 24 години.\nДля розблокування зверніться до адміністратора.',
+                )
+            except Exception:
+                pass

@@ -462,6 +462,52 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - telegram/static/css/styles.css — +.time-select-widget стилі
 - 7 шаблонів — додано {% block header %}{% endblock %}
 
+### Сессия 28.03.2026 (ніч, частина 3) — Баг-фікси та доопрацювання
+
+**Виконано:**
+
+1. **Права Employer в групі — фікс promote 400** — set_default_owner_permissions оновлено:
+   - can_promote_members=False (було True → HTTP 400 'not enough rights')
+   - can_restrict_members=True, can_delete_messages=True, can_pin_messages=True (нові права для Employer)
+   - bare except замінено на except Exception as e з logging.warning
+   - **Важливо:** бот повинен мати право 'Додавати нових адміністраторів' (can_promote_members) у кожній групі пулу — налаштовується вручну в Telegram
+
+2. **Фільтр admin_vacancy_card** — додано status__in=[STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]:
+   - Раніше показувались ВСІ вакансії (включаючи closed/deleted)
+   - Тепер адміністратор бачить тільки актуальні вакансії (як заказчик)
+
+3. **Auto-pin вакансії в групі** — approved_group_observer.py:
+   - Замість self.notifier.notify() використовується bot.send_message() напряму
+   - Після відправки — bot.pin_chat_message(disable_notification=True)
+   - Повідомлення з текстом вакансії автоматично закріплюється в групі
+
+4. **Адмін: примусове закриття вакансії** — admin_close_vacancy view:
+   - POST endpoint для закриття вакансії з ЛК адміністратора
+   - Якщо вакансія не closed → VACANCY_CLOSE event (повний lifecycle)
+   - Якщо вже closed але група stuck → звільнення групи (status=available)
+   - Кнопка ЗАКРИТИ на admin_vacancy_card для approved/active вакансій
+   - URL: /work/admin-panel/vacancy/<id>/close/
+
+5. **Звільнення stuck груп** — 10 груп зі статусом process без активної вакансії звільнено вручну через shell. Причина: close_vacancy_task не звільняє групи для неоплачених вакансій (by design per ТЗ)
+
+6. **Кольорові кнопки в групі** — style параметр для InlineKeyboardButton:
+   - style='danger' залишено (pinned bar показує синім, тіло повідомлення — outline)
+   - Обмеження платформи: Telegram ігнорує style для url-кнопок в групах
+   - В каналах style='danger' працює коректно (червона кнопка «Я ГОТОВИЙ ПРАЦЮВАТИ»)
+
+**Відомі обмеження платформи (задокументовано):**
+- Pinned bar в Telegram завжди рендерить inline-кнопки синім кольором незалежно від style
+- url-кнопки в групах завжди відображаються в outline-стилі (прозорі)
+- style працює тільки для кнопок в каналах
+
+**Оновлені файли:**
+- telegram/service/group.py — set_default_owner_permissions з правильними правами
+- work/views/admin_panel.py — +admin_close_vacancy, фільтр admin_vacancy_card
+- work/urls.py — +admin-panel/vacancy/<id>/close/
+- work/templates/work/admin_vacancy_card.html — кнопка ЗАКРИТИ + CSS btn-danger
+- vacancy/services/observers/approved_group_observer.py — bot.send_message + pin_chat_message
+- service/telegram_markup_factory.py — style='danger' для group feedback кнопок
+
 ### Сессия 28.03.2026 (ніч, частина 2) — Мультимісто для Employer
 
 **Реалізовано повну підтримку розміщення вакансій в різних містах:**

@@ -1,6 +1,9 @@
-from django.db import transaction
+from typing import Optional
+
+from django.db import models, transaction
 from django.contrib.auth import get_user_model
 
+from user.choices import BlockType, BlockReason
 from user.models import AuthIdentity
 
 User = get_user_model()
@@ -49,6 +52,95 @@ def get_or_create_user_from_telegram(
             )
 
     return user, created
+
+
+class BlockService:
+
+    @staticmethod
+    def is_blocked(user) -> bool:
+        from user.models import UserBlock
+        return UserBlock.objects.filter(
+            user=user,
+            is_active=True,
+        ).filter(
+            models.Q(block_type=BlockType.PERMANENT) |
+            models.Q(block_type=BlockType.TEMPORARY)
+        ).exists()
+
+    @staticmethod
+    def is_permanently_blocked(user) -> bool:
+        from user.models import UserBlock
+        return UserBlock.objects.filter(
+            user=user, is_active=True, block_type=BlockType.PERMANENT
+        ).exists()
+
+    @staticmethod
+    def is_temporarily_blocked(user) -> bool:
+        from user.models import UserBlock
+        return UserBlock.objects.filter(
+            user=user, is_active=True,
+            block_type=BlockType.TEMPORARY,
+        ).exists()
+
+    @staticmethod
+    def get_active_block(user) -> 'Optional[UserBlock]':
+        from user.models import UserBlock
+        return UserBlock.objects.filter(
+            user=user,
+            is_active=True,
+        ).order_by('-created_at').first()
+
+    @staticmethod
+    def block_user(
+        user,
+        block_type: str,
+        reason: str = BlockReason.MANUAL,
+        blocked_by=None,
+        blocked_until=None,
+        comment: str = '',
+    ) -> 'UserBlock':
+        from user.models import UserBlock
+        block = UserBlock.objects.create(
+            user=user,
+            block_type=block_type,
+            reason=reason,
+            blocked_by=blocked_by,
+            blocked_until=blocked_until,
+            comment=comment,
+        )
+        if block_type == BlockType.PERMANENT:
+            user.is_active = False
+            user.save(update_fields=['is_active'])
+        return block
+
+    @staticmethod
+    def unblock_user(block_id: int) -> None:
+        from user.models import UserBlock
+        block = UserBlock.objects.select_related('user').get(pk=block_id)
+        block.is_active = False
+        block.save(update_fields=['is_active'])
+        if block.block_type == BlockType.PERMANENT:
+            user = block.user
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+
+    @staticmethod
+    def auto_block_rollcall_reject(user, blocked_by=None) -> 'UserBlock':
+        return BlockService.block_user(
+            user=user,
+            block_type=BlockType.TEMPORARY,
+            reason=BlockReason.ROLLCALL_REJECT,
+            blocked_by=blocked_by,
+        )
+
+    @staticmethod
+    def auto_block_employer_unpaid(user) -> 'UserBlock':
+        return BlockService.block_user(
+            user=user,
+            block_type=BlockType.TEMPORARY,
+            reason=BlockReason.UNPAID,
+            blocked_until=None,
+        )
 
 
 def find_user_by_phone(*, phone_number: str):

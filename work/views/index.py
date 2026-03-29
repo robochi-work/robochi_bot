@@ -5,6 +5,7 @@ from django.contrib.auth.decorators import login_required
 from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
+from user.services import BlockService
 from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE
 from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
@@ -52,11 +53,14 @@ def index(request: WSGIRequest):
         # Reviews count
         reviews_count = UserFeedback.objects.filter(user=user).count()
 
+        is_blocked = BlockService.is_blocked(user)
         context = {
             "work_profile": profile,
             "channel": channel,
             "current_vacancy": current_vacancy,
             "reviews_count": reviews_count,
+            "is_blocked": is_blocked,
+            "active_block": BlockService.get_active_block(user) if is_blocked else None,
         }
         return render(request, "work/worker_dashboard.html", context)
 
@@ -100,12 +104,15 @@ def index(request: WSGIRequest):
                 ).select_related('city')
             )
 
+        is_blocked = BlockService.is_blocked(user)
         context = {
             "work_profile": profile,
             "active_vacancies_count": active_vacancies_count,
             "reviews_count": reviews_count,
             "channel": channel,
             "city_channels": city_channels,
+            "is_blocked": is_blocked,
+            "active_block": BlockService.get_active_block(user) if is_blocked else None,
         }
         return render(request, "work/employer_dashboard.html", context)
 
