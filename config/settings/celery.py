@@ -38,4 +38,8 @@ app.conf.beat_schedule = {
         'task': 'vacancy.tasks.resend.resend_vacancies_to_channel_task',
         'schedule': timedelta(seconds=30),
     },
+    'cleanup_inactive_users': {
+        'task': 'user.tasks.cleanup_inactive_users_task',
+        'schedule': crontab(hour=3, minute=0),  # Every night at 03:00
+    },
 }
