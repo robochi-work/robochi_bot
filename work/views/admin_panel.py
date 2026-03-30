@@ -301,11 +301,13 @@ def admin_block_user(request, user_id):
                 blocked_until=blocked_until,
                 comment=comment,
             )
+            target_user.is_active = False
+            target_user.save(update_fields=['is_active'])
 
             try:
                 from telegram.handlers.bot_instance import get_bot
                 if block_type == 'permanent':
-                    text = 'Вас постійно заблоковано в системі robochi_bot.\nДля розблокування зверніться до адміністратора.'
+                    text = 'Вас заблоковано в системі robochi_bot.\nДля розблокування зверніться до адміністратора.'
                 else:
                     days_text = f' на {duration_days} днів' if duration_days else ''
                     text = f'Вас тимчасово заблоковано{days_text}.\nПричина: {block.get_reason_display()}\nДля розблокування зверніться до адміністратора.'
@@ -329,6 +331,8 @@ def admin_block_user(request, user_id):
             block_id = request.POST.get('block_id')
             if block_id:
                 BlockService.unblock_user(int(block_id))
+                target_user.is_active = True
+                target_user.save(update_fields=['is_active'])
                 try:
                     from telegram.handlers.bot_instance import get_bot
                     get_bot().send_message(target_user.id, 'Вас розблоковано. Ви знову можете користуватися сервісом.')

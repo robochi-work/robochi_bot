@@ -48,8 +48,8 @@
         </div>
         <div class="user-card__row">
             <span class="user-card__label">Статус:</span>
-            <span class="user-card__value {% if user.is_active %}status-active{% else %}status-blocked{% endif %}">
-                {% if user.is_active %}Активний{% else %}Заблокований{% endif %}
+            <span class="user-card__value {% if user.active_block_id %}status-blocked{% else %}status-active{% endif %}">
+                {% if user.active_block_id %}Заблокований{% else %}Активний{% endif %}
             </span>
         </div>
 
@@ -58,20 +58,22 @@
             <a href="{% url 'work:admin_vacancy_card' user.pk %}" class="btn-secondary">Карта вакансій</a>
             {% endif %}
 
+            {% if user.active_block_id %}
             <form method="POST" action="{% url 'work:admin_block_user' user.pk %}" style="display:inline;">
                 {% csrf_token %}
-                {% if user.is_active %}
-                <input type="hidden" name="action" value="block">
-                <input type="hidden" name="block_type" value="temporary">
-                <input type="hidden" name="duration_days" value="7">
-                <input type="hidden" name="reason" value="manual">
-                <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Заблокувати на 7 днів?')">Заблокувати</button>
-                {% else %}
                 <input type="hidden" name="action" value="unblock">
                 <input type="hidden" name="block_id" value="{{ user.active_block_id }}">
-                <button type="submit" class="btn-secondary btn-unblock" onclick="return confirm('Розблокувати?')">Розблокувати</button>
-                {% endif %}
+                <button type="submit" class="btn-secondary btn-unblock" onclick="return confirm('Розблокувати користувача?')">РОЗБЛОКУВАТИ</button>
             </form>
+            {% else %}
+            <form method="POST" action="{% url 'work:admin_block_user' user.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="block">
+                <input type="hidden" name="block_type" value="permanent">
+                <input type="hidden" name="reason" value="manual">
+                <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Заблокувати користувача?')">ЗАБЛОКУВАТИ</button>
+            </form>
+            {% endif %}
         </div>
     </div>
     {% endfor %}
