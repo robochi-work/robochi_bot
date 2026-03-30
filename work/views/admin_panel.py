@@ -62,15 +62,21 @@ def admin_search_users(request):
 
     if request.GET.get('blocked'):
         qs = qs.filter(is_active=False)
+    qs = qs.order_by("-date_joined")[:100]
 
-    qs = qs.order_by('-date_joined')[:100]
+    from user.models import UserBlock
+    users_list = list(qs)
+    for u in users_list:
+        block = UserBlock.objects.filter(user=u, is_active=True).order_by("-created_at").first()
+        u.active_block_id = block.pk if block else None
 
-    from django.views.decorators.cache import never_cache
-    response = render(request, 'work/admin_search_results.html', {
-        'users': qs,
-        'search_type': 'users',
-        'work_profile': getattr(request.user, 'work_profile', None),
+    response = render(request, "work/admin_search_results.html", {
+        "users": users_list,
+        "search_type": "users",
+        "work_profile": getattr(request.user, "work_profile", None),
     })
+    response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @staff_required

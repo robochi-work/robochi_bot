@@ -25,6 +25,7 @@ class TextStrategy(TelegramSendStrategy):
             text=kwargs['text'],
             reply_markup=kwargs.get('reply_markup', self.default_reply_markup),
             link_preview_options=kwargs.get('link_preview_options', self.default_link_preview_options),
+            disable_notification=kwargs.get('disable_notification', False),
         )
 
     def update(self, bot: TeleBot, chat_id: int, message_id: int, **kwargs) -> Optional[Message]:

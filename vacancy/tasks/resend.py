@@ -1,6 +1,5 @@
 import logging
 from types import SimpleNamespace
-from typing import Iterable
 from datetime import timedelta
 
 from django.utils import timezone
@@ -22,6 +21,7 @@ def resend_vacancy_to_channel(vacancy: Vacancy):
     """Delete old message and republish vacancy with button."""
     channel = vacancy.channel
     if not channel:
+        logger.warning(f'Rotation skip: vacancy {vacancy.id} has no channel')
         return
 
     deleter = MessageDeleter(bot)
@@ -35,6 +35,7 @@ def resend_vacancy_to_channel(vacancy: Vacancy):
         reply_markup=channel_vacancy_reply_markup(vacancy),
         vacancy=vacancy,
     )
+    logger.warning(f'Rotation: vacancy {vacancy.id} republished to channel {channel.id}')
 
 
 @shared_task
@@ -45,12 +46,22 @@ def resend_vacancies_to_channel_task():
         search_active=True,
     )
 
+    count = vacancies.count()
+    if count > 0:
+        logger.warning(f'Rotation check: {count} vacancies with search_active=True')
+
     for vacancy in vacancies:
         try:
             message = vacancy.last_channel_message
-            # Only republish if 5+ minutes since last publication (or no message)
-            if message and message.created_at >= timezone.now() - timedelta(minutes=5):
-                continue
+            now = timezone.now()
+
+            if message:
+                age = (now - message.created_at).total_seconds()
+                logger.warning(f'Rotation: vacancy {vacancy.id} last_msg age={age:.0f}s')
+                if age < 300:  # 5 minutes
+                    continue
+            else:
+                logger.warning(f'Rotation: vacancy {vacancy.id} has no channel message')
 
             resend_vacancy_to_channel(vacancy)
         except Exception as e:
