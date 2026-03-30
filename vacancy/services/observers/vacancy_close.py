@@ -40,10 +40,30 @@ class VacancyDeleteMessagesChannelObserver(Observer):
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data['vacancy']
-        deleter = MessageDeleter(bot)
-        service = MessageDeleteService(deleter)
-        stats_channel = service.delete_in_channel_by_vacancy(vacancy)
-        logging.info(f'Message deleted')
+        # Edit channel message to "Вакансію закрито" instead of deleting
+        if vacancy.channel:
+            try:
+                from telegram.models import ChannelMessage
+                from service.notifications import NotificationMethod
+                from service.telegram_strategy_factory import TelegramStrategyFactory
+                from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+                channel_message = ChannelMessage.objects.filter(
+                    channel_id=vacancy.channel.id,
+                    extra__vacancy_id=vacancy.id,
+                ).order_by('-id').first()
+
+                if channel_message:
+                    text = VacancyTelegramTextFormatter(vacancy).for_channel(status='full')
+                    strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                    logging.info(f'Channel message edited to closed for vacancy {vacancy.id}')
+                else:
+                    logging.info(f'No channel message found for vacancy {vacancy.id}')
+            except Exception as e:
+                logging.warning(f'Failed to edit channel message for vacancy {vacancy.id}: {e}')
+        else:
+            logging.info(f'Vacancy {vacancy.id} has no channel')
 
 class VacancyKickGroupUsersObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -82,8 +102,30 @@ class VacancyStatusClosedObserver(Observer):
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data['vacancy']
         vacancy.status = STATUS_CLOSED
-        vacancy.save(update_fields=['status'])
-        logging.info(f'set vacancy status - {STATUS_CLOSED}')
+        vacancy.search_active = False
+        vacancy.save(update_fields=['status', 'search_active'])
+        logging.info(f'set vacancy status - {STATUS_CLOSED}, search_active=False')
+
+        # Edit channel message: remove button, show "Вакансію закрито"
+        if vacancy.channel:
+            try:
+                from telegram.models import ChannelMessage
+                from service.notifications import NotificationMethod
+                from service.telegram_strategy_factory import TelegramStrategyFactory
+                from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+                channel_message = ChannelMessage.objects.filter(
+                    channel_id=vacancy.channel.id,
+                    extra__vacancy_id=vacancy.id,
+                ).order_by('-id').first()
+
+                if channel_message:
+                    text = VacancyTelegramTextFormatter(vacancy).for_channel(status='full')
+                    strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                    logging.info(f'Channel message updated to closed for vacancy {vacancy.id}')
+            except Exception as e:
+                logging.warning(f'Failed to update channel message for vacancy {vacancy.id}: {e}')
 
 
 class VacancyNotifyAdminsObserver(Observer):
