@@ -274,6 +274,9 @@ def admin_close_vacancy(request, vacancy_id):
 @staff_required
 def admin_block_user(request, user_id):
     """Block/unblock a user."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f'BLOCK VIEW HIT: user_id={user_id} method={request.method} POST={dict(request.POST)}')
     from user.services import BlockService
     from datetime import timedelta
     from django.utils import timezone
@@ -340,6 +343,9 @@ def admin_block_user(request, user_id):
                     pass
 
     referer = request.META.get('HTTP_REFERER', '')
-    if referer:
-        return redirect(referer)
-    return redirect('work:admin_vacancy_card', user_id=user_id)
+    redirect_url = referer if referer else reverse('work:admin_vacancy_card', kwargs={'user_id': user_id})
+    from django.http import HttpResponse
+    return HttpResponse(
+        f'<html><body><script>window.location.replace("{redirect_url}");</script></body></html>',
+        content_type='text/html',
+    )
