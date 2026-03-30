@@ -65,7 +65,8 @@ def admin_search_users(request):
 
     qs = qs.order_by('-date_joined')[:100]
 
-    return render(request, 'work/admin_search_results.html', {
+    from django.views.decorators.cache import never_cache
+    response = render(request, 'work/admin_search_results.html', {
         'users': qs,
         'search_type': 'users',
         'work_profile': getattr(request.user, 'work_profile', None),
@@ -111,7 +112,8 @@ def admin_search_vacancies(request):
 
     qs = qs.order_by('-date_joined')[:100]
 
-    return render(request, 'work/admin_search_results.html', {
+    from django.views.decorators.cache import never_cache
+    response = render(request, 'work/admin_search_results.html', {
         'users': qs,
         'search_type': 'vacancies',
         'work_profile': getattr(request.user, 'work_profile', None),
@@ -344,6 +346,7 @@ def admin_block_user(request, user_id):
 
     from django.http import HttpResponseRedirect
     referer = request.META.get('HTTP_REFERER', '')
+    logger.warning(f'BLOCK REDIRECT: referer={referer}')
     if referer and '/block/' not in referer:
         return HttpResponseRedirect(referer)
     return redirect('work:admin_dashboard')
