@@ -60,9 +60,17 @@
 
             <form method="POST" action="{% url 'work:admin_block_user' user.pk %}" style="display:inline;">
                 {% csrf_token %}
-                <button type="submit" class="btn-secondary {% if user.is_active %}btn-block{% else %}btn-unblock{% endif %}">
-                    {% if user.is_active %}Заблокувати{% else %}Розблокувати{% endif %}
-                </button>
+                {% if user.is_active %}
+                <input type="hidden" name="action" value="block">
+                <input type="hidden" name="block_type" value="temporary">
+                <input type="hidden" name="duration_days" value="7">
+                <input type="hidden" name="reason" value="manual">
+                <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Заблокувати на 7 днів?')">Заблокувати</button>
+                {% else %}
+                <input type="hidden" name="action" value="unblock">
+                <input type="hidden" name="block_id" value="{{ user.active_block_id }}">
+                <button type="submit" class="btn-secondary btn-unblock" onclick="return confirm('Розблокувати?')">Розблокувати</button>
+                {% endif %}
             </form>
         </div>
     </div>
