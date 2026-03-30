@@ -342,10 +342,8 @@ def admin_block_user(request, user_id):
                 except Exception:
                     pass
 
+    from django.http import HttpResponseRedirect
     referer = request.META.get('HTTP_REFERER', '')
-    redirect_url = referer if referer else reverse('work:admin_vacancy_card', kwargs={'user_id': user_id})
-    from django.http import HttpResponse
-    return HttpResponse(
-        f'<html><body><script>window.location.replace("{redirect_url}");</script></body></html>',
-        content_type='text/html',
-    )
+    if referer and '/block/' not in referer:
+        return HttpResponseRedirect(referer)
+    return redirect('work:admin_dashboard')

@@ -1,7 +1,18 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block header %}{% endblock %}
+{% block header %}<script>
+document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '...';
+        }
+    });
+});
+</script>
+{% endblock %}
 
 {% block body %}
 <main class="page page--admin-results">
@@ -172,4 +183,15 @@
         color: #1a7a1a !important;
     }
 </style>
+<script>
+document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '...';
+        }
+    });
+});
+</script>
 {% endblock %}
