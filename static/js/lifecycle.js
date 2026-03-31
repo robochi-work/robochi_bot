@@ -1,6 +1,6 @@
 /**
- * Telegram Mini App Lifecycle Manager v3
- * Last resort: reload page if JS was frozen too long.
+ * Telegram Mini App Lifecycle Manager v4
+ * Nuclear option: detect ANY freeze and force full page reload.
  */
 (function() {
     'use strict';
@@ -8,87 +8,49 @@
     if (!tg) return;
 
     var lastBeat = Date.now();
-    var FREEZE_THRESHOLD = 3000;
-    var RELOAD_THRESHOLD = 30000;
 
-    // Heartbeat: detect JS freeze
+    // Single strategy: if JS was frozen for ANY duration > 2 sec, reload.
     setInterval(function() {
         var now = Date.now();
         var gap = now - lastBeat;
-
-        if (gap > RELOAD_THRESHOLD) {
-            // Frozen for 30+ seconds — page is likely dead, reload
-            lastBeat = now;
-            window.location.reload();
-            return;
-        }
-
-        if (gap > FREEZE_THRESHOLD) {
-            // Short freeze — try soft recovery
-            lastBeat = now;
-            softRecover();
-        }
-
         lastBeat = now;
+
+        if (gap > 2500) {
+            // JS was frozen — force full page reload
+            window.location.reload();
+        }
     }, 1000);
 
-    // Visibility change — immediate recovery
+    // On visibility restore — reload immediately
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
             var gap = Date.now() - lastBeat;
-            if (gap > RELOAD_THRESHOLD) {
-                window.location.reload();
-            } else if (gap > FREEZE_THRESHOLD) {
-                softRecover();
-            }
             lastBeat = Date.now();
+            if (gap > 2500) {
+                window.location.reload();
+            }
         }
     });
 
-    // Telegram activated event
+    // Telegram activated — reload
     if (tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')) {
         tg.onEvent('activated', function() {
             var gap = Date.now() - lastBeat;
-            if (gap > RELOAD_THRESHOLD) {
-                window.location.reload();
-            } else if (gap > FREEZE_THRESHOLD) {
-                softRecover();
-            }
             lastBeat = Date.now();
+            if (gap > 2500) {
+                window.location.reload();
+            }
         });
     }
 
-    // First touch after freeze — recover immediately
-    var touchRecovery = function() {
+    // First touch/click after freeze — reload
+    function onInteraction() {
         var gap = Date.now() - lastBeat;
-        if (gap > FREEZE_THRESHOLD) {
-            if (gap > RELOAD_THRESHOLD) {
-                window.location.reload();
-            } else {
-                softRecover();
-            }
+        if (gap > 2500) {
             lastBeat = Date.now();
+            window.location.reload();
         }
-    };
-    document.addEventListener('touchstart', touchRecovery, { passive: true, capture: true });
-    document.addEventListener('click', touchRecovery, true);
-
-    function softRecover() {
-        // Re-expand
-        try { if (!tg.isExpanded) tg.expand(); } catch(e) {}
-        try { tg.disableVerticalSwipes(); } catch(e) {}
-
-        // Force reflow on all interactive elements
-        var body = document.body;
-        body.style.pointerEvents = 'none';
-        void body.offsetHeight;
-        requestAnimationFrame(function() {
-            body.style.pointerEvents = '';
-            document.querySelectorAll('a, button, [onclick], input, select, textarea').forEach(function(el) {
-                el.style.pointerEvents = 'none';
-                void el.offsetHeight;
-                el.style.pointerEvents = '';
-            });
-        });
     }
+    document.addEventListener('touchstart', onInteraction, { passive: true, capture: true });
+    document.addEventListener('click', onInteraction, true);
 })();
