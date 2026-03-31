@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: pytest
         name: run tests
-        entry: bash -c 'cd /home/webuser/robochi_bot && source venv/bin/activate && set -a && source .env && set +a && pytest tests/ -x --timeout=30'
+        entry: bash -c 'cd /home/webuser/robochi_bot && source venv/bin/activate && set -a && source .env && set +a && export DJANGO_SETTINGS_MODULE=config.django.local && pytest tests/ -x --timeout=30'
         language: system
         pass_filenames: false
         stages: [pre-push]
