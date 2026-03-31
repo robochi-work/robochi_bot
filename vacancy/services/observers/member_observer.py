@@ -1,6 +1,6 @@
-from typing import Any, Optional
+from typing import Any
 
-from django.utils import timezone
+import sentry_sdk
 
 from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
@@ -14,28 +14,35 @@ from vacancy.services.observers.approved_channel_observer import VacancyApproved
 from vacancy.services.observers.publisher import Observer
 from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
-
 telegram_notifier = TelegramNotifier(bot)
 
 
 class VacancyIsFullObserver(Observer):
     """When group is full: edit channel message to 'Вакансію закрито', set search_active=False."""
-    def __init__(self, notifier: Optional[TelegramNotifier] = None):
+
+    def __init__(self, notifier: TelegramNotifier | None = None):
         self.notifier = notifier
 
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
 
-        if vacancy.group.user_links and vacancy.group.user_links.filter(status=Status.MEMBER.value).count() >= vacancy.people_count:
+        if (
+            vacancy.group.user_links
+            and vacancy.group.user_links.filter(status=Status.MEMBER.value).count() >= vacancy.people_count
+        ):
             # Turn off search flag
             vacancy.search_active = False
-            vacancy.save(update_fields=['search_active'])
+            vacancy.save(update_fields=["search_active"])
 
-            text = VacancyTelegramTextFormatter(vacancy).for_channel(status='full')
-            channel_message = ChannelMessage.objects.filter(
-                channel_id=vacancy.channel.id,
-                extra__vacancy_id=vacancy.id,
-            ).order_by('-id').first()
+            text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
+            channel_message = (
+                ChannelMessage.objects.filter(
+                    channel_id=vacancy.channel.id,
+                    extra__vacancy_id=vacancy.id,
+                )
+                .order_by("-id")
+                .first()
+            )
 
             if channel_message:
                 strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
@@ -44,14 +51,16 @@ class VacancyIsFullObserver(Observer):
 
 class VacancySlotFreedObserver(Observer):
     """When worker leaves group: republish immediately with button, set search_active=True."""
-    def __init__(self, notifier: Optional[TelegramNotifier] = None):
+
+    def __init__(self, notifier: TelegramNotifier | None = None):
         self.notifier = notifier
 
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy: Vacancy = data['vacancy']
+        vacancy: Vacancy = data["vacancy"]
 
         # Only republish if vacancy is not closed
-        from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE
+        from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+
         if vacancy.status not in [STATUS_APPROVED, STATUS_ACTIVE]:
             return
 
@@ -59,18 +68,20 @@ class VacancySlotFreedObserver(Observer):
         if current_count < vacancy.people_count:
             # Turn on search flag
             vacancy.search_active = True
-            vacancy.save(update_fields=['search_active'])
+            vacancy.save(update_fields=["search_active"])
 
             # Immediate republish with button
             try:
-                channel_message = ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                ).order_by('-id').first()
+                channel_message = (
+                    ChannelMessage.objects.filter(
+                        channel_id=vacancy.channel.id,
+                        extra__vacancy_id=vacancy.id,
+                    )
+                    .order_by("-id")
+                    .first()
+                )
                 if channel_message:
                     MessageDeleter(bot_instance=bot).delete_message(channel_message)
             except Exception:
-                pass
-            VacancyApprovedChannelObserver(telegram_notifier).update(
-                'VACANCY_SLOT_FREED', data={'vacancy': vacancy}
-            )
+                sentry_sdk.capture_exception()
+            VacancyApprovedChannelObserver(telegram_notifier).update("VACANCY_SLOT_FREED", data={"vacancy": vacancy})

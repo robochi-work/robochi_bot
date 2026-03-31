@@ -1,17 +1,23 @@
 import logging
-from typing import Iterable, NewType
-from datetime import timedelta, datetime, date
-from django.utils import timezone
-from celery import shared_task
+from collections.abc import Iterable
+from datetime import date, datetime, timedelta
 
+import sentry_sdk
+from celery import shared_task
 from django.db import connection
+from django.utils import timezone
+
 from telegram.choices import CallStatus, CallType
 from telegram.service.group import GroupService
 from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED, STATUS_CLOSED, STATUS_SEARCH_STOPPED
-from vacancy.models import Vacancy, VacancyUserCall, VacancyUser
-from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
-from vacancy.services.observers.events import VACANCY_BEFORE_CALL, VACANCY_START_CALL, VACANCY_AFTER_START_CALL, \
-    VACANCY_CLOSE, VACANCY_CLOSE_PAYMENT_DOES_NOT_EXIST
+from vacancy.models import Vacancy, VacancyUserCall
+from vacancy.services.observers.events import (
+    VACANCY_AFTER_START_CALL,
+    VACANCY_BEFORE_CALL,
+    VACANCY_CLOSE,
+    VACANCY_CLOSE_PAYMENT_DOES_NOT_EXIST,
+    VACANCY_START_CALL,
+)
 from vacancy.services.observers.subscriber_setup import telegram_notifier, vacancy_publisher
 
 Minutes = int
@@ -23,11 +29,7 @@ def _send_rollcall_reminder(vacancy: Vacancy, call_type: CallType) -> None:
     from telegram.handlers.bot_instance import bot
     from vacancy.services.call_markup import get_rollcall_reminder_markup
 
-    text = (
-        'Підтвердіть явку робочих на роботу'
-        if call_type == CallType.START
-        else 'Підтвердіть наявність робочих'
-    )
+    text = "Підтвердіть явку робочих на роботу" if call_type == CallType.START else "Підтвердіть наявність робочих"
     try:
         bot.send_message(
             chat_id=vacancy.owner.id,
@@ -35,7 +37,7 @@ def _send_rollcall_reminder(vacancy: Vacancy, call_type: CallType) -> None:
             reply_markup=get_rollcall_reminder_markup(vacancy, call_type),
         )
     except Exception as e:
-        logger.warning(f'_send_rollcall_reminder: vacancy {vacancy.pk}: {e}')
+        logger.warning(f"_send_rollcall_reminder: vacancy {vacancy.pk}: {e}")
 
 
 def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
@@ -44,22 +46,22 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
 
     owner = vacancy.owner
     admin_text = (
-        f'⚠️ Немає підтвердження {call_label}\n'
-        f'Вакансія: {vacancy.address}\n'
-        f'Заказчик: {owner.full_name or str(owner.id)}\n'
-        f'Телефон: {getattr(owner, "phone_number", None) or "—"}'
+        f"⚠️ Немає підтвердження {call_label}\n"
+        f"Вакансія: {vacancy.address}\n"
+        f"Заказчик: {owner.full_name or str(owner.id)}\n"
+        f"Телефон: {getattr(owner, 'phone_number', None) or '—'}"
     )
     try:
         broadcast = TelegramBroadcastService(notifier=telegram_notifier)
         broadcast.admin_broadcast(text=admin_text)
     except Exception as e:
-        logger.warning(f'_escalate_rollcall ({call_label}): admin broadcast failed: {e}')
+        logger.warning(f"_escalate_rollcall ({call_label}): admin broadcast failed: {e}")
 
     if vacancy.group:
         try:
             GroupService.kick_user(chat_id=vacancy.group.id, user_id=owner.id)
         except Exception as e:
-            logger.warning(f'_escalate_rollcall ({call_label}): kick owner failed: {e}')
+            logger.warning(f"_escalate_rollcall ({call_label}): kick owner failed: {e}")
 
 
 def _update_channel_search_stopped(vacancy: Vacancy) -> None:
@@ -67,22 +69,26 @@ def _update_channel_search_stopped(vacancy: Vacancy) -> None:
     if not vacancy.channel:
         return
     try:
-        from telegram.handlers.bot_instance import bot
-        from telegram.models import ChannelMessage
         from service.notifications import NotificationMethod
         from service.telegram_strategy_factory import TelegramStrategyFactory
+        from telegram.handlers.bot_instance import bot
+        from telegram.models import ChannelMessage
         from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
-        channel_message = ChannelMessage.objects.filter(
-            channel_id=vacancy.channel.id,
-            extra__vacancy_id=vacancy.id,
-        ).order_by('-id').first()
+        channel_message = (
+            ChannelMessage.objects.filter(
+                channel_id=vacancy.channel.id,
+                extra__vacancy_id=vacancy.id,
+            )
+            .order_by("-id")
+            .first()
+        )
         if channel_message:
-            text = VacancyTelegramTextFormatter(vacancy).for_channel(status='full')
+            text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
             strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
     except Exception as e:
-        logger.warning(f'_update_channel_search_stopped: vacancy {vacancy.pk}: {e}')
+        logger.warning(f"_update_channel_search_stopped: vacancy {vacancy.pk}: {e}")
 
 
 def get_before_start_vacancies(delay: Minutes = 120) -> Iterable[Vacancy]:
@@ -143,7 +149,7 @@ def get_final_vacancies() -> Iterable[Vacancy]:
 
 def before_start_call(vacancies: Iterable[Vacancy]):
     for vacancy in vacancies:
-        vacancy_publisher.notify(VACANCY_BEFORE_CALL, data={'vacancy': vacancy})
+        vacancy_publisher.notify(VACANCY_BEFORE_CALL, data={"vacancy": vacancy})
 
 
 def after_first_call_check(vacancies: Iterable[Vacancy], delay: Minutes = 20):
@@ -157,88 +163,87 @@ def after_first_call_check(vacancies: Iterable[Vacancy], delay: Minutes = 20):
                             chat_id=call.vacancy_user.vacancy.group.id,
                             user_id=call.vacancy_user.user.id,
                         )
-                    except Exception as e:
-                        ...
+                    except Exception:
+                        sentry_sdk.capture_exception()
 
 
-_REMINDER_INTERVAL = 300   # 5 minutes in seconds
+_REMINDER_INTERVAL = 300  # 5 minutes in seconds
 _MAX_REMINDERS = 6
 
 
 def start_call_check(vacancies: Iterable[Vacancy]):
     for vacancy in vacancies:
-        sent_start_call = vacancy.extra.get('sent_start_call', False)
+        sent_start_call = vacancy.extra.get("sent_start_call", False)
 
         if not sent_start_call:
             # Initial send
-            vacancy_publisher.notify(VACANCY_START_CALL, data={'vacancy': vacancy})
-            vacancy.extra['sent_start_call'] = True
-            vacancy.extra['start_call_sent_at'] = timezone.now().timestamp()
-            vacancy.extra['start_call_reminders'] = 0
+            vacancy_publisher.notify(VACANCY_START_CALL, data={"vacancy": vacancy})
+            vacancy.extra["sent_start_call"] = True
+            vacancy.extra["start_call_sent_at"] = timezone.now().timestamp()
+            vacancy.extra["start_call_reminders"] = 0
 
-            fields_to_save = ['extra']
+            fields_to_save = ["extra"]
             if vacancy.search_active or vacancy.status == STATUS_APPROVED:
                 vacancy.status = STATUS_SEARCH_STOPPED
                 vacancy.search_active = False
                 vacancy.search_stopped_at = timezone.now()
-                fields_to_save += ['status', 'search_active', 'search_stopped_at']
+                fields_to_save += ["status", "search_active", "search_stopped_at"]
                 _update_channel_search_stopped(vacancy)
             vacancy.save(update_fields=fields_to_save)
 
-        elif not vacancy.first_rollcall_passed and not vacancy.extra.get('start_call_escalated'):
-            elapsed = timezone.now().timestamp() - vacancy.extra.get('start_call_sent_at', 0)
+        elif not vacancy.first_rollcall_passed and not vacancy.extra.get("start_call_escalated"):
+            elapsed = timezone.now().timestamp() - vacancy.extra.get("start_call_sent_at", 0)
             if elapsed < _REMINDER_INTERVAL:
                 continue
 
-            reminders = vacancy.extra.get('start_call_reminders', 0)
+            reminders = vacancy.extra.get("start_call_reminders", 0)
             if reminders >= _MAX_REMINDERS:
-                _escalate_rollcall(vacancy, call_label='1 переклички')
-                vacancy.extra['start_call_escalated'] = True
+                _escalate_rollcall(vacancy, call_label="1 переклички")
+                vacancy.extra["start_call_escalated"] = True
             else:
                 _send_rollcall_reminder(vacancy, call_type=CallType.START)
-                vacancy.extra['start_call_reminders'] = reminders + 1
-                vacancy.extra['start_call_sent_at'] = timezone.now().timestamp()
-            vacancy.save(update_fields=['extra'])
+                vacancy.extra["start_call_reminders"] = reminders + 1
+                vacancy.extra["start_call_sent_at"] = timezone.now().timestamp()
+            vacancy.save(update_fields=["extra"])
 
 
 def final_call_check(vacancies: Iterable[Vacancy]):
     for vacancy in vacancies:
-        sent_final_call = vacancy.extra.get('sent_final_call', False)
+        sent_final_call = vacancy.extra.get("sent_final_call", False)
 
         if not sent_final_call:
             # Initial send
-            vacancy_publisher.notify(VACANCY_AFTER_START_CALL, data={'vacancy': vacancy})
-            vacancy.extra['sent_final_call'] = True
-            vacancy.extra['final_call_sent_at'] = timezone.now().timestamp()
-            vacancy.extra['final_call_reminders'] = 0
-            vacancy.save(update_fields=['extra'])
+            vacancy_publisher.notify(VACANCY_AFTER_START_CALL, data={"vacancy": vacancy})
+            vacancy.extra["sent_final_call"] = True
+            vacancy.extra["final_call_sent_at"] = timezone.now().timestamp()
+            vacancy.extra["final_call_reminders"] = 0
+            vacancy.save(update_fields=["extra"])
 
-        elif not vacancy.second_rollcall_passed and not vacancy.extra.get('final_call_escalated'):
-            elapsed = timezone.now().timestamp() - vacancy.extra.get('final_call_sent_at', 0)
+        elif not vacancy.second_rollcall_passed and not vacancy.extra.get("final_call_escalated"):
+            elapsed = timezone.now().timestamp() - vacancy.extra.get("final_call_sent_at", 0)
             if elapsed < _REMINDER_INTERVAL:
                 continue
 
-            reminders = vacancy.extra.get('final_call_reminders', 0)
+            reminders = vacancy.extra.get("final_call_reminders", 0)
             if reminders >= _MAX_REMINDERS:
-                _escalate_rollcall(vacancy, call_label='2 переклички')
-                vacancy.extra['final_call_escalated'] = True
+                _escalate_rollcall(vacancy, call_label="2 переклички")
+                vacancy.extra["final_call_escalated"] = True
             else:
                 _send_rollcall_reminder(vacancy, call_type=CallType.AFTER_START)
-                vacancy.extra['final_call_reminders'] = reminders + 1
-                vacancy.extra['final_call_sent_at'] = timezone.now().timestamp()
-            vacancy.save(update_fields=['extra'])
+                vacancy.extra["final_call_reminders"] = reminders + 1
+                vacancy.extra["final_call_sent_at"] = timezone.now().timestamp()
+            vacancy.save(update_fields=["extra"])
 
 
 def close_vacancy(vacancy: Vacancy):
-    if not vacancy.extra.get('payment_checked', False):
-        if vacancy.extra.get('is_paid', False):
-            vacancy_publisher.notify(VACANCY_CLOSE, data={'vacancy': vacancy})
+    if not vacancy.extra.get("payment_checked", False):
+        if vacancy.extra.get("is_paid", False):
+            vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
         else:
-            vacancy_publisher.notify(VACANCY_CLOSE_PAYMENT_DOES_NOT_EXIST, data={'vacancy': vacancy})
+            vacancy_publisher.notify(VACANCY_CLOSE_PAYMENT_DOES_NOT_EXIST, data={"vacancy": vacancy})
 
-        vacancy.extra['payment_checked'] = True
-        vacancy.save(update_fields=['extra'])
-
+        vacancy.extra["payment_checked"] = True
+        vacancy.save(update_fields=["extra"])
 
 
 @shared_task
@@ -282,9 +287,7 @@ def final_call_check_task():
         status=STATUS_SEARCH_STOPPED,
         second_rollcall_passed=False,
     ):
-        end_aware = timezone.make_aware(
-            datetime.combine(v.date, v.end_time), timezone.get_current_timezone()
-        )
+        end_aware = timezone.make_aware(datetime.combine(v.date, v.end_time), timezone.get_current_timezone())
         if aware_now > end_aware:
             stopped_candidates.append(v)
     final_call_check(vacancies=stopped_candidates)
@@ -318,8 +321,8 @@ def close_lifecycle_timer_task():
         closed_at__isnull=False,
         closed_at__lte=threshold,
     ).exclude(status=STATUS_CLOSED):
-        logger.info(f'close_lifecycle_timer_task: closing vacancy {vacancy.pk} (closed_at timer)')
-        vacancy_publisher.notify(VACANCY_CLOSE, data={'vacancy': vacancy})
+        logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (closed_at timer)")
+        vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
 
     # Case b: employer stopped search — 3h passed with no manual close
     for vacancy in Vacancy.objects.filter(
@@ -328,8 +331,8 @@ def close_lifecycle_timer_task():
         status=STATUS_SEARCH_STOPPED,
         closed_at__isnull=True,
     ):
-        logger.info(f'close_lifecycle_timer_task: closing vacancy {vacancy.pk} (search_stopped_at timer)')
-        vacancy_publisher.notify(VACANCY_CLOSE, data={'vacancy': vacancy})
+        logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (search_stopped_at timer)")
+        vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
 
 
 @shared_task
@@ -339,18 +342,18 @@ def worker_join_confirm_check_task():
     Kicks and deactivates them after 5 minutes of no confirmation.
     """
     connection.close()
-    from telegram.choices import CallType, CallStatus
+    from telegram.choices import CallStatus, CallType
     from telegram.handlers.bot_instance import bot
     from telegram.service.group import GroupService
     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
-    KICK_AFTER = 300   # 5 minutes in seconds
+    KICK_AFTER = 300  # 5 minutes in seconds
     REMIND_MINUTES = {1, 2, 3, 4}
 
     pending = VacancyUserCall.objects.filter(
         call_type=CallType.WORKER_JOIN_CONFIRM.value,
         status=CallStatus.SENT.value,
-    ).select_related('vacancy_user__user', 'vacancy_user__vacancy__group')
+    ).select_related("vacancy_user__user", "vacancy_user__vacancy__group")
 
     for call in pending:
         elapsed = (timezone.now() - call.created_at).total_seconds()
@@ -363,12 +366,12 @@ def worker_join_confirm_check_task():
                 try:
                     GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
                 except Exception as e:
-                    logger.warning(f'worker_join_confirm: kick failed for user {user.id}: {e}')
+                    logger.warning(f"worker_join_confirm: kick failed for user {user.id}: {e}")
             call.status = CallStatus.REJECT.value
-            call.save(update_fields=['status'])
+            call.save(update_fields=["status"])
             user.is_active = False
-            user.save(update_fields=['is_active'])
-            logger.info(f'worker_join_confirm: kicked user {user.id} (no confirm in 5 min)')
+            user.save(update_fields=["is_active"])
+            logger.info(f"worker_join_confirm: kicked user {user.id} (no confirm in 5 min)")
             continue
 
         # Reminder at minutes 1, 2, 3, 4 — only in first 30s of that minute
@@ -381,13 +384,13 @@ def worker_join_confirm_check_task():
                     text=CallVacancyTelegramTextFormatter(vacancy).worker_join_reminder(),
                 )
             except Exception as e:
-                logger.warning(f'worker_join_confirm: reminder failed for user {user.id}: {e}')
+                logger.warning(f"worker_join_confirm: reminder failed for user {user.id}: {e}")
 
 
-_RENEWAL_OFFER_INTERVAL = 1800   # 30 minutes in seconds
-_RENEWAL_MAX_REMINDERS = 6        # 6 × 30 min = 3 hours
+_RENEWAL_OFFER_INTERVAL = 1800  # 30 minutes in seconds
+_RENEWAL_MAX_REMINDERS = 6  # 6 × 30 min = 3 hours
 
-_RENEWAL_WORKER_INTERVAL = 300   # 5 minutes in seconds
+_RENEWAL_WORKER_INTERVAL = 300  # 5 minutes in seconds
 _RENEWAL_WORKER_MAX_REMINDERS = 4
 
 
@@ -399,28 +402,31 @@ def renewal_offer_task():
     """
     connection.close()
     from django.db.models import Q
+
     from telegram.handlers.bot_instance import bot
     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
     from vacancy.services.call_markup import get_renewal_offer_markup
 
-    candidates = Vacancy.objects.filter(
-        second_rollcall_passed=True,
-        closed_at__isnull=True,
-    ).filter(
-        extra__is_paid=True,
-    ).exclude(
-        Q(extra__renewal_offered=True)
+    candidates = (
+        Vacancy.objects.filter(
+            second_rollcall_passed=True,
+            closed_at__isnull=True,
+        )
+        .filter(
+            extra__is_paid=True,
+        )
+        .exclude(Q(extra__renewal_offered=True))
     )
 
     for vacancy in candidates:
         extra = vacancy.extra
         # Skip if employer already responded
-        if extra.get('renewal_accepted') or extra.get('renewal_declined'):
-            extra['renewal_offered'] = True
-            vacancy.save(update_fields=['extra'])
+        if extra.get("renewal_accepted") or extra.get("renewal_declined"):
+            extra["renewal_offered"] = True
+            vacancy.save(update_fields=["extra"])
             continue
 
-        if not extra.get('renewal_started'):
+        if not extra.get("renewal_started"):
             # Initial send
             try:
                 bot.send_message(
@@ -429,24 +435,24 @@ def renewal_offer_task():
                     reply_markup=get_renewal_offer_markup(vacancy),
                 )
             except Exception as e:
-                logger.warning(f'renewal_offer_task: initial send failed for vacancy {vacancy.pk}: {e}')
+                logger.warning(f"renewal_offer_task: initial send failed for vacancy {vacancy.pk}: {e}")
                 continue
-            extra['renewal_started'] = True
-            extra['renewal_sent_at'] = timezone.now().timestamp()
-            extra['renewal_reminders'] = 0
-            vacancy.save(update_fields=['extra'])
+            extra["renewal_started"] = True
+            extra["renewal_sent_at"] = timezone.now().timestamp()
+            extra["renewal_reminders"] = 0
+            vacancy.save(update_fields=["extra"])
 
-        elif not extra.get('renewal_expired'):
-            elapsed = timezone.now().timestamp() - extra.get('renewal_sent_at', 0)
+        elif not extra.get("renewal_expired"):
+            elapsed = timezone.now().timestamp() - extra.get("renewal_sent_at", 0)
             if elapsed < _RENEWAL_OFFER_INTERVAL:
                 continue
 
-            reminders = extra.get('renewal_reminders', 0)
+            reminders = extra.get("renewal_reminders", 0)
             if reminders >= _RENEWAL_MAX_REMINDERS:
-                extra['renewal_expired'] = True
-                extra['renewal_offered'] = True
-                vacancy.save(update_fields=['extra'])
-                logger.info(f'renewal_offer_task: offer expired for vacancy {vacancy.pk}')
+                extra["renewal_expired"] = True
+                extra["renewal_offered"] = True
+                vacancy.save(update_fields=["extra"])
+                logger.info(f"renewal_offer_task: offer expired for vacancy {vacancy.pk}")
             else:
                 try:
                     bot.send_message(
@@ -455,11 +461,11 @@ def renewal_offer_task():
                         reply_markup=get_renewal_offer_markup(vacancy),
                     )
                 except Exception as e:
-                    logger.warning(f'renewal_offer_task: reminder failed for vacancy {vacancy.pk}: {e}')
+                    logger.warning(f"renewal_offer_task: reminder failed for vacancy {vacancy.pk}: {e}")
                     continue
-                extra['renewal_reminders'] = reminders + 1
-                extra['renewal_sent_at'] = timezone.now().timestamp()
-                vacancy.save(update_fields=['extra'])
+                extra["renewal_reminders"] = reminders + 1
+                extra["renewal_sent_at"] = timezone.now().timestamp()
+                vacancy.save(update_fields=["extra"])
 
 
 @shared_task
@@ -475,7 +481,7 @@ def renewal_worker_check_task():
     pending = VacancyUserCall.objects.filter(
         call_type=CallType.RENEWAL_WORKER.value,
         status=CallStatus.SENT.value,
-    ).select_related('vacancy_user__user', 'vacancy_user__vacancy__group', 'vacancy_user__vacancy__owner')
+    ).select_related("vacancy_user__user", "vacancy_user__vacancy__group", "vacancy_user__vacancy__owner")
 
     # Group by vacancy to detect "all answered" after kicks
     vacancy_ids_with_pending = set()
@@ -492,10 +498,10 @@ def renewal_worker_check_task():
                 try:
                     GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
                 except Exception as e:
-                    logger.warning(f'renewal_worker_check: kick failed for user {user.id}: {e}')
+                    logger.warning(f"renewal_worker_check: kick failed for user {user.id}: {e}")
             call.status = CallStatus.REJECT.value
-            call.save(update_fields=['status'])
-            logger.info(f'renewal_worker_check: kicked user {user.id} (no renewal confirm in 20 min)')
+            call.save(update_fields=["status"])
+            logger.info(f"renewal_worker_check: kicked user {user.id} (no renewal confirm in 20 min)")
             continue
 
         # Reminder every 5 min — only in the first 30s of that 5-min slot
@@ -508,15 +514,20 @@ def renewal_worker_check_task():
                     text=CallVacancyTelegramTextFormatter(vacancy).renewal_worker_reminder(),
                 )
             except Exception as e:
-                logger.warning(f'renewal_worker_check: reminder failed for user {user.id}: {e}')
+                logger.warning(f"renewal_worker_check: reminder failed for user {user.id}: {e}")
 
     # Check vacancies where poll may have just completed (all responded)
     handled_vacancies = set()
-    answered_vacancies = VacancyUserCall.objects.filter(
-        call_type=CallType.RENEWAL_WORKER.value,
-    ).exclude(
-        status=CallStatus.SENT.value,
-    ).values_list('vacancy_user__vacancy_id', flat=True).distinct()
+    answered_vacancies = (
+        VacancyUserCall.objects.filter(
+            call_type=CallType.RENEWAL_WORKER.value,
+        )
+        .exclude(
+            status=CallStatus.SENT.value,
+        )
+        .values_list("vacancy_user__vacancy_id", flat=True)
+        .distinct()
+    )
 
     for vacancy_id in answered_vacancies:
         if vacancy_id in vacancy_ids_with_pending:
@@ -533,10 +544,10 @@ def renewal_worker_check_task():
         if still_pending:
             continue
 
-        vacancy = Vacancy.objects.filter(pk=vacancy_id).select_related('owner').first()
+        vacancy = Vacancy.objects.filter(pk=vacancy_id).select_related("owner").first()
         if not vacancy:
             continue
-        if vacancy.extra.get('renewal_worker_check_done'):
+        if vacancy.extra.get("renewal_worker_check_done"):
             continue
 
         confirmed_count = VacancyUserCall.objects.filter(
@@ -552,26 +563,29 @@ def renewal_worker_check_task():
         if confirmed_count < needed:
             # Not enough workers — publish to channel to find more
             vacancy.search_active = True
-            vacancy.extra['renewal_worker_check_done'] = True
-            vacancy.save(update_fields=['search_active', 'extra'])
-            logger.info(f'renewal_worker_check: vacancy {vacancy.pk} needs more workers ({confirmed_count}/{needed}), search_active=True')
+            vacancy.extra["renewal_worker_check_done"] = True
+            vacancy.save(update_fields=["search_active", "extra"])
+            logger.info(
+                f"renewal_worker_check: vacancy {vacancy.pk} needs more workers ({confirmed_count}/{needed}), search_active=True"
+            )
         elif confirmed_count > needed:
             excess = confirmed_count - needed
             try:
                 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
                 bot.send_message(
                     chat_id=vacancy.owner.id,
                     text=CallVacancyTelegramTextFormatter(vacancy).renewal_too_many_workers(excess),
                 )
             except Exception as e:
-                logger.warning(f'renewal_worker_check: employer notify failed for vacancy {vacancy.pk}: {e}')
-            vacancy.extra['renewal_worker_check_done'] = True
-            vacancy.save(update_fields=['extra'])
+                logger.warning(f"renewal_worker_check: employer notify failed for vacancy {vacancy.pk}: {e}")
+            vacancy.extra["renewal_worker_check_done"] = True
+            vacancy.save(update_fields=["extra"])
         else:
             # Exactly right — nothing to do
-            vacancy.extra['renewal_worker_check_done'] = True
-            vacancy.save(update_fields=['extra'])
-            logger.info(f'renewal_worker_check: vacancy {vacancy.pk} confirmed exactly {needed} workers')
+            vacancy.extra["renewal_worker_check_done"] = True
+            vacancy.save(update_fields=["extra"])
+            logger.info(f"renewal_worker_check: vacancy {vacancy.pk} confirmed exactly {needed} workers")
 
         handled_vacancies.add(vacancy_id)
 

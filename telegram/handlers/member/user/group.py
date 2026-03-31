@@ -1,19 +1,18 @@
 import time
 
-from telebot.types import ChatMemberUpdated, ChatPermissions, ChatJoinRequest
-from django.utils.translation import gettext as _
+import sentry_sdk
+from telebot.types import ChatJoinRequest, ChatMemberUpdated
 
-from telegram.choices import CallType, CallStatus
-from telegram.models import Group, UserInGroup, Status
+from telegram.choices import CallStatus, CallType
 from telegram.handlers.bot_instance import bot
+from telegram.models import Group, Status, UserInGroup
 from telegram.service.group import GroupService
 from user.models import User
 from user.services import BlockService
-from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE, GENDER_ANY
+from vacancy.choices import GENDER_ANY, STATUS_ACTIVE, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser, VacancyUserCall
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.call_markup import get_worker_join_confirm_markup
-
 from vacancy.services.observers import events
 from vacancy.services.observers.subscriber_setup import vacancy_publisher
 
@@ -24,8 +23,8 @@ def auto_approve(req: ChatJoinRequest):
         user, created = User.objects.update_or_create(
             id=req.from_user.id,
             defaults={
-                'username': req.from_user.username,
-            }
+                "username": req.from_user.username,
+            },
         )
 
         # Admins always pass
@@ -47,14 +46,14 @@ def auto_approve(req: ChatJoinRequest):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text=CallVacancyTelegramTextFormatter.auto_block_message(reason='постійне блокування'),
+                text=CallVacancyTelegramTextFormatter.auto_block_message(reason="постійне блокування"),
             )
             return
         elif BlockService.is_temporarily_blocked(user):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text='Ви не можете брати участь у вакансіях. Ви заблоковані.',
+                text="Ви не можете брати участь у вакансіях. Ви заблоковані.",
             )
             return
         elif not user.is_active:
@@ -62,15 +61,15 @@ def auto_approve(req: ChatJoinRequest):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text='Ви не можете брати участь у вакансіях. Ви заблоковані.',
+                text="Ви не можете брати участь у вакансіях. Ви заблоковані.",
             )
             return
 
         group, _ = Group.objects.update_or_create(
             id=req.chat.id,
             defaults={
-                'title': req.chat.title or '',
-            }
+                "title": req.chat.title or "",
+            },
         )
         vacancy = Vacancy.objects.get(
             status__in=[STATUS_APPROVED, STATUS_ACTIVE],
@@ -88,32 +87,32 @@ def auto_approve(req: ChatJoinRequest):
             GroupService.set_admin_custom_title(
                 chat_id=req.chat.id,
                 user_id=req.from_user.id,
-                custom_title='Роботодавець',
+                custom_title="Роботодавець",
             )
             return
 
         # Check: already in another active vacancy
-        already_in_vacancy = VacancyUser.objects.filter(
-            user=user,
-            status=Status.MEMBER,
-            vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        ).exclude(vacancy=vacancy).exists()
+        already_in_vacancy = (
+            VacancyUser.objects.filter(
+                user=user,
+                status=Status.MEMBER,
+                vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+            )
+            .exclude(vacancy=vacancy)
+            .exists()
+        )
 
         if already_in_vacancy:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
-                req.from_user.id,
-                text="Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну."
+                req.from_user.id, text="Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну."
             )
             return
 
         # Check: group is full
         if vacancy.members.count() >= vacancy.people_count:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
-            bot.send_message(
-                req.from_user.id,
-                text="На жаль, всі місця за цією вакансією вже зайняті."
-            )
+            bot.send_message(req.from_user.id, text="На жаль, всі місця за цією вакансією вже зайняті.")
             return
 
         # Check: gender filter
@@ -121,16 +120,12 @@ def auto_approve(req: ChatJoinRequest):
             if not user.gender:
                 bot.decline_chat_join_request(req.chat.id, req.from_user.id)
                 bot.send_message(
-                    req.from_user.id,
-                    text="Ваша стать не вказана в профілі. Зверніться до адміністратора."
+                    req.from_user.id, text="Ваша стать не вказана в профілі. Зверніться до адміністратора."
                 )
                 return
             if vacancy.gender != user.gender:
                 bot.decline_chat_join_request(req.chat.id, req.from_user.id)
-                bot.send_message(
-                    req.from_user.id,
-                    text="Ця вакансія призначена для іншої статі."
-                )
+                bot.send_message(req.from_user.id, text="Ця вакансія призначена для іншої статі.")
                 return
 
         # All checks passed
@@ -140,12 +135,13 @@ def auto_approve(req: ChatJoinRequest):
         try:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
         except Exception:
-            pass
-    except Exception as e:
+            sentry_sdk.capture_exception()
+    except Exception:
+        sentry_sdk.capture_exception()
         try:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
         except Exception:
-            pass
+            sentry_sdk.capture_exception()
 
 
 @bot.chat_member_handler()
@@ -153,7 +149,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
     user_data = event.new_chat_member.user
     if user_data.is_bot:
         return
-    if event.old_chat_member.status in ['kicked', 'left'] and event.new_chat_member.status in ['kicked', 'left']:
+    if event.old_chat_member.status in ["kicked", "left"] and event.new_chat_member.status in ["kicked", "left"]:
         return
     if event.new_chat_member.status in [Status.ADMINISTRATOR.value]:
         return
@@ -161,15 +157,15 @@ def handle_user_status_change(event: ChatMemberUpdated):
     group, _ = Group.objects.update_or_create(
         id=event.chat.id,
         defaults={
-            'title': event.chat.title or '',
-        }
+            "title": event.chat.title or "",
+        },
     )
 
     user, created = User.objects.update_or_create(
         id=user_data.id,
         defaults={
-            'username': user_data.username,
-        }
+            "username": user_data.username,
+        },
     )
 
     vacancy = Vacancy.objects.get(
@@ -178,8 +174,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
     )
 
     status = event.new_chat_member.status
-    if status not in ['kicked', 'left']:
-
+    if status not in ["kicked", "left"]:
         if status not in Status.values:
             status = Status.MEMBER.value
         if event.new_chat_member.user.id == vacancy.owner.id:
@@ -196,30 +191,27 @@ def handle_user_status_change(event: ChatMemberUpdated):
         if user.is_staff:
             status = Status.ADMINISTRATOR.value
 
-        UserInGroup.objects.update_or_create(
-            user=user,
-            group=group,
-            defaults={'status': status}
-        )
+        UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})
         VacancyUser.objects.update_or_create(
             user=user,
             vacancy=vacancy,
             status=status,
         )
 
-        vacancy_publisher.notify(events.VACANCY_NEW_MEMBER, data={'vacancy': vacancy})
+        vacancy_publisher.notify(events.VACANCY_NEW_MEMBER, data={"vacancy": vacancy})
 
         # Send join-confirm request to the worker (not owner, not staff)
         if not vacancy.owner == user and not user.is_staff:
             vacancy_user = VacancyUser.objects.filter(user=user, vacancy=vacancy).first()
             if vacancy_user:
                 from django.utils import timezone
+
                 VacancyUserCall.objects.update_or_create(
                     vacancy_user=vacancy_user,
                     call_type=CallType.WORKER_JOIN_CONFIRM.value,
                     defaults={
-                        'status': CallStatus.SENT.value,
-                        'created_at': timezone.now(),
+                        "status": CallStatus.SENT.value,
+                        "created_at": timezone.now(),
                     },
                 )
                 try:
@@ -230,7 +222,8 @@ def handle_user_status_change(event: ChatMemberUpdated):
                     )
                 except Exception as e:
                     import logging
-                    logging.warning(f'Failed to send join-confirm to user {user.id}: {e}')
+
+                    logging.warning(f"Failed to send join-confirm to user {user.id}: {e}")
     else:
         UserInGroup.objects.filter(user=user, group=group).delete()
         VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
@@ -240,4 +233,4 @@ def handle_user_status_change(event: ChatMemberUpdated):
         )
 
         if not vacancy.owner == user and not user.is_staff:
-            vacancy_publisher.notify(events.VACANCY_LEFT_MEMBER, data={'vacancy': vacancy})
+            vacancy_publisher.notify(events.VACANCY_LEFT_MEMBER, data={"vacancy": vacancy})
