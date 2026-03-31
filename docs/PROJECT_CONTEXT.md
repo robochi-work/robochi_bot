@@ -879,3 +879,31 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 - `renewal_worker_check_task` — опитування рабочих про продовження
 
 **Коміт:** e6a8c06
+
+## Django Admin — реорганизация (31.03.2026)
+
+### Секции админки (в порядке отображения)
+1. **КОРИСТУВАЧІ** (app: user) — Користувачі, Відгуки користувачів
+2. **ВАКАНСІЇ ТА РОБОТА** (app: vacancy) — Вакансії, Учасники вакансій, Переклички
+3. **МІСТА ТА КАНАЛИ** (app: city) — Міста, Канали
+4. **ТЕЛЕГРАМ ГРУПИ** (app: telegram) — Групи вакансій, Учасники груп, Повідомлення в групах, Повідомлення в каналах
+5. **ОПЛАТА** (app: payment) — Платежі Monobank
+6. **ДОКУМЕНТИ** (app: work) — Тексти угод
+
+### Что сделано
+- Удалены из админки: стандартные Django auth Groups, simplejwt Blacklisted/Outstanding tokens (через `user/admin_site.py` → `unregister()` в `UserConfig.ready()`)
+- Все verbose_name моделей переведены на украинский
+- Порядок секций кастомизирован через monkey-patch `AdminSite.get_app_list` в `user/admin_site.py`
+- Заголовки: site_header="Robochi Bot", site_title="Robochi Admin", index_title="Панель керування"
+
+### Ключевые файлы
+- `user/admin_site.py` — unregister ненужных моделей + порядок секций + заголовки
+- `user/apps.py` → `ready()` импортирует `user.admin_site`
+- `vacancy/admin.py` — VacancyAdmin с 14 actions, StatusDefaultFilter, auto-assign group/channel
+- `user/admin.py` — UserAdmin с 4 инлайнами, 5 фильтрами, auto-sync is_staff↔ADMINISTRATOR role
+- `payment/admin.py` — MonobankPaymentAdmin
+- `telegram/admin.py` — GroupAdmin с actions (kick, invite link, delete messages, permissions)
+- `telegram/admin_actions.py` — переиспользуемые admin actions для групп/каналов
+
+### API app (не удалён)
+Приложение `api/` (DRF + simplejwt + corsheaders + drf_spectacular) оставлено в проекте — используется `MonobankWebhookView` (`api/views/payment.py`) для приёма webhook Monobank. Остальные endpoints (auth, user, vacancy) не используются фронтом (WebApp работает через Django views).
