@@ -1,5 +1,5 @@
-from .commands import bot
-from .group import bot
-from .worker_phone import bot
+from .commands import bot  # noqa: F401
+from .group import bot  # noqa: F811
+from .worker_phone import bot  # noqa: F811
 
-__all__ = ['bot']
+__all__ = ["bot"]

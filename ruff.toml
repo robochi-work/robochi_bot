@@ -27,6 +27,7 @@ ignore = [
 [lint.per-file-ignores]
 "config/settings/*.py" = ["E501", "F401", "F403"]
 "**/settings.py" = ["E501", "F401", "F403"]
+"*/models.py" = ["DJ001"]
 
 [format]
 quote-style = "double"

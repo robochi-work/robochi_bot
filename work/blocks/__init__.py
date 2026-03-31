@@ -1,4 +1,4 @@
-from .registry import block_registry
-from .implementations.channel_preview import ChannelPreviewBlock
-from .implementations.active_vacancies_preview import ActiveVacanciesPreviewBlock
-from .implementations.vacancy_create_form import VacancyCreateFormBlock
+from .implementations.active_vacancies_preview import ActiveVacanciesPreviewBlock as ActiveVacanciesPreviewBlock
+from .implementations.channel_preview import ChannelPreviewBlock as ChannelPreviewBlock
+from .implementations.vacancy_create_form import VacancyCreateFormBlock as VacancyCreateFormBlock
+from .registry import block_registry as block_registry

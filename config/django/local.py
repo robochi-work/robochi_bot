@@ -1,10 +1,9 @@
 import os
-from .base import *
 
+from .base import *  # noqa: F403
 
 DEBUG = True
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["*"]
 
-HOST = os.getenv('HOST', 'localhost')
-BASE_URL: str = f'https://{HOST}'
-
+HOST = os.getenv("HOST", "localhost")
+BASE_URL: str = f"https://{HOST}"
