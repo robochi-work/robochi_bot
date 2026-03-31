@@ -71,6 +71,10 @@ class Vacancy(models.Model):
     )
     extra = models.JSONField(blank=True, default=dict)
     search_active = models.BooleanField(default=False, verbose_name='Search active (button visible)')
+    closed_at = models.DateTimeField(null=True, blank=True)
+    search_stopped_at = models.DateTimeField(null=True, blank=True)
+    first_rollcall_passed = models.BooleanField(default=False)
+    second_rollcall_passed = models.BooleanField(default=False)
 
     def __str__(self):
         return f'<{self.pk}>: {self.people_count}× ({self.get_status_display()})'

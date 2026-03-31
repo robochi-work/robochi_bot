@@ -37,6 +37,15 @@ class MonobankWebhookView(APIView):
 
         invoice_id = data.get('invoiceId', '')
         if invoice_id:
-            process_webhook(invoice_id=invoice_id, webhook_data=data)
+            payment = process_webhook(invoice_id=invoice_id, webhook_data=data)
+            if payment and payment.status == 'success' and payment.vacancy_id:
+                try:
+                    vacancy = payment.vacancy
+                    if not vacancy.extra.get('is_paid'):
+                        vacancy.extra['is_paid'] = True
+                        vacancy.save(update_fields=['extra'])
+                        logger.info(f'Vacancy {vacancy.pk} marked as paid via webhook')
+                except Exception as e:
+                    logger.warning(f'Failed to update vacancy after payment: {e}')
 
         return HttpResponse(status=200)

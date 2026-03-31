@@ -24,6 +24,7 @@ def load_handlers_once():
         from telegram.handlers.callback import call  # noqa
         from telegram.handlers.callback import work_role  # noqa
         from telegram.handlers.messages import group as msg_group  # noqa
+        from telegram.handlers.messages import worker_phone as worker_phone_handler  # noqa
         _handlers_loaded = True
         logger.info("load_handlers_once OK: all handlers registered")
     except Exception as e:

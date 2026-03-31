@@ -16,6 +16,10 @@ class VacancyApprovedChannelObserver(Observer):
 
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data['vacancy']
+        # Skip channel publish for renewal — workers are already in the group;
+        # VacancyRenewalWorkersObserver sends the poll instead.
+        if vacancy.extra.get('pending_worker_renewal'):
+            return
         if vacancy.status != STATUS_CLOSED:
             channel = vacancy.channel
 

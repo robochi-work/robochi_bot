@@ -23,6 +23,9 @@ class CallType(models.TextChoices):
     BEFORE_START = 'before_start', _('Before start')
     START = 'start', _('Start')
     AFTER_START = 'after_start', _('After start')
+    WORKER_JOIN_CONFIRM = 'join_confirm', _('Join confirm')
+    RENEWAL_EMPLOYER = 'renewal_employer', _('Renewal employer')
+    RENEWAL_WORKER = 'renewal_worker', _('Renewal worker')
 
 
 class MessageStatus(models.TextChoices):

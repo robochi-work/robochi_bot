@@ -72,7 +72,9 @@ class VacancyBeforeCallObserver(Observer):
                 try:
                     get_bot().send_message(
                         member.user.id,
-                        'Вас тимчасово заблоковано за неявку на перекличку.\nТермін: 24 години.\nДля розблокування зверніться до адміністратора.',
+                        CallVacancyTelegramTextFormatter.auto_block_message(
+                            reason='ігнорування переклички'
+                        ),
                     )
                 except Exception:
                     pass
@@ -124,7 +126,9 @@ class VacancyStartCallFailObserver(Observer):
             try:
                 get_bot().send_message(
                     call.vacancy_user.user.id,
-                    'Вас тимчасово заблоковано за неявку на перекличку.\nТермін: 24 години.\nДля розблокування зверніться до адміністратора.',
+                    CallVacancyTelegramTextFormatter.auto_block_message(
+                        reason='неявка на перекличку'
+                    ),
                 )
             except Exception:
                 pass
@@ -179,7 +183,9 @@ class VacancyAfterStartCallFailObserver(Observer):
             try:
                 get_bot().send_message(
                     call.vacancy_user.user.id,
-                    'Вас тимчасово заблоковано за неявку на перекличку.\nТермін: 24 години.\nДля розблокування зверніться до адміністратора.',
+                    CallVacancyTelegramTextFormatter.auto_block_message(
+                        reason='неявка на перекличку'
+                    ),
                 )
             except Exception:
                 pass

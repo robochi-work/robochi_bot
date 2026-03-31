@@ -10,7 +10,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.translation import gettext as _
 from telegram.choices import CallStatus, CallType, Status
 from user.models import User, UserFeedback
-from vacancy.choices import STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_CLOSED
+from vacancy.choices import (
+    STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_CLOSED,
+    STATUS_SEARCH_STOPPED, STATUS_AWAITING_PAYMENT,
+)
 from vacancy.forms import VacancyForm, VacancyCallForm, CallTypes, VacancyUserFeedbackForm
 from vacancy.models import Vacancy, VacancyUserCall, VacancyUser
 from vacancy.services.call import create_vacancy_call
@@ -25,6 +28,15 @@ def vacancy_create(request):
     from user.services import BlockService
     if BlockService.is_blocked(request.user):
         return redirect('index')
+
+    # Block new vacancy creation if employer has an unpaid completed vacancy
+    for v in Vacancy.objects.filter(
+        owner=request.user,
+        second_rollcall_passed=True,
+    ).exclude(status=STATUS_CLOSED):
+        if not v.extra.get('is_paid'):
+            messages.warning(request, 'Спершу оплатіть попередню вакансію.')
+            return redirect('vacancy:payment', pk=v.pk)
 
     work_profile = getattr(request.user, 'work_profile', None)
     if request.method == 'POST':
@@ -123,6 +135,14 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
         extra_calls[call_type] = [i.user.id for i in selected_users]
         vacancy.extra.update({'calls': extra_calls})
         vacancy.save(update_fields=['extra'])
+
+        # Mark rollcall as passed — stops reminder task
+        if call_type == CallType.START:
+            vacancy.first_rollcall_passed = True
+            vacancy.save(update_fields=['first_rollcall_passed'])
+        elif call_type == CallType.AFTER_START:
+            vacancy.second_rollcall_passed = True
+            vacancy.save(update_fields=['second_rollcall_passed'])
 
         if rejected_users > 0:
             if call_type == CallType.START:
@@ -294,16 +314,37 @@ def vacancy_my_list(request):
 @login_required
 def vacancy_detail(request, pk):
     """Detail page for a single vacancy with management buttons."""
+    from django.utils import timezone
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     STATUS_LABELS = {
         STATUS_PENDING: 'Очікує модерації',
         STATUS_APPROVED: 'Активна (пошук)',
         STATUS_ACTIVE: 'Йде зміна',
-        'closed': 'Завершена',
+        STATUS_SEARCH_STOPPED: 'Пошук зупинено',
+        STATUS_CLOSED: 'Завершена',
     }
 
     members = vacancy.members.select_related('user')
+
+    can_stop_search = vacancy.search_active
+    can_resume_search = (
+        vacancy.status == STATUS_SEARCH_STOPPED
+        and not vacancy.first_rollcall_passed
+    )
+    can_close = vacancy.status != STATUS_CLOSED
+    show_start_rollcall = (
+        not vacancy.first_rollcall_passed
+        and vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED]
+    )
+    show_end_rollcall = (
+        vacancy.first_rollcall_passed
+        and not vacancy.second_rollcall_passed
+    )
+    rollcall_type = 'start' if show_start_rollcall else ('after_start' if show_end_rollcall else None)
+    is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
+    is_paid = vacancy.extra.get('is_paid', False)
+    show_payment = vacancy.second_rollcall_passed and not is_paid
 
     return render(request, 'vacancy/vacancy_detail.html', {
         'vacancy': vacancy,
@@ -311,15 +352,25 @@ def vacancy_detail(request, pk):
         'members': members,
         'members_count': members.count(),
         'work_profile': getattr(request.user, 'work_profile', None),
+        'can_stop_search': can_stop_search,
+        'can_resume_search': can_resume_search,
+        'can_close': can_close,
+        'show_start_rollcall': show_start_rollcall,
+        'show_end_rollcall': show_end_rollcall,
+        'rollcall_type': rollcall_type,
+        'is_closed_lifecycle': is_closed_lifecycle,
+        'is_paid': is_paid,
+        'show_payment': show_payment,
     })
 
 
 @login_required
 def vacancy_stop_search(request, pk):
-    """Stop search: remove button from channel, notify admins."""
+    """Stop search: set STATUS_SEARCH_STOPPED, remove button from channel."""
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
+        from django.utils import timezone
         from telegram.handlers.bot_instance import bot
         from telegram.models import ChannelMessage
         from service.notifications import NotificationMethod
@@ -341,12 +392,154 @@ def vacancy_stop_search(request, pk):
                     import logging
                     logging.warning(f'Failed to update channel message: {e}')
 
-        # Set status to closed
-        vacancy.status = STATUS_CLOSED
+        vacancy.status = STATUS_SEARCH_STOPPED
         vacancy.search_active = False
-        vacancy.save(update_fields=['status', 'search_active'])
+        vacancy.search_stopped_at = timezone.now()
+        vacancy.save(update_fields=['status', 'search_active', 'search_stopped_at'])
 
     return redirect('vacancy:detail', pk=pk)
+
+
+@login_required
+def vacancy_resume_search(request, pk):
+    """Resume search after stop: re-submit vacancy for moderation."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    work_profile = getattr(request.user, 'work_profile', None)
+
+    if request.method == 'POST':
+        form = VacancyForm(request.POST, work_profile=work_profile, resume_mode=True)
+        if form.is_valid():
+            from datetime import timedelta
+            from django.utils import timezone
+            data = form.cleaned_data
+            is_renewal = vacancy.extra.get('renewal_accepted', False)
+            # address and map_link are readonly in resume_mode — preserve originals
+            vacancy.gender = data['gender']
+            vacancy.people_count = data['people_count']
+            vacancy.has_passport = data['has_passport']
+            vacancy.date_choice = data.get('date_choice', vacancy.date_choice)
+            if is_renewal:
+                # Force date to tomorrow, reset rollcall state for the new day
+                vacancy.date = (timezone.localdate() + timedelta(days=1))
+                vacancy.first_rollcall_passed = False
+                vacancy.second_rollcall_passed = False
+                vacancy.extra['pending_worker_renewal'] = True
+            elif data.get('date'):
+                vacancy.date = data['date']
+            vacancy.start_time = data['start_time']
+            vacancy.end_time = data['end_time']
+            vacancy.payment_amount = data['payment_amount']
+            vacancy.payment_unit = data['payment_unit']
+            vacancy.payment_method = data['payment_method']
+            vacancy.skills = data['skills']
+            vacancy.contact_phone = data.get('contact_phone', '')
+            vacancy.status = STATUS_PENDING
+            vacancy.search_active = False
+            vacancy.search_stopped_at = None  # reset stop timer
+            vacancy.save()
+            vacancy_publisher.notify(events.VACANCY_CREATED, data={'vacancy': vacancy, 'request': request})
+            return redirect('vacancy:detail', pk=pk)
+    else:
+        initial = {
+            'gender': vacancy.gender,
+            'people_count': vacancy.people_count,
+            'has_passport': vacancy.has_passport,
+            'address': vacancy.address,
+            'map_link': vacancy.map_link,
+            'start_time': vacancy.start_time,
+            'end_time': vacancy.end_time,
+            'payment_amount': vacancy.payment_amount,
+            'payment_unit': vacancy.payment_unit,
+            'payment_method': vacancy.payment_method,
+            'skills': vacancy.skills,
+            'contact_phone': vacancy.contact_phone,
+        }
+        form = VacancyForm(initial=initial, work_profile=work_profile, resume_mode=True)
+
+    return render(request, 'vacancy/vacancy_form_page.html', {
+        'form': form,
+        'resume_mode': True,
+        'vacancy': vacancy,
+        'work_profile': work_profile,
+    })
+
+
+@login_required
+def vacancy_close_lifecycle(request, pk):
+    """Start vacancy close: set closed_at timer (Celery will kick users after 3h)."""
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    if vacancy.status != STATUS_CLOSED:
+        from django.utils import timezone
+        from telegram.handlers.bot_instance import bot
+        from telegram.models import ChannelMessage
+        from service.notifications import NotificationMethod
+        from service.telegram_strategy_factory import TelegramStrategyFactory
+        from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+        if vacancy.channel:
+            text = VacancyTelegramTextFormatter(vacancy).for_channel(status='closed')
+            channel_message = ChannelMessage.objects.filter(
+                channel_id=vacancy.channel.id,
+                extra__vacancy_id=vacancy.id,
+            ).order_by('-id').first()
+            if channel_message:
+                strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                try:
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                except Exception as e:
+                    import logging
+                    logging.warning(f'Failed to update channel message on close: {e}')
+
+        vacancy.closed_at = timezone.now()
+        vacancy.search_active = False
+        vacancy.save(update_fields=['closed_at', 'search_active'])
+
+    return redirect('vacancy:detail', pk=pk)
+
+
+@login_required
+def vacancy_payment(request, pk):
+    """Invoice creation and payment page for vacancy owner."""
+    from vacancy.services.invoice import get_vacancy_invoice_amount
+    from payment.models import MonobankPayment
+
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    amount = get_vacancy_invoice_amount(vacancy)  # UAH
+    workers_count = len(vacancy.extra.get('calls', {}).get('after_start', []))
+
+    is_paid = vacancy.extra.get('is_paid') or MonobankPayment.objects.filter(
+        vacancy=vacancy,
+        status=MonobankPayment.Status.SUCCESS,
+    ).exists()
+
+    if request.method == 'POST' and not is_paid:
+        from payment.services import create_invoice
+        try:
+            payment = create_invoice(
+                user=request.user,
+                vacancy=vacancy,
+                amount_kopecks=amount * 100,
+                description=f'Оплата за вакансію #{vacancy.pk} — {vacancy.address}',
+            )
+            return redirect(payment.page_url)
+        except Exception as e:
+            import logging
+            logging.warning(f'Monobank invoice creation failed for vacancy {vacancy.pk}: {e}')
+            return render(request, 'vacancy/vacancy_payment.html', {
+                'vacancy': vacancy,
+                'amount': amount,
+                'workers_count': workers_count,
+                'is_paid': False,
+                'error': 'Помилка створення рахунку. Спробуйте пізніше.',
+            })
+
+    return render(request, 'vacancy/vacancy_payment.html', {
+        'vacancy': vacancy,
+        'amount': amount,
+        'workers_count': workers_count,
+        'is_paid': is_paid,
+    })
 
 
 @login_required

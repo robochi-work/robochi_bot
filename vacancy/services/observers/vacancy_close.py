@@ -3,6 +3,7 @@ import logging
 from typing import Any
 from service.broadcast_service import TelegramBroadcastService
 from service.notifications_impl import TelegramNotifier
+from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from telegram.choices import STATUS_AVAILABLE
 from telegram.handlers.bot_instance import bot
 from telegram.service.group import GroupService
@@ -137,7 +138,7 @@ class VacancyNotifyAdminsObserver(Observer):
         vacancy = data['vacancy']
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
-            text='Вакансия закрыта',
+            text=CallVacancyTelegramTextFormatter(vacancy).vacancy_closed_admin(),
         )
         logging.info('Notify admins - vacancy closed')
 
@@ -150,6 +151,6 @@ class VacancyPaymentDoesNotExistObserver(Observer):
         vacancy = data['vacancy']
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
-            text=f'Вакансия не оплачена по истечению времени\n{vacancy.group.invite_link}',
+            text=CallVacancyTelegramTextFormatter(vacancy).vacancy_payment_no_exist_admin(),
         )
         logging.info('Notify admins - vacancy does not payment exists')

@@ -4,7 +4,7 @@ from django.utils.translation import gettext as _
 from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier, DjangoMessagesNotifier
 from .publisher import Observer
-from ..vacancy_formatter import VacancyTelegramTextFormatter
+from ..call_formatter import CallVacancyTelegramTextFormatter
 
 
 class VacancyCreatedUserObserver(Observer):
@@ -16,7 +16,7 @@ class VacancyCreatedUserObserver(Observer):
         self.notifier.notify(
             recipient=SimpleNamespace(chat_id=vacancy.owner.id,),
             method=NotificationMethod.TEXT,
-            text=VacancyTelegramTextFormatter(vacancy).for_creator_chat(),
+            text=CallVacancyTelegramTextFormatter.vacancy_created_user(),
         )
 
 

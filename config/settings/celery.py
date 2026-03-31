@@ -34,6 +34,14 @@ app.conf.beat_schedule = {
         'task': 'vacancy.tasks.call.close_vacancy_task',
         'schedule': timedelta(seconds=30),
     },
+    'close_lifecycle_timer_task': {
+        'task': 'vacancy.tasks.call.close_lifecycle_timer_task',
+        'schedule': timedelta(seconds=30),
+    },
+    'worker_join_confirm_check_task': {
+        'task': 'vacancy.tasks.call.worker_join_confirm_check_task',
+        'schedule': timedelta(seconds=30),
+    },
     'resend_vacancies_to_channel_task': {
         'task': 'vacancy.tasks.resend.resend_vacancies_to_channel_task',
         'schedule': timedelta(seconds=30),
@@ -41,5 +49,13 @@ app.conf.beat_schedule = {
     'cleanup_inactive_users': {
         'task': 'user.tasks.cleanup_inactive_users_task',
         'schedule': crontab(hour=3, minute=0),  # Every night at 03:00
+    },
+    'renewal_offer_task': {
+        'task': 'vacancy.tasks.call.renewal_offer_task',
+        'schedule': timedelta(seconds=30),
+    },
+    'renewal_worker_check_task': {
+        'task': 'vacancy.tasks.call.renewal_worker_check_task',
+        'schedule': timedelta(seconds=30),
     },
 }

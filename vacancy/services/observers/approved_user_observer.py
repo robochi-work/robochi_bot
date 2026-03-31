@@ -1,9 +1,10 @@
 from types import SimpleNamespace
 from typing import Any
-from django.utils.translation import gettext as _
 from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
 from .publisher import Observer
+from ..call_formatter import CallVacancyTelegramTextFormatter
+from ..call_markup import get_vacancy_my_list_markup
 
 
 class VacancyApprovedUserObserver(Observer):
@@ -16,5 +17,6 @@ class VacancyApprovedUserObserver(Observer):
         self.notifier.notify(
             recipient=SimpleNamespace(chat_id=vacancy.owner.id,),
             method=NotificationMethod.TEXT,
-            text=_('Your vacancy has been moderated successfully'),
+            text=CallVacancyTelegramTextFormatter.vacancy_approved_user(),
+            reply_markup=get_vacancy_my_list_markup(),
         )

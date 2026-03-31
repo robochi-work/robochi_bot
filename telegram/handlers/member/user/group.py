@@ -3,13 +3,16 @@ import time
 from telebot.types import ChatMemberUpdated, ChatPermissions, ChatJoinRequest
 from django.utils.translation import gettext as _
 
+from telegram.choices import CallType, CallStatus
 from telegram.models import Group, UserInGroup, Status
 from telegram.handlers.bot_instance import bot
 from telegram.service.group import GroupService
 from user.models import User
 from user.services import BlockService
 from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE, GENDER_ANY
-from vacancy.models import Vacancy, VacancyUser
+from vacancy.models import Vacancy, VacancyUser, VacancyUserCall
+from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+from vacancy.services.call_markup import get_worker_join_confirm_markup
 
 from vacancy.services.observers import events
 from vacancy.services.observers.subscriber_setup import vacancy_publisher
@@ -44,14 +47,14 @@ def auto_approve(req: ChatJoinRequest):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text="Вас постійно заблоковано в системі. Зверніться до адміністратора.",
+                text=CallVacancyTelegramTextFormatter.auto_block_message(reason='постійне блокування'),
             )
             return
         elif BlockService.is_temporarily_blocked(user):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text="Вас тимчасово заблоковано. Ви не можете брати участь у вакансіях. Зверніться до адміністратора для розблокування.",
+                text='Ви не можете брати участь у вакансіях. Ви заблоковані.',
             )
             return
         elif not user.is_active:
@@ -59,7 +62,7 @@ def auto_approve(req: ChatJoinRequest):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             bot.send_message(
                 req.from_user.id,
-                text="Ви заблоковані в системі. Зверніться до адміністратора.",
+                text='Ви не можете брати участь у вакансіях. Ви заблоковані.',
             )
             return
 
@@ -205,6 +208,29 @@ def handle_user_status_change(event: ChatMemberUpdated):
         )
 
         vacancy_publisher.notify(events.VACANCY_NEW_MEMBER, data={'vacancy': vacancy})
+
+        # Send join-confirm request to the worker (not owner, not staff)
+        if not vacancy.owner == user and not user.is_staff:
+            vacancy_user = VacancyUser.objects.filter(user=user, vacancy=vacancy).first()
+            if vacancy_user:
+                from django.utils import timezone
+                VacancyUserCall.objects.update_or_create(
+                    vacancy_user=vacancy_user,
+                    call_type=CallType.WORKER_JOIN_CONFIRM.value,
+                    defaults={
+                        'status': CallStatus.SENT.value,
+                        'created_at': timezone.now(),
+                    },
+                )
+                try:
+                    bot.send_message(
+                        chat_id=user.id,
+                        text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
+                        reply_markup=get_worker_join_confirm_markup(vacancy),
+                    )
+                except Exception as e:
+                    import logging
+                    logging.warning(f'Failed to send join-confirm to user {user.id}: {e}')
     else:
         UserInGroup.objects.filter(user=user, group=group).delete()
         VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)

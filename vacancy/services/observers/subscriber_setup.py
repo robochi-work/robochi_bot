@@ -18,6 +18,7 @@ from .approved_user_observer import VacancyApprovedUserObserver
 from .refind_observer import VacancyRefindAdminObserver, VacancyRefindChannelObserver
 from .rejected_user_observer import VacancyRejectedUserObserver
 from .resend_channel_observer import VacancyTopResendChannelObserver
+from .renewal_observer import VacancyRenewalWorkersObserver
 from .vacancy_close import VacancyNotifyAdminsObserver, VacancyKickGroupUsersObserver, \
     VacancyDeleteMessagesObserver, VacancyPaymentDoesNotExistObserver, VacancyGroupFeeStatusObserver, \
     VacancyStatusClosedObserver, VacancyDeleteMessagesChannelObserver
@@ -30,6 +31,7 @@ vacancy_publisher.subscribe(VACANCY_CREATED, VacancyCreatedAdminObserver(telegra
 vacancy_publisher.subscribe(VACANCY_APPROVED, VacancyApprovedUserObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_APPROVED, VacancyApprovedChannelObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_APPROVED, VacancyApprovedGroupObserver(telegram_notifier))
+vacancy_publisher.subscribe(VACANCY_APPROVED, VacancyRenewalWorkersObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_REJECTED, VacancyRejectedUserObserver(telegram_notifier))
 
 vacancy_publisher.subscribe(VACANCY_NEW_MEMBER, VacancyIsFullObserver(telegram_notifier))

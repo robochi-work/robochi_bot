@@ -165,7 +165,15 @@ class VacancyForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         self.work_profile = kwargs.pop('work_profile', None)
+        resume_mode = kwargs.pop('resume_mode', False)
         super().__init__(*args, **kwargs)
+
+        if resume_mode:
+            self.fields['address'].widget.attrs['readonly'] = True
+            self.fields['address'].widget.attrs['class'] = 'readonly-field'
+            if 'map_link' in self.fields:
+                self.fields['map_link'].widget.attrs['readonly'] = True
+                self.fields['map_link'].widget.attrs['class'] = 'readonly-field'
 
         # Configure city field based on multi_city_enabled
         if self.work_profile and self.work_profile.multi_city_enabled:

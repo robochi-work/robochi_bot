@@ -36,10 +36,14 @@ STATUS_APPROVED = 'approved'
 STATUS_ACTIVE = 'active'
 STATUS_REJECTED = 'rejected'
 STATUS_CLOSED = 'closed'
+STATUS_SEARCH_STOPPED = 'stopped'
+STATUS_AWAITING_PAYMENT = 'awaiting'
 STATUS_CHOICES = [
     (STATUS_PENDING, _('Pending')),
     (STATUS_APPROVED, _('Approved')),
     (STATUS_REJECTED, _('Rejected')),
     (STATUS_ACTIVE, _('Active')),
     (STATUS_CLOSED, _('Closed')),
+    (STATUS_SEARCH_STOPPED, _('Search stopped')),
+    (STATUS_AWAITING_PAYMENT, _('Awaiting payment')),
 ]
