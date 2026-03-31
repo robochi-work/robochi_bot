@@ -205,13 +205,32 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 
 Интеграция: /start хэндлер, chat_join_request хэндлер, vacancy_create view, worker/employer dashboard шаблоны. Django Admin: UserBlockInline + BlockedFilter + display_block_status. ЛК Админа: модальное окно блокировки на admin_vacancy_card.
 
+## Реалізовано та підтверджено в роботі
+
+- **Жизненный цикл вакансии (ЖЦВ):** полная реализация по ТЗ
+  - Новые статусы: STATUS_SEARCH_STOPPED, STATUS_AWAITING_PAYMENT
+  - Новые поля: closed_at, search_stopped_at, first_rollcall_passed, second_rollcall_passed
+  - Керування вакансією: единая страница с переключающимися кнопками (ЗУПИНИТИ/ПОНОВИТИ ПОШУК, ПЕРЕКЛИЧКА ПОЧАТОК/КІНЕЦЬ)
+  - ЗАКРИТИ ВАКАНСІЮ: 3ч таймер → обнуление группы (close_lifecycle_timer_task)
+  - Подтверждение рабочего: 5 мин таймер + напоминания + запрос телефона (worker_join_confirm)
+  - Автоостановка поиска при начале рабочего времени
+  - Переклички заказчика: напоминания каждые 5 мин × 6 → эскалация админу
+  - Оплата: vacancy_payment view → create_invoice → Monobank redirect → webhook → is_paid
+  - Продление на завтра: опрос заказчика → форма (дата=завтра) → модерация → опрос рабочих → сравнение количества
+  - Все уведомления на украинском языке (call_formatter.py — централизованные тексты)
+  - Celery tasks: close_lifecycle_timer_task, worker_join_confirm_check_task, renewal_offer_task, renewal_worker_check_task
+
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом
-3. ЛК Employer — Фаза 2: управление заявками из ЛК (зупинити/закрити, повторний пошук, учасники групи, оплата monobank)
+3. ЛК Employer — Фаза 2: управление заявками из ЛК — **DONE** (ЖЦВ)
 4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансії
-5. Ротация вакансий
-6. Monobank інтеграція
+5. Ротация вакансий — **DONE**
+6. Monobank інтеграція — **DONE** (ЖЦВ: vacancy_payment + webhook)
+7. Переклички рабочих — **DONE** (ЖЦВ)
+8. Переклички заказчика — **DONE** (ЖЦВ)
+9. Повторный поиск / продление на завтра — **DONE** (ЖЦВ)
+10. Уведомления по ТЗ — **DONE** (call_formatter.py)
 
 ### Сессия 18.03.2026 (CSS)
 1. Полная переработка CSS — единый стиль с robochi.work (neumorphism, стальной градиент).
@@ -805,3 +824,58 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 1. ЛК Worker — блокировка UI при блокуванні
 2. Ротація вакансій (Celery task кожні 5 хв)
 3. Monobank оплата — UI в ЛК
+
+### Сессия 30.03.2026 — ЖЦВ: повна реалізація жизненного цикла вакансии
+
+**Реалізовано:**
+
+1. **Нові статуси вакансії:**
+   - `STATUS_SEARCH_STOPPED` — пошук зупинено заказчиком
+   - `STATUS_AWAITING_PAYMENT` — очікує оплати (після завершення вакансії)
+
+2. **Нові поля Vacancy:**
+   - `closed_at` — час закриття вакансії
+   - `search_stopped_at` — час зупинки пошуку
+   - `first_rollcall_passed` — перша перекличка пройдена (bool)
+   - `second_rollcall_passed` — друга перекличка пройдена (bool)
+
+3. **Керування вакансією (vacancy_detail):** — єдина сторінка з кнопками що перемикаються:
+   - ЗУПИНИТИ ПОШУК / ПОНОВИТИ ПОШУК (залежно від статусу)
+   - ПЕРЕКЛИЧКА ПОЧАТОК / ПЕРЕКЛИЧКА КІНЕЦЬ (залежно від first_rollcall_passed)
+
+4. **ЗАКРИТИ ВАКАНСІЮ** — 3-годинний таймер (`close_lifecycle_timer_task`):
+   - Після спрацювання → обнуление групи (status=available), видалення учасників
+   - Відправка повідомлень всім учасникам про закриття
+
+5. **Підтвердження рабочого (worker_join_confirm):**
+   - 5 хв таймер після вступу в групу
+   - Нагадування Employer якщо не підтверджено
+   - Запит телефону у Worker при підтвердженні вакансії
+   - Celery task: `worker_join_confirm_check_task`
+
+6. **Автозупинка пошуку** — при початку робочого часу (start_call) пошук зупиняється автоматично
+
+7. **Переклички заказчика:**
+   - Нагадування кожні 5 хв × 6 разів
+   - Ескалація адміністратору після 6 спроб без відповіді
+
+8. **Оплата (Monobank UI):**
+   - `vacancy_payment` view → `create_invoice()` → редирект на Monobank
+   - Webhook → `process_webhook()` → `is_paid=True` → розблокування Employer
+
+9. **Продовження на завтра:**
+   - Опитування заказчика після завершення вакансії
+   - Форма з датою=завтра (дублює поточну вакансію)
+   - Модерація нової вакансії
+   - Опитування рабочих — бажають продовжити?
+   - Порівняння кількості підтверджених рабочих
+
+10. **call_formatter.py** — централізовані тексти всіх сповіщень ЖЦВ на українській мові
+
+**Celery tasks (vacancy/tasks/):**
+- `close_lifecycle_timer_task` — закриття вакансії через 3 год
+- `worker_join_confirm_check_task` — підтвердження рабочого (5 хв)
+- `renewal_offer_task` — пропозиція продовження заказчику
+- `renewal_worker_check_task` — опитування рабочих про продовження
+
+**Коміт:** e6a8c06
