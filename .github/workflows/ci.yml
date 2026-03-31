@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: test_robochi
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-django factory-boy pytest-timeout
+
+      - name: Run tests
+        run: pytest tests/ -x --timeout=60
+        env:
+          # --- Django ---
+          DJANGO_SETTINGS_MODULE: config.django.local
+          DJANGO_SECRET_KEY: ci-test-secret-key-not-used-in-production
+
+          # --- Database (individual vars, not DATABASE_URL) ---
+          POSTGRESQL_NAME: test_robochi
+          POSTGRESQL_USER: test_user
+          POSTGRESQL_PASSWORD: test_pass
+          POSTGRESQL_HOST: localhost
+          POSTGRESQL_PORT: 5432
+
+          # --- Telegram bot (token must contain ":" — validated in telegram_bot.py) ---
+          TELEGRAM_BOT_TOKEN: 0:fake_token_for_ci_tests
+          TELEGRAM_WEBHOOK_SECRET: fake_webhook_secret_for_ci
+
+          # --- Misc (optional, safe defaults) ---
+          BASE_URL: https://ci.example.com
+          ADMIN_TELEGRAM_IDS: ''
+          MONOBANK_API_TOKEN: ''
+          SENTRY_DSN: ''
