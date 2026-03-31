@@ -109,8 +109,8 @@ class VacancyUser(models.Model):
     created_at = models.DateTimeField(default=timezone.now, blank=True, null=True, verbose_name=_('Created at'))
 
     class Meta:
-        verbose_name = _('User in vacancy')
-        verbose_name_plural = _('Users in vacancy')
+        verbose_name = _('Учасник вакансії')
+        verbose_name_plural = _('Учасники вакансій')
 
 class VacancyUserCall(models.Model):
     vacancy_user = models.ForeignKey(VacancyUser, on_delete=models.CASCADE, verbose_name=_('Vacancy user'))
@@ -129,8 +129,8 @@ class VacancyUserCall(models.Model):
     created_at = models.DateTimeField(default=timezone.now, blank=True, null=True, verbose_name=_('Created at'))
 
     class Meta:
-        verbose_name = _('User call in vacancy')
-        verbose_name_plural = _('User calls in vacancy')
+        verbose_name = _('Перекличка')
+        verbose_name_plural = _('Переклички')
 
 
 class VacancyStatusHistory(models.Model):

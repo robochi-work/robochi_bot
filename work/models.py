@@ -59,5 +59,5 @@ class AgreementText(models.Model):
         return f"{self.get_role_display()}"
 
     class Meta:
-        verbose_name = _("Agreement text")
-        verbose_name_plural = _("Agreement texts")
+        verbose_name = _("Текст угоди")
+        verbose_name_plural = _("Тексти угод")

@@ -40,8 +40,8 @@ class ChannelMessage(models.Model):
         return f"{self.channel.title} [{self.message_id}]"
 
     class Meta:
-        verbose_name = _("Channel message")
-        verbose_name_plural = _("Channel messages")
+        verbose_name = _("Повідомлення в каналі")
+        verbose_name_plural = _("Повідомлення в каналах")
 
 class Group(Chat):
     has_bot_administrator = models.BooleanField(_('has bot administrator'), default=False)
@@ -63,8 +63,8 @@ class Group(Chat):
         return f"Group: {self.title}"
 
     class Meta:
-        verbose_name = _("Group")
-        verbose_name_plural = _("Groups")
+        verbose_name = _("Група вакансії")
+        verbose_name_plural = _("Групи вакансій")
 
 class GroupMessage(models.Model):
     group = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='messages', verbose_name=_('Group'))
@@ -85,8 +85,8 @@ class GroupMessage(models.Model):
         return f"{self.group.title}"
 
     class Meta:
-        verbose_name = _("Group message")
-        verbose_name_plural = _("Group messages")
+        verbose_name = _("Повідомлення в групі")
+        verbose_name_plural = _("Повідомлення в групах")
 
 class UserInGroup(models.Model):
     user = models.ForeignKey('user.User', on_delete=models.CASCADE, verbose_name=_('User'))
@@ -100,7 +100,7 @@ class UserInGroup(models.Model):
 
     class Meta:
         unique_together = ('user', 'group')
-        verbose_name = _("User in group")
-        verbose_name_plural = _("User in groups")
+        verbose_name = _("Учасник групи")
+        verbose_name_plural = _("Учасники груп")
 
 

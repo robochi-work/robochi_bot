@@ -39,8 +39,8 @@ class MonobankPayment(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        verbose_name = 'Monobank Payment'
-        verbose_name_plural = 'Monobank Payments'
+        verbose_name = 'Платіж Monobank'
+        verbose_name_plural = 'Платежі Monobank'
 
     def __str__(self):
         return f"Invoice {self.invoice_id} — {self.status} — {self.amount/100:.2f} UAH"

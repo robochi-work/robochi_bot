@@ -339,3 +339,4 @@ class VacancyUserAdmin(admin.ModelAdmin):
 @admin.register(VacancyUserCall)
 class VacancyUserCallAdmin(admin.ModelAdmin):
     list_display = ('vacancy_user', 'status', 'call_type', 'created_at',)
+
