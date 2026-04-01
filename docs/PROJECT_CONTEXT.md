@@ -129,6 +129,20 @@ AuthIdentity модель (user/models.py) — связывает User с про
 
 ## История изменений
 
+### 01.04.2026 — check_system: фикс констант + регрессионные тесты
+
+1. **Баг**: `check_system.py` использовал `Group.STATUS_AVAILABLE` и `Vacancy.STATUS_APPROVED` как атрибуты классов моделей — они там не определены. Правильно: импортировать из `telegram/choices.py` и `vacancy/choices.py`.
+2. **Фикс**: `_check_groups()` теперь `from telegram.choices import STATUS_AVAILABLE`, `_check_approved_vacancies()` — `from vacancy.choices import STATUS_APPROVED`.
+3. **Регрессионные тесты**: `work/tests.py` — 5 тестов без `@pytest.mark.django_db`, с мокированием queryset через `unittest.mock.patch`. Запускаются на продакшн сервере без привилегий CREATEDB.
+4. **Каналы**: исправлены 2 канала без `invite_link`/`has_bot_administrator` — добавлены вручную через Django Admin.
+5. **check_system** теперь проходит все 7 проверок зелёным.
+
+**Шаблон регрессионных тестов (для будущих багов):**
+- Тест вызывает функцию с замоканным queryset
+- Проверяет что не падает с AttributeError/ImportError
+- Не требует создания тестовой БД
+- Запускать: `python3 -m pytest work/tests.py -v`
+
 ### 19.03.2026 — Локализация (i18n) — полная настройка
 - Все hardcoded тексты заменены на gettext/_() и {% trans %}: telegram_markup_factory.py (5 строк, 3 были на русском), common.py (кнопка 'Подтвердить'), commands.py (приветствие + MenuButton), user_phone_number.py (приветствие + MenuButton), pre_call.html (текстовый блок)
 - set_commands.py переписан: setup_bot_commands() регистрирует команды на uk/ru/default
