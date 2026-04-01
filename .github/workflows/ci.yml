@@ -49,7 +49,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest pytest-django factory-boy pytest-timeout
+        run: pip install -r requirements.txt && pip install pytest pytest-django factory-boy pytest-timeout python-json-logger
 
       - name: Run tests
         run: pytest tests/ -x --timeout=60
