@@ -17,14 +17,13 @@ logger = logging.getLogger(__name__)
 class GroupService:
     @classmethod
     def update_invite_link(cls, group: Group) -> Group:
-        invite = bot.create_chat_invite_link(
-            chat_id=group.id,
-            creates_join_request=True,
-            expire_date=None,
-            member_limit=0,
-        )
-        group.invite_link = invite.invite_link
-        group.save(update_fields=["invite_link"])
+        """Read the existing primary invite link from Telegram (do NOT create a new one)."""
+        chat = bot.get_chat(group.id)
+        if chat.invite_link:
+            group.invite_link = chat.invite_link
+            group.save(update_fields=["invite_link"])
+        else:
+            logger.warning("group_no_invite_link", extra={"group_id": group.id})
         return group
 
     @classmethod
