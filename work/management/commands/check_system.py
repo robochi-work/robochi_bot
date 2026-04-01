@@ -47,9 +47,10 @@ def _check_channels() -> CheckResult:
 
 
 def _check_groups() -> CheckResult:
+    from telegram.choices import STATUS_AVAILABLE
     from telegram.models import Group
 
-    bad = Group.objects.filter(status=Group.STATUS_AVAILABLE).filter(Q(invite_link__isnull=True) | Q(invite_link=""))
+    bad = Group.objects.filter(status=STATUS_AVAILABLE).filter(Q(invite_link__isnull=True) | Q(invite_link=""))
     if bad.exists():
         ids = list(bad.values_list("id", flat=True)[:10])
         return CheckResult(
@@ -74,9 +75,10 @@ def _check_vacancy_user_orphans() -> CheckResult:
 
 
 def _check_approved_vacancies() -> CheckResult:
+    from vacancy.choices import STATUS_APPROVED
     from vacancy.models import Vacancy
 
-    bad = Vacancy.objects.filter(status=Vacancy.STATUS_APPROVED).filter(Q(group__isnull=True) | Q(channel__isnull=True))
+    bad = Vacancy.objects.filter(status=STATUS_APPROVED).filter(Q(group__isnull=True) | Q(channel__isnull=True))
     if bad.exists():
         ids = list(bad.values_list("id", flat=True)[:10])
         return CheckResult(
