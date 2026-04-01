@@ -1,13 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
+
 class Observer(ABC):
     @abstractmethod
     def update(self, event: str, data: dict[str, Any]) -> None:
         raise NotImplementedError()
 
-class BasePublisher:
 
+class BasePublisher:
     def __init__(self):
         self._subscribers: dict[str, list[Observer]] = {}
 
@@ -22,5 +23,5 @@ class BasePublisher:
         for observer in self._subscribers.get(event, []):
             observer.update(event, data)
 
-class VacancyEventPublisher(BasePublisher):
-    ...
+
+class VacancyEventPublisher(BasePublisher): ...

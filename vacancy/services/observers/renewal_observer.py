@@ -1,9 +1,10 @@
 from types import SimpleNamespace
 from typing import Any
 
-from .publisher import Observer
 from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
+
+from .publisher import Observer
 
 
 class VacancyRenewalWorkersObserver(Observer):
@@ -16,8 +17,8 @@ class VacancyRenewalWorkersObserver(Observer):
         self.notifier = notifier
 
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
-        if not vacancy.extra.get('pending_worker_renewal'):
+        vacancy = data["vacancy"]
+        if not vacancy.extra.get("pending_worker_renewal"):
             return
 
         from telegram.choices import CallStatus, CallType
@@ -25,7 +26,7 @@ class VacancyRenewalWorkersObserver(Observer):
         from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
         from vacancy.services.call_markup import get_renewal_worker_markup
 
-        members = vacancy.members.select_related('user')
+        members = vacancy.members.select_related("user")
         if not members.exists():
             return
 
@@ -47,5 +48,5 @@ class VacancyRenewalWorkersObserver(Observer):
             )
 
         # Clear the flag — poll has been sent
-        vacancy.extra['pending_worker_renewal'] = False
-        vacancy.save(update_fields=['extra'])
+        vacancy.extra["pending_worker_renewal"] = False
+        vacancy.save(update_fields=["extra"])

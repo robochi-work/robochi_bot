@@ -1,12 +1,12 @@
-from django.core.handlers.wsgi import WSGIRequest
-from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
+from django.core.handlers.wsgi import WSGIRequest
+from django.shortcuts import redirect, render
 
 from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
 from user.services import BlockService
-from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE
+from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
 from work.choices import WorkProfileRole
@@ -41,8 +41,7 @@ def index(request: WSGIRequest):
         # Current active vacancy (worker is member of)
         current_vacancy = None
         vacancy_user = (
-            VacancyUser.objects
-            .filter(user=user, status=Status.MEMBER)
+            VacancyUser.objects.filter(user=user, status=Status.MEMBER)
             .select_related("vacancy", "vacancy__group")
             .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
             .first()
@@ -92,7 +91,7 @@ def index(request: WSGIRequest):
         # Multi-city: collect all city channels
         city_channels = None
         if profile.multi_city_enabled:
-            allowed_ids = list(profile.allowed_cities.values_list('id', flat=True))
+            allowed_ids = list(profile.allowed_cities.values_list("id", flat=True))
             if profile.city_id:
                 allowed_ids.append(profile.city_id)
             city_channels = list(
@@ -101,7 +100,7 @@ def index(request: WSGIRequest):
                     is_active=True,
                     has_bot_administrator=True,
                     invite_link__isnull=False,
-                ).select_related('city')
+                ).select_related("city")
             )
 
         is_blocked = BlockService.is_blocked(user)

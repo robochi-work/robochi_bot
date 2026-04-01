@@ -1,10 +1,13 @@
 from types import SimpleNamespace
 from typing import Any
+
 from django.utils.translation import gettext as _
+
 from service.notifications import NotificationMethod
-from service.notifications_impl import TelegramNotifier, DjangoMessagesNotifier
-from .publisher import Observer
+from service.notifications_impl import DjangoMessagesNotifier, TelegramNotifier
+
 from ..call_formatter import CallVacancyTelegramTextFormatter
+from .publisher import Observer
 
 
 class VacancyCreatedUserObserver(Observer):
@@ -12,9 +15,11 @@ class VacancyCreatedUserObserver(Observer):
         self.notifier = notifier
 
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
         self.notifier.notify(
-            recipient=SimpleNamespace(chat_id=vacancy.owner.id,),
+            recipient=SimpleNamespace(
+                chat_id=vacancy.owner.id,
+            ),
             method=NotificationMethod.TEXT,
             text=CallVacancyTelegramTextFormatter.vacancy_created_user(),
         )
@@ -25,12 +30,12 @@ class VacancyCreatedUserDjangoObserver(Observer):
         self.notifier = notifier
 
     def update(self, event: str, data: dict[str, Any]) -> None:
-        request = data.get('request')
+        request = data.get("request")
 
         if request:
             self.notifier.notify(
                 recipient=request,
                 method=NotificationMethod.TEXT,
-                level='success',
-                text=_('Your vacancy has been successfully created and sent for moderation!')
+                level="success",
+                text=_("Your vacancy has been successfully created and sent for moderation!"),
             )

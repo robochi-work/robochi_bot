@@ -1,18 +1,18 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
-from parler.models import TranslatedFields, TranslatableModel
+from parler.models import TranslatableModel, TranslatedFields
 
 
 class City(TranslatableModel):
     translations = TranslatedFields(
-        name=models.CharField(_('City name'), max_length=255, null=True, blank=True),
+        name=models.CharField(_("City name"), max_length=255, null=True, blank=True),
     )
 
     def __str__(self):
         try:
-            return f'{self.name}' if self.name else f'City #{self.pk}'
+            return f"{self.name}" if self.name else f"City #{self.pk}"
         except Exception:
-            return f'City #{self.pk}'
+            return f"City #{self.pk}"
 
     class Meta:
         verbose_name = _("City")

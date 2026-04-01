@@ -1,5 +1,5 @@
 from .notifications import NotificationMethod
-from .telegram_strategies import TextStrategy, PhotoStrategy, InvoiceStrategy
+from .telegram_strategies import InvoiceStrategy, PhotoStrategy, TextStrategy
 
 
 class TelegramStrategyFactory:
@@ -13,7 +13,7 @@ class TelegramStrategyFactory:
     def get_strategy(cls, method: NotificationMethod):
         strategy = cls._registry.get(method)
         if not strategy:
-            raise ValueError(f'No strategy registered for {method}')
+            raise ValueError(f"No strategy registered for {method}")
         return strategy
 
     @classmethod

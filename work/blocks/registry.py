@@ -8,7 +8,7 @@ class BlockRegistry:
     def register(self, block_cls):
         instance = block_cls()
         self._blocks.append(instance)
-        self._blocks.sort(key=lambda b: getattr(b, 'order', 0))
+        self._blocks.sort(key=lambda b: getattr(b, "order", 0))
         return block_cls
 
     def get_visible_blocks(self, request: WSGIRequest):

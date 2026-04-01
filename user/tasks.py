@@ -3,8 +3,8 @@ import time
 from datetime import timedelta
 
 from celery import shared_task
-from django.utils import timezone
 from django.db.models import Max
+from django.utils import timezone
 
 from telegram.handlers.bot_instance import bot
 
@@ -18,8 +18,8 @@ def check_telegram_deleted(telegram_id: int) -> bool:
     """Check if Telegram account is deleted. Returns True if deleted."""
     try:
         chat = bot.get_chat(telegram_id)
-        first_name = getattr(chat, 'first_name', '') or ''
-        if first_name.lower().strip() in ['deleted account', 'deleted']:
+        first_name = getattr(chat, "first_name", "") or ""
+        if first_name.lower().strip() in ["deleted account", "deleted"]:
             return True
         return False
     except Exception:
@@ -28,19 +28,18 @@ def check_telegram_deleted(telegram_id: int) -> bool:
 
 def get_last_activity_date(user):
     """Get user's last meaningful activity date."""
-    from vacancy.models import VacancyUser, Vacancy
-    from work.models import UserWorkProfile
+    from vacancy.models import Vacancy, VacancyUser
     from work.choices import WorkProfileRole
 
-    profile = getattr(user, 'work_profile', None)
+    profile = getattr(user, "work_profile", None)
     last_date = None
 
     if profile and profile.role == WorkProfileRole.WORKER:
-        result = VacancyUser.objects.filter(user=user).aggregate(last=Max('created_at'))
-        last_date = result.get('last')
+        result = VacancyUser.objects.filter(user=user).aggregate(last=Max("created_at"))
+        last_date = result.get("last")
     elif profile and profile.role == WorkProfileRole.EMPLOYER:
-        result = Vacancy.objects.filter(owner=user).aggregate(last=Max('date'))
-        last_date = result.get('last')
+        result = Vacancy.objects.filter(owner=user).aggregate(last=Max("date"))
+        last_date = result.get("last")
         if last_date:
             last_date = timezone.make_aware(
                 timezone.datetime.combine(last_date, timezone.datetime.min.time()),
@@ -60,15 +59,14 @@ def cleanup_inactive_users_task():
 
     cutoff = timezone.now() - timedelta(days=INACTIVE_DAYS)
     user_ids = list(
-        User.objects.filter(is_active=True, is_staff=False, is_superuser=False)
-        .values_list('id', flat=True)
+        User.objects.filter(is_active=True, is_staff=False, is_superuser=False).values_list("id", flat=True)
     )
 
     deleted_count = 0
     inactive_count = 0
     total = len(user_ids)
 
-    logger.info(f'Cleanup started: checking {total} users')
+    logger.info(f"Cleanup started: checking {total} users")
 
     for i, user_id in enumerate(user_ids):
         try:
@@ -78,9 +76,9 @@ def cleanup_inactive_users_task():
             if user.telegram_id:
                 if check_telegram_deleted(user.telegram_id):
                     user.is_active = False
-                    user.save(update_fields=['is_active'])
+                    user.save(update_fields=["is_active"])
                     deleted_count += 1
-                    logger.info(f'Deactivated deleted Telegram account: user {user.id} (@{user.username})')
+                    logger.info(f"Deactivated deleted Telegram account: user {user.id} (@{user.username})")
                     continue
                 time.sleep(TELEGRAM_API_DELAY)
 
@@ -88,17 +86,17 @@ def cleanup_inactive_users_task():
             last_activity = get_last_activity_date(user)
             if last_activity and last_activity < cutoff:
                 user.is_active = False
-                user.save(update_fields=['is_active'])
+                user.save(update_fields=["is_active"])
                 inactive_count += 1
-                logger.info(f'Deactivated inactive user: {user.id} (@{user.username}), last activity: {last_activity}')
+                logger.info(f"Deactivated inactive user: {user.id} (@{user.username}), last activity: {last_activity}")
 
         except User.DoesNotExist:
             continue
         except Exception as e:
-            logger.warning(f'Error checking user {user.id}: {e}')
+            logger.warning(f"Error checking user {user.id}: {e}")
 
         # Progress log every 500 users
         if (i + 1) % 500 == 0:
-            logger.info(f'Cleanup progress: {i + 1}/{total}')
+            logger.info(f"Cleanup progress: {i + 1}/{total}")
 
-    logger.info(f'Cleanup complete: {deleted_count} deleted accounts, {inactive_count} inactive users deactivated')
+    logger.info(f"Cleanup complete: {deleted_count} deleted accounts, {inactive_count} inactive users deactivated")

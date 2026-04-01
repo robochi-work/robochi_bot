@@ -3,41 +3,42 @@ from django.utils.translation import gettext_lazy as _
 
 
 class Status(models.TextChoices):
-    CREATOR = 'creator', _('Creator')
-    ADMINISTRATOR = 'administrator', _('Administrator')
-    OWNER = 'owner', _('Owner')
-    MEMBER = 'member', _('Member')
-    RESTRICTED = 'restricted', _('Restricted')
-    LEFT = 'left', _('Left')
-    KICKED = 'kicked', _('Kicked')
-    BAN = 'ban', _('Ban')
-    UNBAN = 'unban', _('Unban')
+    CREATOR = "creator", _("Creator")
+    ADMINISTRATOR = "administrator", _("Administrator")
+    OWNER = "owner", _("Owner")
+    MEMBER = "member", _("Member")
+    RESTRICTED = "restricted", _("Restricted")
+    LEFT = "left", _("Left")
+    KICKED = "kicked", _("Kicked")
+    BAN = "ban", _("Ban")
+    UNBAN = "unban", _("Unban")
+
 
 class CallStatus(models.TextChoices):
-    CREATED = 'created', _('Created')
-    SENT = 'sent', _('Sent')
-    CONFIRM = 'confirm', _('Confirm')
-    REJECT = 'reject', _('Reject')
+    CREATED = "created", _("Created")
+    SENT = "sent", _("Sent")
+    CONFIRM = "confirm", _("Confirm")
+    REJECT = "reject", _("Reject")
+
 
 class CallType(models.TextChoices):
-    BEFORE_START = 'before_start', _('Before start')
-    START = 'start', _('Start')
-    AFTER_START = 'after_start', _('After start')
-    WORKER_JOIN_CONFIRM = 'join_confirm', _('Join confirm')
-    RENEWAL_EMPLOYER = 'renewal_employer', _('Renewal employer')
-    RENEWAL_WORKER = 'renewal_worker', _('Renewal worker')
+    BEFORE_START = "before_start", _("Before start")
+    START = "start", _("Start")
+    AFTER_START = "after_start", _("After start")
+    WORKER_JOIN_CONFIRM = "join_confirm", _("Join confirm")
+    RENEWAL_EMPLOYER = "renewal_employer", _("Renewal employer")
+    RENEWAL_WORKER = "renewal_worker", _("Renewal worker")
 
 
 class MessageStatus(models.TextChoices):
-    RECEIVED = 'received', _('Received')
-    DELETED = 'deleted', _('Deleted')
-    DELETE_FAILED = 'delete_failed', _('Delete failed')
+    RECEIVED = "received", _("Received")
+    DELETED = "deleted", _("Deleted")
+    DELETE_FAILED = "delete_failed", _("Delete failed")
 
 
-STATUS_AVAILABLE = 'available'
-STATUS_PROCESS = 'process'
+STATUS_AVAILABLE = "available"
+STATUS_PROCESS = "process"
 STATUS_CHOICES = [
-    (STATUS_AVAILABLE, _('Available')),
-    (STATUS_PROCESS, _('Process')),
+    (STATUS_AVAILABLE, _("Available")),
+    (STATUS_PROCESS, _("Process")),
 ]
-

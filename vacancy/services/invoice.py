@@ -10,10 +10,10 @@ from telegram.choices import CallType
 from telegram.handlers.common import CallbackStorage
 from vacancy.models import Vacancy
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
-from vacancy.services.call_markup import get_final_call_success_markup
 
 UAH = int
 COIN = int
+
 
 class InvoiceData(TypedDict):
     title: str
@@ -23,24 +23,25 @@ class InvoiceData(TypedDict):
     currency: str
     prices: list[LabeledPrice]
 
+
 def get_vacancy_invoice_amount(vacancy: Vacancy, price_per_worker: UAH = 100) -> UAH:
-    return len(vacancy.extra.get('calls', {}).get(CallType.AFTER_START.value, [])) * price_per_worker
+    return len(vacancy.extra.get("calls", {}).get(CallType.AFTER_START.value, [])) * price_per_worker
+
 
 def get_vacancy_invoice_data(vacancy: Vacancy) -> InvoiceData:
-    workers_count = len(vacancy.extra.get('calls', {}).get(CallType.AFTER_START.value, []))
+    workers_count = len(vacancy.extra.get("calls", {}).get(CallType.AFTER_START.value, []))
     amount = get_vacancy_invoice_amount(vacancy=vacancy)
     title = CallVacancyTelegramTextFormatter(vacancy=vacancy).invoice_final_call_success()
 
     return InvoiceData(
         title=title,
-        description=f'Вакансія №{vacancy.pk}',
+        description=f"Вакансія №{vacancy.pk}",
         invoice_payload=CallbackStorage.invoice_payload.new(vacancy_id=vacancy.pk, amount=amount),
         provider_token=settings.PROVIDER_TOKEN,
-        currency='UAH',
-        prices=[
-            LabeledPrice(label=f'Пошук працівників x{workers_count}', amount=amount * COIN(100))
-        ],
+        currency="UAH",
+        prices=[LabeledPrice(label=f"Пошук працівників x{workers_count}", amount=amount * COIN(100))],
     )
+
 
 def send_vacancy_invoice(notifier: TelegramNotifier, vacancy: Vacancy) -> None:
     notifier.notify(

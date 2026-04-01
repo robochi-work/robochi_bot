@@ -12,7 +12,7 @@ class ChannelPreviewBlock(PageBlock):
 
     def get_context(self, request):
         return {
-            'channel': Channel.objects.filter(
+            "channel": Channel.objects.filter(
                 city=request.user.work_profile.city,
                 is_active=True,
                 has_bot_administrator=True,
@@ -22,6 +22,4 @@ class ChannelPreviewBlock(PageBlock):
 
     @property
     def template_name(self):
-        return f'work/blocks/channel_preview.html'
-
-
+        return "work/blocks/channel_preview.html"
