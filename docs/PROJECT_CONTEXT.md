@@ -129,6 +129,31 @@ AuthIdentity модель (user/models.py) — связывает User с про
 
 ## История изменений
 
+### 01.04.2026 (вечер) — Аудит 10 функциональных блоков + критический баг-фикс
+
+**Полный аудит кода подтвердил реализацию всех заявленных функций:**
+1. ✅ Відзиви/рейтинг — UserFeedback модель, лайк/дизлайк, модалка зі списком юзерів, ЛК Мій рейтинг
+2. ✅ Заборона телефонів у групах — PHONE_PATTERNS (+380, 380, 0XX), delete + повідомлення юзеру
+3. ✅ ЖЦВ — всі кнопки (ЗАКРИТИ, ПЕРЕКЛИЧКА if/elif, ЗУПИНИТИ/ПОНОВИТИ, ГРУПА), таймер 3г
+4. ✅ Блокування — UserBlock, BlockService, chat_join_request перевірки, UI-банер у ЛК worker
+5. ✅ ЛК Адміністратора — 7 views (dashboard, search_users, search_vacancies, vacancy_card, moderate, close, block)
+6. ✅ Канали/групи в адмінці — ChannelProxy у city/admin, GroupAdmin у telegram/admin (редагувати можна, додавати — тільки ботом)
+7. ✅ Мультиміста для Employer — multi_city_enabled + allowed_cities (M2M) в UserWorkProfile, employer_cities view, форма вакансії враховує allowed_cities
+8. ✅ Ротація — resend_vacancies_to_channel_task, 5 хв, видаляє старе й перепублікує
+9. ✅ Переклички (4 типи) — before_start, start_call, final, after_first + renewal_offer + worker_join_confirm
+10. ✅ Групи вакансій — chat_join_request: is_staff → block → owner → already_in_vacancy → full → gender
+
+**Критичний баг-фікс (коміт d49c40e):**
+- `vacancy/tasks/call.py` — `_escalate_rollcall()` використовувала `bot.delete_message()` без імпорту `bot` → `NameError` при ескалації (6 нагадувань без відповіді заказчика)
+- Фікс: додано `from telegram.handlers.bot_instance import bot` всередині `if msg_id:` блоку
+- Регресійний тест: `tests/test_tasks.py::test_escalate_rollcall_bot_import` (коміт cd36123)
+
+**Інші правки (коміт d49c40e):**
+- `approved_group_observer.py` — `import logging` винесено на рівень модуля (ruff I001)
+- `vacancy_close.py` — `VacancyDeleteEmployerInviteObserver` зареєстровано на VACANCY_CLOSE та VACANCY_DELETE
+- `DJANGO_SECRET_KEY` у `.env` — замінено на production-safe (прибрано `django-insecure-` префікс)
+- `ruff check .` → 0 errors
+
 ### 01.04.2026 — check_system: фикс констант + регрессионные тесты
 
 1. **Баг**: `check_system.py` использовал `Group.STATUS_AVAILABLE` и `Vacancy.STATUS_APPROVED` как атрибуты классов моделей — они там не определены. Правильно: импортировать из `telegram/choices.py` и `vacancy/choices.py`.
