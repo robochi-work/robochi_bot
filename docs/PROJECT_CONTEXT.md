@@ -233,6 +233,13 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
   - Продление на завтра: опрос заказчика → форма (дата=завтра) → модерация → опрос рабочих → сравнение количества
   - Все уведомления на украинском языке (call_formatter.py — централизованные тексты)
   - Celery tasks: close_lifecycle_timer_task, worker_join_confirm_check_task, renewal_offer_task, renewal_worker_check_task
+- **Invite links management:** Bot NEVER creates invite links — all links managed manually via Django admin. `GroupService.update_invite_link` and `ChannelService.update_invite_link` are no-ops. `group_handle_bot_added` and `channel_handle_bot_added` only set `has_bot_administrator`, do not touch `invite_link`. Employer receives existing `group.invite_link` from DB (not a new one-time link). `employer_invite_msg_id` saved in `vacancy.extra` — message deleted on vacancy close/delete (`VacancyDeleteEmployerInviteObserver`) and on owner kick (`_escalate_rollcall`). Bot must NOT have `can_invite_users` right in groups (removed manually in Telegram group settings) to prevent Telegram from auto-creating admin links.
+
+## Key learnings & principles
+
+- **Invite links:** Bot must never call `create_chat_invite_link` or `export_chat_invite_link`. Links are set manually in Django admin. If bot has `can_invite_users` right, Telegram auto-creates primary links for it — this right must be disabled manually in group settings. `revoke_chat_invite_link` deactivates a link but Telegram creates a replacement — the only way to have zero bot links is to remove `can_invite_users`.
+- **Group cleanup (ЖЦВ):** `kick_all_users` relies on `UserInGroup` records in DB. If users joined outside normal flow (test users), they won't be in DB and won't be kicked. Telegram Bot API cannot delete messages older than 48 hours (except bot's own messages). For full group reset, delete messages within 48h window during normal ЖЦВ closure.
+- **Bot cannot promote/demote itself** — `promote_chat_member` with bot's own ID returns "can't promote self". Admin rights changes for the bot must be done manually by group owner.
 
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
