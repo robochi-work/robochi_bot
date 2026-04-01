@@ -42,6 +42,7 @@ from .rejected_user_observer import VacancyRejectedUserObserver
 from .renewal_observer import VacancyRenewalWorkersObserver
 from .resend_channel_observer import VacancyTopResendChannelObserver
 from .vacancy_close import (
+    VacancyDeleteEmployerInviteObserver,
     VacancyDeleteMessagesChannelObserver,
     VacancyDeleteMessagesObserver,
     VacancyGroupFeeStatusObserver,
@@ -85,6 +86,7 @@ vacancy_publisher.subscribe(VACANCY_AFTER_START_CALL_SUCCESS, auto_rating_observ
 vacancy_publisher.subscribe(VACANCY_CLOSE, auto_rating_observer)
 
 vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyStatusClosedObserver(telegram_notifier))
+vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyDeleteEmployerInviteObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyDeleteMessagesObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyKickGroupUsersObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_CLOSE, VacancyGroupFeeStatusObserver(telegram_notifier))
@@ -93,6 +95,7 @@ vacancy_publisher.subscribe(VACANCY_CLOSE_PAYMENT_DOES_NOT_EXIST, VacancyPayment
 
 vacancy_publisher.subscribe(VACANCY_CLOSE_FORCIBLY, VacancyDeleteMessagesChannelObserver(telegram_notifier))
 
+vacancy_publisher.subscribe(VACANCY_DELETE, VacancyDeleteEmployerInviteObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_DELETE, VacancyDeleteMessagesObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_DELETE, VacancyKickGroupUsersObserver(telegram_notifier))
 vacancy_publisher.subscribe(VACANCY_DELETE, VacancyGroupFeeStatusObserver(telegram_notifier))

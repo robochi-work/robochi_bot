@@ -173,3 +173,20 @@ class VacancyPaymentDoesNotExistObserver(Observer):
             text=CallVacancyTelegramTextFormatter(vacancy).vacancy_payment_no_exist_admin(),
         )
         logging.info("Notify admins - vacancy does not payment exists")
+
+
+class VacancyDeleteEmployerInviteObserver(Observer):
+    def __init__(self, notifier: TelegramNotifier):
+        self.notifier = notifier
+
+    @log_warn_on_exception
+    def update(self, event: str, data: dict[str, Any]) -> None:
+        vacancy = data["vacancy"]
+        msg_id = vacancy.extra.get("employer_invite_msg_id")
+        if not msg_id:
+            return
+        try:
+            bot.delete_message(chat_id=vacancy.owner.id, message_id=msg_id)
+            logging.info(f"Deleted employer invite message {msg_id} for vacancy {vacancy.id}")
+        except Exception as e:
+            logging.warning(f"Failed to delete employer invite msg {msg_id}: {e}")

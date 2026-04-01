@@ -63,6 +63,16 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
         except Exception as e:
             logger.warning(f"_escalate_rollcall ({call_label}): kick owner failed: {e}")
 
+        # Delete employer invite message from bot chat
+        msg_id = vacancy.extra.get("employer_invite_msg_id")
+        if msg_id:
+            try:
+                from telegram.handlers.bot_instance import bot
+
+                bot.delete_message(chat_id=owner.id, message_id=msg_id)
+            except Exception as e:
+                logger.warning(f"_escalate_rollcall: delete invite msg failed: {e}")
+
 
 def _update_channel_search_stopped(vacancy: Vacancy) -> None:
     """Edit channel message to 'Пошук завершено' (no join button)."""

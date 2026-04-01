@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from service.notifications_impl import TelegramNotifier
@@ -15,8 +16,6 @@ class VacancyApprovedGroupObserver(Observer):
         vacancy = data["vacancy"]
         sent_in_group = vacancy.extra.get("sent_in_group", None)
         if not sent_in_group:
-            import logging
-
             from telegram.handlers.bot_instance import bot
 
             try:
@@ -43,36 +42,32 @@ class VacancyApprovedGroupObserver(Observer):
             self._add_employer_to_group(vacancy)
 
     def _add_employer_to_group(self, vacancy) -> None:
-        """Create a one-time invite link (no approval needed) and send it to the employer."""
-        import logging
-
+        """Send existing group invite link to the employer."""
         from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
 
         from telegram.handlers.bot_instance import bot
 
-        try:
-            # Create one-time invite link without join request
-            invite = bot.create_chat_invite_link(
-                chat_id=vacancy.group.id,
-                member_limit=1,
-                creates_join_request=False,
-                name=f"employer_{vacancy.owner.id}",
-            )
+        if not vacancy.group or not vacancy.group.invite_link:
+            logging.warning(f"No group or invite_link for vacancy {vacancy.id}")
+            return
 
-            # Send invite to employer in bot chat
+        try:
             markup = InlineKeyboardMarkup()
             markup.add(
                 InlineKeyboardButton(
                     text="Перейти в групу вакансії",
-                    url=invite.invite_link,
+                    url=vacancy.group.invite_link,
                 )
             )
 
-            bot.send_message(
+            msg = bot.send_message(
                 chat_id=vacancy.owner.id,
                 text="Вашу вакансію схвалено! Перейдіть у групу для спілкування з робітниками:",
                 reply_markup=markup,
             )
+            if msg:
+                vacancy.extra["employer_invite_msg_id"] = msg.message_id
+                vacancy.save(update_fields=["extra"])
             logging.info(f"Employer {vacancy.owner.id} invite sent for group {vacancy.group.id}")
         except Exception as e:
-            logging.warning(f"Failed to create employer invite for group {vacancy.group.id}: {e}")
+            logging.warning(f"Failed to send employer invite for group {vacancy.group.id}: {e}")
