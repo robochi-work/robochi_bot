@@ -1,4 +1,3 @@
-import sentry_sdk
 from telebot.types import ChatMemberUpdated
 
 from telegram.handlers.bot_instance import bot
@@ -17,21 +16,7 @@ def group_handle_bot_added(event: ChatMemberUpdated):
     status = event.new_chat_member.status
     if status in ["administrator"]:
         group.has_bot_administrator = True
-
-        if not group.invite_link:
-            try:
-                chat = bot.get_chat(event.chat.id)
-                if chat.invite_link:
-                    group.invite_link = chat.invite_link
-            except Exception:
-                sentry_sdk.capture_exception()
     else:
         group.has_bot_administrator = False
-        group.invite_link = None
 
-    group.save(
-        update_fields=[
-            "has_bot_administrator",
-            "invite_link",
-        ]
-    )
+    group.save(update_fields=["has_bot_administrator"])

@@ -17,13 +17,8 @@ logger = logging.getLogger(__name__)
 class GroupService:
     @classmethod
     def update_invite_link(cls, group: Group) -> Group:
-        """Read the existing primary invite link from Telegram (do NOT create a new one)."""
-        chat = bot.get_chat(group.id)
-        if chat.invite_link:
-            group.invite_link = chat.invite_link
-            group.save(update_fields=["invite_link"])
-        else:
-            logger.warning("group_no_invite_link", extra={"group_id": group.id})
+        """No-op: invite links are managed manually via Django admin, not by the bot."""
+        logger.info("update_invite_link is no-op, links managed via admin", extra={"group_id": group.id})
         return group
 
     @classmethod
