@@ -1,4 +1,5 @@
 import datetime as d
+import logging
 from datetime import date, datetime, timedelta
 from typing import Literal
 
@@ -26,6 +27,8 @@ from .choices import (
     PAYMENT_UNIT_CHOICES,
 )
 from .models import Vacancy, VacancyUser
+
+logger = logging.getLogger(__name__)
 
 
 class TimeSelectWidget(forms.MultiWidget):
@@ -290,7 +293,7 @@ class VacancyForm(forms.Form):
         if not selected_city:
             selected_city = work_profile.city
 
-        return Vacancy.objects.create(
+        vacancy = Vacancy.objects.create(
             owner=owner,
             status=status,
             date_choice=data.get("date_choice"),
@@ -309,6 +312,11 @@ class VacancyForm(forms.Form):
             contact_phone=data.get("contact_phone", ""),
             channel=Channel.objects.get(city=selected_city),
         )
+        logger.info(
+            "vacancy_created",
+            extra={"owner_id": owner.id, "city": str(selected_city), "people_count": data.get("people_count")},
+        )
+        return vacancy
 
 
 CallTypes = Literal["start", "after_start"]

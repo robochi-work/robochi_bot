@@ -136,11 +136,11 @@ def process_start_payload(payload: str, message) -> bool:
 @bot.callback_query_handler(func=F(CallbackStorage.menu.filter(name="start")))
 @user_required
 def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) -> None:
-    logger.warning(f"START CALLED: user={user.pk}, phone={user.phone_number}")
     if isinstance(query, CallbackQuery):
         message = query.message
     else:
         message = query
+    logger.info("start_command", extra={"user_id": message.from_user.id})
 
     if message.text:
         parts = message.text.split(maxsplit=1)
@@ -169,6 +169,7 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
 
 @bot.message_handler(commands=["help"])
 def admin_help(message):
+    logger.info("help_command", extra={"user_id": message.from_user.id})
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton(text="Написати адміністратору", url="https://t.me/robochi_work_admin"))
     # In groups: reply to user privately, delete command message

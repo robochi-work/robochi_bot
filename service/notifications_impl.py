@@ -10,6 +10,8 @@ from telegram.models import Channel, ChannelMessage, Group, GroupMessage
 from .notifications import NotificationMethod, Notifier
 from .telegram_strategy_factory import TelegramStrategyFactory
 
+logger = logging.getLogger(__name__)
+
 
 class DjangoMessagesNotifier(Notifier):
     def notify(self, recipient, method: NotificationMethod, **kwargs):
@@ -43,8 +45,12 @@ class TelegramNotifier(Notifier):
 
             try:
                 message = strategy_method(self.bot, chat_id, **kwargs)
+                logger.info(
+                    "notification_sent",
+                    extra={"user_id": chat_id, "type": method.value if hasattr(method, "value") else str(method)},
+                )
             except Exception as e:
-                logging.warning("Telegram notification failed: %s", e)
+                logger.error("notification_failed", extra={"user_id": chat_id, "error": str(e)})
                 return
 
             if message:

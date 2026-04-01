@@ -12,6 +12,8 @@ from vacancy.choices import STATUS_CLOSED
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.observers.publisher import Observer
 
+logger = logging.getLogger(__name__)
+
 
 def log_warn_on_exception(func):
     @functools.wraps(func)
@@ -116,6 +118,7 @@ class VacancyStatusClosedObserver(Observer):
         vacancy.status = STATUS_CLOSED
         vacancy.search_active = False
         vacancy.save(update_fields=["status", "search_active"])
+        logger.info("vacancy_closed", extra={"vacancy_id": vacancy.id, "reason": "status_closed"})
         logging.info(f"set vacancy status - {STATUS_CLOSED}, search_active=False")
 
         # Edit channel message: remove button, show "Вакансію закрито"

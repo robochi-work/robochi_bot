@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -21,6 +22,8 @@ from vacancy.services.call_markup import (
 )
 from vacancy.services.invoice import send_vacancy_invoice
 from vacancy.services.observers.publisher import Observer
+
+logger = logging.getLogger(__name__)
 
 
 class VacancyBeforeCallObserver(Observer):
@@ -89,6 +92,8 @@ class VacancyStartCallObserver(Observer):
 
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data["vacancy"]
+        workers = vacancy.members.count()
+        logger.info("rollcall_started", extra={"vacancy_id": vacancy.id, "call_type": "start", "workers": workers})
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).start_call()
         self.notifier.notify(
             recipient=SimpleNamespace(chat_id=vacancy.owner.id),
@@ -115,6 +120,8 @@ class VacancyStartCallFailObserver(Observer):
             status=CallStatus.REJECT,
             call_type=CallType.START,
         )
+        declined_ids = list(users_call_reject.values_list("vacancy_user__user_id", flat=True))
+        logger.info("rollcall_result", extra={"vacancy_id": vacancy.id, "confirmed": [], "declined": declined_ids})
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).start_call_fail()
         for call in users_call_reject:
             self.notifier.notify(
@@ -137,6 +144,10 @@ class VacancyAfterStartCallObserver(Observer):
 
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy: Vacancy = data["vacancy"]
+        workers = vacancy.members.count()
+        logger.info(
+            "rollcall_started", extra={"vacancy_id": vacancy.id, "call_type": "after_start", "workers": workers}
+        )
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).final_call()
         self.notifier.notify(
             recipient=SimpleNamespace(chat_id=vacancy.owner.id),

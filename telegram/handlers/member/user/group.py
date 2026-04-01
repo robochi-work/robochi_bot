@@ -1,3 +1,4 @@
+import logging
 import time
 
 import sentry_sdk
@@ -16,9 +17,12 @@ from vacancy.services.call_markup import get_worker_join_confirm_markup
 from vacancy.services.observers import events
 from vacancy.services.observers.subscriber_setup import vacancy_publisher
 
+logger = logging.getLogger(__name__)
+
 
 @bot.chat_join_request_handler(func=lambda c: True)
 def auto_approve(req: ChatJoinRequest):
+    logger.info("join_request", extra={"user_id": req.from_user.id, "group_id": req.chat.id})
     try:
         user, created = User.objects.update_or_create(
             id=req.from_user.id,
@@ -30,6 +34,9 @@ def auto_approve(req: ChatJoinRequest):
         # Admins always pass
         if user.is_staff:
             bot.approve_chat_join_request(req.chat.id, req.from_user.id)
+            logger.info(
+                "join_approved", extra={"user_id": req.from_user.id, "group_id": req.chat.id, "vacancy_id": None}
+            )
             GroupService.set_default_admin_permissions(
                 chat_id=req.chat.id,
                 user_id=req.from_user.id,
@@ -44,6 +51,7 @@ def auto_approve(req: ChatJoinRequest):
         # Blocked users
         if BlockService.is_permanently_blocked(user):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "permanently_blocked"})
             bot.send_message(
                 req.from_user.id,
                 text=CallVacancyTelegramTextFormatter.auto_block_message(reason="постійне блокування"),
@@ -51,6 +59,7 @@ def auto_approve(req: ChatJoinRequest):
             return
         elif BlockService.is_temporarily_blocked(user):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "temporarily_blocked"})
             bot.send_message(
                 req.from_user.id,
                 text="Ви не можете брати участь у вакансіях. Ви заблоковані.",
@@ -59,6 +68,7 @@ def auto_approve(req: ChatJoinRequest):
         elif not user.is_active:
             # Legacy fallback: is_active=False without UserBlock record
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "not_active"})
             bot.send_message(
                 req.from_user.id,
                 text="Ви не можете брати участь у вакансіях. Ви заблоковані.",
@@ -79,6 +89,9 @@ def auto_approve(req: ChatJoinRequest):
         # Vacancy owner always passes
         if vacancy.owner == user:
             bot.approve_chat_join_request(req.chat.id, req.from_user.id)
+            logger.info(
+                "join_approved", extra={"user_id": req.from_user.id, "group_id": req.chat.id, "vacancy_id": vacancy.id}
+            )
             time.sleep(1)
             GroupService.set_default_owner_permissions(
                 chat_id=req.chat.id,
@@ -104,6 +117,7 @@ def auto_approve(req: ChatJoinRequest):
 
         if already_in_vacancy:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "already_in_vacancy"})
             bot.send_message(
                 req.from_user.id, text="Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну."
             )
@@ -112,6 +126,7 @@ def auto_approve(req: ChatJoinRequest):
         # Check: group is full
         if vacancy.members.count() >= vacancy.people_count:
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "group_full"})
             bot.send_message(req.from_user.id, text="На жаль, всі місця за цією вакансією вже зайняті.")
             return
 
@@ -119,17 +134,22 @@ def auto_approve(req: ChatJoinRequest):
         if vacancy.gender != GENDER_ANY:
             if not user.gender:
                 bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+                logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "gender_not_set"})
                 bot.send_message(
                     req.from_user.id, text="Ваша стать не вказана в профілі. Зверніться до адміністратора."
                 )
                 return
             if vacancy.gender != user.gender:
                 bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+                logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "gender_mismatch"})
                 bot.send_message(req.from_user.id, text="Ця вакансія призначена для іншої статі.")
                 return
 
         # All checks passed
         bot.approve_chat_join_request(req.chat.id, req.from_user.id)
+        logger.info(
+            "join_approved", extra={"user_id": req.from_user.id, "group_id": req.chat.id, "vacancy_id": vacancy.id}
+        )
 
     except Vacancy.DoesNotExist:
         try:
@@ -225,6 +245,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
 
                     logging.warning(f"Failed to send join-confirm to user {user.id}: {e}")
     else:
+        logger.info("member_left_group", extra={"user_id": user_data.id, "group_id": event.chat.id})
         UserInGroup.objects.filter(user=user, group=group).delete()
         VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
         GroupService.kick_user(

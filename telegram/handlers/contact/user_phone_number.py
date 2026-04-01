@@ -34,6 +34,7 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
             phone = f"+{message.contact.phone_number.lstrip('+')}"
             user.phone_number = phone
             user.save(update_fields=["phone_number"])
+            logger.info("phone_received", extra={"user_id": user.id, "phone": phone[:4] + "****"})
 
             AuthIdentity.objects.get_or_create(
                 provider=AuthIdentity.Provider.PHONE,

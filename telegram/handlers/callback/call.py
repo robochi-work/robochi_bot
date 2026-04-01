@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import sentry_sdk
@@ -15,6 +16,8 @@ from telegram.service.group import GroupService
 from user.models import User
 from vacancy.models import Vacancy, VacancyUserCall
 
+logger = logging.getLogger(__name__)
+
 
 @bot.callback_query_handler(func=F(Storage.call_handler.filter()))
 @user_required
@@ -29,6 +32,9 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
             message_id=callback.message.message_id,
         )
         if data["status"] == CallStatus.CONFIRM.value:
+            logger.info(
+                "call_confirmed", extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]}
+            )
             vacancy.extra["renewal_accepted"] = True
             vacancy.extra["renewal_offered"] = True
             vacancy.save(update_fields=["extra"])
@@ -47,6 +53,9 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                 reply_markup=markup,
             )
         else:  # REJECT
+            logger.info(
+                "call_declined", extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]}
+            )
             from django.utils import timezone as tz
 
             vacancy.extra["renewal_declined"] = True
@@ -80,11 +89,19 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
             )
 
             if data["status"] == CallStatus.CONFIRM.value:
+                logger.info(
+                    "call_confirmed",
+                    extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
+                )
                 bot.send_message(
                     chat_id=callback.message.chat.id,
                     text="Напишіть актуальний номер телефону",
                 )
             else:  # REJECT
+                logger.info(
+                    "call_declined",
+                    extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
+                )
                 if vacancy.group:
                     GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
                 user.is_active = False
@@ -134,6 +151,14 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                 "call_type": data["call_type"],
             },
         )
+        if data["status"] == CallStatus.CONFIRM.value:
+            logger.info(
+                "call_confirmed", extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]}
+            )
+        else:
+            logger.info(
+                "call_declined", extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]}
+            )
         bot.delete_message(
             chat_id=callback.message.chat.id,
             message_id=callback.message.message_id,

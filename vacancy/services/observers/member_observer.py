@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 import sentry_sdk
@@ -13,6 +14,8 @@ from vacancy.models import Vacancy
 from vacancy.services.observers.approved_channel_observer import VacancyApprovedChannelObserver
 from vacancy.services.observers.publisher import Observer
 from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+logger = logging.getLogger(__name__)
 
 telegram_notifier = TelegramNotifier(bot)
 
@@ -30,6 +33,7 @@ class VacancyIsFullObserver(Observer):
             vacancy.group.user_links
             and vacancy.group.user_links.filter(status=Status.MEMBER.value).count() >= vacancy.people_count
         ):
+            logger.info("member_added", extra={"vacancy_id": vacancy.id, "user_id": None})
             # Turn off search flag
             vacancy.search_active = False
             vacancy.save(update_fields=["search_active"])
@@ -69,6 +73,7 @@ class VacancySlotFreedObserver(Observer):
             # Turn on search flag
             vacancy.search_active = True
             vacancy.save(update_fields=["search_active"])
+            logger.info("slot_freed_republish", extra={"vacancy_id": vacancy.id})
 
             # Immediate republish with button
             try:

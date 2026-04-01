@@ -1,3 +1,5 @@
+import logging
+
 import sentry_sdk
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q
@@ -18,6 +20,8 @@ from vacancy.models import Vacancy
 from vacancy.services.observers.events import VACANCY_APPROVED as VACANCY_APPROVED_EVENT
 from vacancy.services.observers.subscriber_setup import vacancy_publisher
 from work.choices import WorkProfileRole
+
+logger = logging.getLogger(__name__)
 
 
 def staff_required(view_func):
@@ -254,6 +258,7 @@ def admin_moderate_vacancy(request, vacancy_id):
 
                 vacancy.status = STATUS_APPROVED
                 vacancy.save()
+                logger.info("moderation_approved", extra={"admin_id": request.user.id, "vacancy_id": vacancy.id})
                 vacancy_publisher.notify(VACANCY_APPROVED_EVENT, {"vacancy": vacancy, "request": request})
                 return redirect("work:admin_vacancy_card", user_id=vacancy.owner_id)
             except Exception as e:
@@ -318,9 +323,6 @@ def admin_close_vacancy(request, vacancy_id):
 @staff_required
 def admin_block_user(request, user_id):
     """Block/unblock a user."""
-    import logging
-
-    logger = logging.getLogger(__name__)
     logger.warning(f"BLOCK VIEW HIT: user_id={user_id} method={request.method} POST={dict(request.POST)}")
     from datetime import timedelta
 
@@ -353,6 +355,15 @@ def admin_block_user(request, user_id):
             )
             target_user.is_active = False
             target_user.save(update_fields=["is_active"])
+            logger.info(
+                "user_blocked",
+                extra={
+                    "admin_id": request.user.id,
+                    "target_user_id": target_user.id,
+                    "block_type": block_type,
+                    "reason": reason,
+                },
+            )
 
             try:
                 from telegram.handlers.bot_instance import get_bot
@@ -386,6 +397,7 @@ def admin_block_user(request, user_id):
                 BlockService.unblock_user(int(block_id))
                 target_user.is_active = True
                 target_user.save(update_fields=["is_active"])
+                logger.info("user_unblocked", extra={"admin_id": request.user.id, "target_user_id": target_user.id})
                 try:
                     from telegram.handlers.bot_instance import get_bot
 

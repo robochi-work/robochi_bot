@@ -4,6 +4,7 @@ from typing import Any
 from telegram.choices import CallStatus, CallType
 from user.models import UserFeedback
 from vacancy.models import VacancyUserCall
+
 from .publisher import Observer
 
 logger = logging.getLogger(__name__)
@@ -26,22 +27,23 @@ def _create_feedback(owner, user, rating: str, vacancy_pk: int, reason: str) -> 
         user=user,
         rating=rating,
         is_auto=True,
-        text='',
-        extra={'vacancy_id': vacancy_pk, 'reason': reason},
+        text="",
+        extra={"vacancy_id": vacancy_pk, "reason": reason},
     )
+    logger.info("rating_changed", extra={"user_id": user.id, "delta": rating, "reason": reason})
 
 
 class AutoRatingObserver(Observer):
-
     def update(self, event: str, data: dict[str, Any]) -> None:
         from vacancy.services.observers.events import (
-            VACANCY_AFTER_START_CALL_SUCCESS,
             VACANCY_AFTER_START_CALL_FAIL,
-            VACANCY_START_CALL_FAIL,
+            VACANCY_AFTER_START_CALL_SUCCESS,
             VACANCY_CLOSE,
+            VACANCY_START_CALL_FAIL,
         )
+
         try:
-            vacancy = data.get('vacancy')
+            vacancy = data.get("vacancy")
             if not vacancy:
                 return
 
@@ -54,98 +56,86 @@ class AutoRatingObserver(Observer):
             elif event == VACANCY_CLOSE:
                 self._handle_close(vacancy)
         except Exception as e:
-            logger.warning(f'AutoRatingObserver error on event {event}: {e}', exc_info=True)
+            logger.warning(f"AutoRatingObserver error on event {event}: {e}", exc_info=True)
 
     def _handle_after_start_success(self, vacancy) -> None:
         """All workers confirmed at final rollcall — give likes to all confirmed."""
-        calls = (
-            VacancyUserCall.objects
-            .filter(
-                vacancy_user__vacancy=vacancy,
-                call_type=CallType.AFTER_START,
-                status=CallStatus.CONFIRM,
-            )
-            .select_related('vacancy_user__user')
-        )
+        calls = VacancyUserCall.objects.filter(
+            vacancy_user__vacancy=vacancy,
+            call_type=CallType.AFTER_START,
+            status=CallStatus.CONFIRM,
+        ).select_related("vacancy_user__user")
         for call in calls:
             _create_feedback(
                 owner=vacancy.owner,
                 user=call.vacancy_user.user,
-                rating='like',
+                rating="like",
                 vacancy_pk=vacancy.pk,
-                reason='vacancy_completed',
+                reason="vacancy_completed",
             )
 
     def _handle_after_start_fail(self, vacancy) -> None:
         """Final rollcall has rejects — dislike rejected, like confirmed."""
-        calls = (
-            VacancyUserCall.objects
-            .filter(
-                vacancy_user__vacancy=vacancy,
-                call_type=CallType.AFTER_START,
-                status__in=[CallStatus.CONFIRM, CallStatus.REJECT],
-            )
-            .select_related('vacancy_user__user')
-        )
+        calls = VacancyUserCall.objects.filter(
+            vacancy_user__vacancy=vacancy,
+            call_type=CallType.AFTER_START,
+            status__in=[CallStatus.CONFIRM, CallStatus.REJECT],
+        ).select_related("vacancy_user__user")
         for call in calls:
             worker = call.vacancy_user.user
             if call.status == CallStatus.CONFIRM:
                 _create_feedback(
                     owner=vacancy.owner,
                     user=worker,
-                    rating='like',
+                    rating="like",
                     vacancy_pk=vacancy.pk,
-                    reason='vacancy_completed',
+                    reason="vacancy_completed",
                 )
             else:
                 _create_feedback(
                     owner=vacancy.owner,
                     user=worker,
-                    rating='dislike',
+                    rating="dislike",
                     vacancy_pk=vacancy.pk,
-                    reason='rollcall_final_fail',
+                    reason="rollcall_final_fail",
                 )
 
     def _handle_start_fail(self, vacancy) -> None:
         """Start rollcall has rejects — dislike rejected workers only."""
-        calls = (
-            VacancyUserCall.objects
-            .filter(
-                vacancy_user__vacancy=vacancy,
-                call_type=CallType.START,
-                status=CallStatus.REJECT,
-            )
-            .select_related('vacancy_user__user')
-        )
+        calls = VacancyUserCall.objects.filter(
+            vacancy_user__vacancy=vacancy,
+            call_type=CallType.START,
+            status=CallStatus.REJECT,
+        ).select_related("vacancy_user__user")
         for call in calls:
             _create_feedback(
                 owner=vacancy.owner,
                 user=call.vacancy_user.user,
-                rating='dislike',
+                rating="dislike",
                 vacancy_pk=vacancy.pk,
-                reason='rollcall_start_fail',
+                reason="rollcall_start_fail",
             )
 
     def _handle_close(self, vacancy) -> None:
         """Vacancy closed — rate employer based on payment status."""
-        first_member = vacancy.members.select_related('user').first()
+        first_member = vacancy.members.select_related("user").first()
         if not first_member:
             return
 
         worker = first_member.user
-        if vacancy.extra.get('is_paid'):
+        if vacancy.extra.get("is_paid"):
             _create_feedback(
                 owner=worker,
                 user=vacancy.owner,
-                rating='like',
+                rating="like",
                 vacancy_pk=vacancy.pk,
-                reason='vacancy_paid',
+                reason="vacancy_paid",
             )
         else:
             _create_feedback(
                 owner=worker,
                 user=vacancy.owner,
-                rating='dislike',
+                rating="dislike",
                 vacancy_pk=vacancy.pk,
-                reason='vacancy_cancelled',
+                reason="vacancy_cancelled",
             )

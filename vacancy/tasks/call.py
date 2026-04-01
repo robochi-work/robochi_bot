@@ -248,20 +248,25 @@ def close_vacancy(vacancy: Vacancy):
 
 @shared_task
 def before_start_call_task():
+    logger.info("task_started", extra={"task": "before_start_call_task"})
     connection.close()
     vacancies = get_before_start_vacancies()
     before_start_call(vacancies=vacancies)
+    logger.info("task_completed", extra={"task": "before_start_call_task", "processed": len(list(vacancies))})
 
 
 @shared_task
 def after_first_call_check_task(delay: Minutes = 20):
+    logger.info("task_started", extra={"task": "after_first_call_check_task"})
     connection.close()
     vacancies = get_before_start_vacancies()
     after_first_call_check(vacancies=vacancies, delay=delay)
+    logger.info("task_completed", extra={"task": "after_first_call_check_task", "processed": len(list(vacancies))})
 
 
 @shared_task
 def start_call_check_task():
+    logger.info("task_started", extra={"task": "start_call_check_task"})
     connection.close()
     # Initial send: vacancies in the 0–10 min after start window
     start_call_check(vacancies=get_start_vacancies())
@@ -272,10 +277,12 @@ def start_call_check_task():
         first_rollcall_passed=False,
     )
     start_call_check(vacancies=reminder_candidates)
+    logger.info("task_completed", extra={"task": "start_call_check_task", "processed": None})
 
 
 @shared_task
 def final_call_check_task():
+    logger.info("task_started", extra={"task": "final_call_check_task"})
     connection.close()
     # Initial send: ACTIVE/APPROVED vacancies past end_time
     final_call_check(vacancies=get_final_vacancies())
@@ -291,12 +298,15 @@ def final_call_check_task():
         if aware_now > end_aware:
             stopped_candidates.append(v)
     final_call_check(vacancies=stopped_candidates)
+    logger.info("task_completed", extra={"task": "final_call_check_task", "processed": None})
 
 
 @shared_task
 def close_vacancy_task(delay: Minutes = 120):
+    logger.info("task_started", extra={"task": "close_vacancy_task"})
     connection.close()
     vacancies = get_final_vacancies()
+    processed = 0
     for vacancy in vacancies:
         if vacancy.closed_at is not None:
             continue  # already handled by close_lifecycle_timer_task
@@ -305,6 +315,8 @@ def close_vacancy_task(delay: Minutes = 120):
             end_time = timezone.make_aware(end_naive, timezone.get_current_timezone())
             if end_time + timedelta(minutes=delay) < timezone.now():
                 close_vacancy(vacancy=vacancy)
+                processed += 1
+    logger.info("task_completed", extra={"task": "close_vacancy_task", "processed": processed})
 
 
 @shared_task
@@ -313,6 +325,7 @@ def close_lifecycle_timer_task():
     Runs every 30s. After 3 hours triggers full close (kick users, free group)
     for vacancies where employer pressed "Закрити" or stopped search.
     """
+    logger.info("task_started", extra={"task": "close_lifecycle_timer_task"})
     connection.close()
     threshold = timezone.now() - timedelta(hours=3)
 
@@ -325,6 +338,7 @@ def close_lifecycle_timer_task():
         vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
 
     # Case b: employer stopped search — 3h passed with no manual close
+    processed = 0
     for vacancy in Vacancy.objects.filter(
         search_stopped_at__isnull=False,
         search_stopped_at__lte=threshold,
@@ -333,6 +347,8 @@ def close_lifecycle_timer_task():
     ):
         logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (search_stopped_at timer)")
         vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+        processed += 1
+    logger.info("task_completed", extra={"task": "close_lifecycle_timer_task", "processed": processed})
 
 
 @shared_task
@@ -341,6 +357,7 @@ def worker_join_confirm_check_task():
     Runs every 30s. Reminds unconfirmed workers at minutes 1–4 after joining.
     Kicks and deactivates them after 5 minutes of no confirmation.
     """
+    logger.info("task_started", extra={"task": "worker_join_confirm_check_task"})
     connection.close()
     from telegram.choices import CallStatus, CallType
     from telegram.handlers.bot_instance import bot
@@ -385,6 +402,7 @@ def worker_join_confirm_check_task():
                 )
             except Exception as e:
                 logger.warning(f"worker_join_confirm: reminder failed for user {user.id}: {e}")
+    logger.info("task_completed", extra={"task": "worker_join_confirm_check_task", "processed": None})
 
 
 _RENEWAL_OFFER_INTERVAL = 1800  # 30 minutes in seconds
@@ -400,6 +418,7 @@ def renewal_offer_task():
     Runs every 30s. Sends renewal offer to employer after payment.
     Repeats every 30 min up to 6 times (3 hours total).
     """
+    logger.info("task_started", extra={"task": "renewal_offer_task"})
     connection.close()
     from django.db.models import Q
 
@@ -466,6 +485,7 @@ def renewal_offer_task():
                 extra["renewal_reminders"] = reminders + 1
                 extra["renewal_sent_at"] = timezone.now().timestamp()
                 vacancy.save(update_fields=["extra"])
+    logger.info("task_completed", extra={"task": "renewal_offer_task", "processed": None})
 
 
 @shared_task
@@ -474,6 +494,7 @@ def renewal_worker_check_task():
     Runs every 30s. Reminds workers who haven't answered renewal poll.
     Kicks after 4 reminders (20 min). When all answered — compares count with people_count.
     """
+    logger.info("task_started", extra={"task": "renewal_worker_check_task"})
     connection.close()
     from telegram.handlers.bot_instance import bot
     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
@@ -588,6 +609,7 @@ def renewal_worker_check_task():
             logger.info(f"renewal_worker_check: vacancy {vacancy.pk} confirmed exactly {needed} workers")
 
         handled_vacancies.add(vacancy_id)
+    logger.info("task_completed", extra={"task": "renewal_worker_check_task", "processed": None})
 
 
 @shared_task(name="vacancy.tasks.call.test_heartbeat")

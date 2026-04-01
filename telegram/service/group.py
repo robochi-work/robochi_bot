@@ -11,6 +11,8 @@ from telegram.handlers.bot_instance import bot
 from telegram.models import Group, UserInGroup
 from vacancy.models import Vacancy
 
+logger = logging.getLogger(__name__)
+
 
 class GroupService:
     @classmethod
@@ -37,6 +39,7 @@ class GroupService:
             vacancy.save()
             group.status = STATUS_PROCESS
             group.save()
+            logger.info("group_assigned", extra={"group_id": group.id, "vacancy_id": vacancy.id})
             return group
         return None
 
@@ -49,8 +52,9 @@ class GroupService:
                 revoke_messages=False,
                 until_date=int(time.time()) + 1,
             )
+            logger.info("user_kicked", extra={"user_id": user_id, "group_id": chat_id})
         except Exception as e:
-            logging.warning(f"Failed to ban {user_id=} from {chat_id=}: {e=}")
+            logger.error("kick_failed", extra={"user_id": user_id, "group_id": chat_id, "error": str(e)})
         finally:
             try:
                 bot.unban_chat_member(
@@ -59,7 +63,7 @@ class GroupService:
                     only_if_banned=True,
                 )
             except Exception as e:
-                logging.warning(f"Failed to unban {user_id=} from {chat_id=}: {e=}")
+                logger.warning(f"Failed to unban {user_id=} from {chat_id=}: {e=}")
 
     @classmethod
     def kick_all_users(cls, group: Group, statuses: Iterable[str] | None = None) -> None:
@@ -147,6 +151,7 @@ class GroupService:
                 can_edit_stories=False,
                 can_delete_stories=False,
             )
+            logger.info("admin_promoted", extra={"user_id": user_id, "group_id": chat_id})
         except Exception:
             sentry_sdk.capture_exception()
 

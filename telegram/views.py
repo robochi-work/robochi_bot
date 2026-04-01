@@ -1,18 +1,18 @@
 import json
 import logging
-from urllib.parse import unquote, parse_qsl
+from urllib.parse import parse_qsl, unquote
 
+import telebot
 from django.contrib.auth import login
+from django.core.handlers.wsgi import WSGIRequest
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
-from django.core.handlers.wsgi import WSGIRequest
 from django.views.decorators.csrf import csrf_exempt
 
-import telebot
-
 from telegram.handlers.bot_instance import get_bot, load_handlers_once
+
 from .utils import check_webapp_signature, get_or_create_user
 
 logger = logging.getLogger(__name__)
@@ -56,29 +56,32 @@ def authenticate_web_app(request: WSGIRequest):
             current_tid = getattr(request.user, "telegram_id", None)
             if current_tid and current_tid != user_id:
                 from django.contrib.auth import logout
+
                 logout(request)
 
         parsed_data = dict(parse_qsl(init_data))
-        user_data = json.loads(parsed_data.get('user', '{}'))
+        user_data = json.loads(parsed_data.get("user", "{}"))
         user, _ = get_or_create_user(
             user_id=user_id,
-            username=user_data.get('username'),
-            language_code=user_data.get('language_code', 'uk'),
+            username=user_data.get("username"),
+            language_code=user_data.get("language_code", "uk"),
         )
 
         logger.warning("WEBAPP AUTH logging-in telegram_user_id=%s user_pk=%s", user_id, user.pk)
         login(request, user)
+        logger.info("webapp_auth_success", extra={"user_id": user_id})
 
         # Administrator skips phone check and wizard
         if user.is_staff:
-            return redirect('/')
+            return redirect("/")
 
         # If user has no phone number, redirect to phone-required page
         if not user.phone_number:
-            return redirect('/work/phone-required/')
+            return redirect("/work/phone-required/")
 
         return redirect(next_path)
 
+    logger.warning("webapp_auth_failed", extra={"reason": "invalid_signature"})
     admin_login_url = reverse("admin:login")
     return redirect(f"{admin_login_url}?next={next_path}")
 
@@ -92,6 +95,7 @@ def telegram_webhook(request: WSGIRequest) -> HttpResponse:
     try:
         json_str = request.body.decode("utf-8")
         update = telebot.types.Update.de_json(json_str)
+        logger.debug("webhook_received", extra={"update_id": update.update_id})
         get_bot().process_new_updates([update])
     except Exception:
         logger.exception("Webhook processing failed. body=%r", (request.body[:200] if request.body else b""))

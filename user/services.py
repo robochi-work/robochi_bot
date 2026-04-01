@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db import models, transaction
 
 from user.choices import BlockReason, BlockType
 from user.models import AuthIdentity, UserBlock
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -112,6 +116,7 @@ class BlockService:
             blocked_until=blocked_until,
             comment=comment,
         )
+        logger.info("block_created", extra={"user_id": user.id, "block_type": block_type, "reason": reason})
         if block_type == BlockType.PERMANENT:
             user.is_active = False
             user.save(update_fields=["is_active"])
@@ -124,6 +129,7 @@ class BlockService:
         block = UserBlock.objects.select_related("user").get(pk=block_id)
         block.is_active = False
         block.save(update_fields=["is_active"])
+        logger.info("block_removed", extra={"user_id": block.user.id})
         if block.block_type == BlockType.PERMANENT:
             user = block.user
             user.is_active = True
