@@ -35,3 +35,21 @@ def check_system_task():
     broadcast.admin_broadcast(method=NotificationMethod.TEXT, text=text)
 
     logger.info("check_system_task completed: %s", summary)
+
+
+@shared_task(name="work.tasks.check_logs_task")
+def check_logs_task():
+    """Daily log analysis — results sent to all staff admins via Telegram."""
+    from service.broadcast_service import TelegramBroadcastService
+    from service.notifications import NotificationMethod
+    from service.notifications_impl import TelegramNotifier
+    from telegram.handlers.bot_instance import bot
+    from work.management.commands.check_logs import run_log_analysis
+
+    report = run_log_analysis()
+
+    notifier = TelegramNotifier(bot)
+    broadcast = TelegramBroadcastService(notifier)
+    broadcast.admin_broadcast(method=NotificationMethod.TEXT, text=report)
+
+    logger.info("check_logs_task completed")

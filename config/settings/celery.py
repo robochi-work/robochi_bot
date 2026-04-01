@@ -62,4 +62,8 @@ app.conf.beat_schedule = {
         "task": "work.tasks.check_system_task",
         "schedule": crontab(hour=4, minute=0),  # Every night at 04:00 Kyiv time
     },
+    "check_logs": {
+        "task": "work.tasks.check_logs_task",
+        "schedule": crontab(hour=5, minute=0),  # Every night at 05:00 Kyiv time
+    },
 }
