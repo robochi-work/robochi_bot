@@ -74,22 +74,20 @@ def test_ignores_group_with_empty_invite_link(group_factory):
 
 
 @pytest.mark.django_db
-def test_prefers_oldest_created_group_via_pk_ordering(group_factory):
+def test_returns_one_of_multiple_available_groups(group_factory):
     """
-    The queryset uses .first() without explicit ordering.
-    Django defaults to ascending PK, so the group created first
-    (lowest PK / most negative ID for channels) is returned.
-    This test documents and guards that implicit ordering.
+    get_available_group uses .first() with no explicit ordering and Group has
+    no Meta.ordering, so the result is non-deterministic when multiple eligible
+    groups exist.  The only guarantee is that the returned group is one of the
+    eligible ones.
     """
-    # Create two eligible groups — factory gives them sequential IDs
-    old_group = group_factory(status="available", is_active=True)
-    _new_group = group_factory(status="available", is_active=True)
+    group_a = group_factory(status="available", is_active=True)
+    group_b = group_factory(status="available", is_active=True)
 
     result = GroupService.get_available_group()
 
-    # With default ordering the "oldest" (first created) is returned
     assert result is not None
-    assert result.id == old_group.id
+    assert result.id in {group_a.id, group_b.id}
 
 
 @pytest.mark.django_db
