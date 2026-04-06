@@ -9,11 +9,11 @@
 
         {% if resume_mode %}
         <div class="vacancy-list-header">
-            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="btn-back">← Назад</a>
+            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
         </div>
         {% elif not is_first_visit %}
         <div class="vacancy-list-header">
-            <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+            <a href="{% url 'index' %}" class="page-back-btn">← Назад</a>
         </div>
         {% endif %}
 

@@ -282,6 +282,14 @@ class VacancyForm(forms.Form):
                     params={"hours": min_hours},
                 )
 
+            max_hours = 12
+            if diff > timedelta(hours=max_hours):
+                raise ValidationError(
+                    _("Maximum shift duration is %(hours)s hours."),
+                    code="max_duration",
+                    params={"hours": max_hours},
+                )
+
         return cleaned_data
 
     def save(self, owner: User, status) -> Vacancy:

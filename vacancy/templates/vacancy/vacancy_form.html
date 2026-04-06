@@ -38,13 +38,11 @@
     <div class="column">
         <label for="{{ form.start_time.id_for_label }}">{% trans "Start Time" %}:</label>
         {{ form.start_time }}
-        {{ form.start_time.errors }}
     </div>
 
     <div class="column">
         <label for="{{ form.end_time.id_for_label }}">{% trans "End Time" %}:</label>
         {{ form.end_time }}
-        {{ form.end_time.errors }}
     </div>
     <div class="column">
         <label for="{{ form.people_count.id_for_label }}">{% trans "Number of People" %}:</label>
@@ -110,4 +108,124 @@ document.querySelector('form').addEventListener('submit', function(e) {
     btn.disabled = true;
     btn.textContent = 'Зачекайте...';
 });
+</script>
+
+<div id="time-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
+  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Оберіть час початку роботи не раніше ніж через годину.</p>
+    <button type="button" onclick="document.getElementById('time-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<script>
+(function() {
+    var dateRadios = document.querySelectorAll('input[name="date_choice"]');
+    var startHour = document.querySelector('select[name="start_time_0"]');
+    var startMinute = document.querySelector('select[name="start_time_1"]');
+    var endHour = document.querySelector('select[name="end_time_0"]');
+    var endMinute = document.querySelector('select[name="end_time_1"]');
+    if (!startHour || !startMinute || !endHour || !endMinute) return;
+
+    var allHours = [];
+    for (var i = 0; i < 24; i++) allHours.push(String(i).padStart(2, '0'));
+    var allMinutes = ['00', '15', '30', '45'];
+
+    function getDateChoice() {
+        var el = document.querySelector('input[name="date_choice"]:checked');
+        return el ? el.value : null;
+    }
+
+    function getMinStart() {
+        var now = new Date();
+        var h = now.getHours() + 1;
+        var m = Math.ceil(now.getMinutes() / 15) * 15;
+        if (m >= 60) { h++; m = 0; }
+        return h * 60 + m;
+    }
+
+    function filterOptions(sel, valid) {
+        var cur = sel.value;
+        var found = false;
+        for (var i = 0; i < sel.options.length; i++) {
+            var opt = sel.options[i];
+            if (valid.indexOf(opt.value) >= 0) {
+                opt.disabled = false;
+                opt.style.display = '';
+                if (opt.value === cur) found = true;
+            } else {
+                opt.disabled = true;
+                opt.style.display = 'none';
+            }
+        }
+        if (!found && valid.length > 0) sel.value = valid[0];
+    }
+
+    function updateStart() {
+        if (getDateChoice() === 'today') {
+            var minTotal = getMinStart();
+            var minH = Math.floor(minTotal / 60);
+            var minM = minTotal % 60;
+            var vh = allHours.filter(function(h) { return parseInt(h) >= minH; });
+            filterOptions(startHour, vh);
+            var selH = parseInt(startHour.value);
+            if (selH === minH) {
+                var vm = allMinutes.filter(function(m) { return parseInt(m) >= minM; });
+                filterOptions(startMinute, vm);
+            } else {
+                filterOptions(startMinute, allMinutes);
+            }
+        } else {
+            filterOptions(startHour, allHours);
+            filterOptions(startMinute, allMinutes);
+        }
+        updateEnd();
+    }
+
+    function updateEnd() {
+        var sH = parseInt(startHour.value);
+        var sM = parseInt(startMinute.value);
+        var sTotal = sH * 60 + sM;
+        var minEnd = sTotal + 180;
+        var maxEnd = sTotal + 720;
+
+        var vh = allHours.filter(function(h) {
+            var hh = parseInt(h);
+            return allMinutes.some(function(m) {
+                var t = hh * 60 + parseInt(m);
+                if (t <= sTotal) t += 1440;
+                return t >= minEnd && t <= maxEnd;
+            });
+        });
+        filterOptions(endHour, vh);
+
+        var eH = parseInt(endHour.value);
+        var vm = allMinutes.filter(function(m) {
+            var t = eH * 60 + parseInt(m);
+            if (t <= sTotal) t += 1440;
+            return t >= minEnd && t <= maxEnd;
+        });
+        filterOptions(endMinute, vm);
+    }
+
+    document.querySelector('form').addEventListener('submit', function(e) {
+        if (getDateChoice() === 'today') {
+            var minTotal = getMinStart();
+            var selTotal = parseInt(startHour.value) * 60 + parseInt(startMinute.value);
+            if (selTotal < minTotal) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn = this.querySelector('button[type="submit"]');
+                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
+                document.getElementById('time-modal').style.display = 'flex';
+                return false;
+            }
+        }
+    }, true);
+
+    dateRadios.forEach(function(r) { r.addEventListener('change', updateStart); });
+    startHour.addEventListener('change', updateStart);
+    startMinute.addEventListener('change', updateEnd);
+    endHour.addEventListener('change', updateEnd);
+    updateStart();
+})();
 </script>

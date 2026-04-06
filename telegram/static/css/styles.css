@@ -908,3 +908,24 @@ a.info,
     color: var(--accent-dark);
     text-shadow: var(--btn-text-shadow);
 }
+
+/* Unified back button */
+.page-back-wrapper {
+    display: flex;
+    justify-content: center;
+    margin: 24px 0;
+}
+.page-back-btn {
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    color: #000000;
+    text-shadow: none;
+    flex-shrink: 0;
+    position: relative;
+}
+@media (prefers-color-scheme: dark) {
+    .page-back-btn {
+        color: #ffffff;
+    }
+}

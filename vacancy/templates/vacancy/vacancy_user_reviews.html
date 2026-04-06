@@ -8,7 +8,7 @@
     <div class="reviews-container">
 
         <div class="reviews-header">
-            <a href="{% url 'vacancy:user_list' pk=vacancy.pk %}" class="back-link">← Назад</a>
+            <a href="{% url 'vacancy:user_list' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
             <h2>{{ target_user.full_name|default:"Без імені" }}</h2>
         </div>
 
@@ -106,14 +106,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-.back-link {
-    color: var(--accent-dark);
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
-    flex-shrink: 0;
 }
 
 /* Rating block */

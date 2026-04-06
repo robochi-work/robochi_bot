@@ -17,7 +17,7 @@ document.querySelectorAll('form').forEach(function(form) {
 {% block body %}
 <main class="page page--admin-results">
 
-    <a href="{% url 'work:admin_dashboard' %}" class="btn-secondary back-btn">← Назад</a>
+    <a href="{% url 'work:admin_dashboard' %}" class="page-back-btn">← Назад</a>
 
     <h2 class="results-title">Результати пошуку <span class="results-count">{{ users|length }}</span></h2>
 
@@ -99,14 +99,6 @@ document.querySelectorAll('form').forEach(function(form) {
         gap: 12px;
         max-width: 520px;
         margin: 0 auto;
-    }
-    .back-btn {
-        display: inline-block;
-        width: auto;
-        margin: 0;
-        padding: 10px 20px;
-        font-size: 14px;
-        align-self: flex-start;
     }
     .results-title {
         font-size: 20px;
