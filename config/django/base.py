@@ -254,7 +254,7 @@ BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 
 # Telegram IDs of administrators for notifications
 ADMIN_TELEGRAM_IDS = [int(x) for x in os.getenv("ADMIN_TELEGRAM_IDS", "").split(",") if x.strip()]
-CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_BROKER_URL = f"redis://:{os.getenv('REDIS_PASSWORD')}@localhost:6379/0"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 from config.settings.sentry import *  # noqa: E402, F403

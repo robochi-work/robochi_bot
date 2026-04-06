@@ -1,5 +1,6 @@
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from rest_framework.permissions import IsAdminUser
 from rest_framework_simplejwt.views import TokenRefreshView
 
 from api.views.auth import TelegramAuthView
@@ -24,6 +25,6 @@ v1_urlpatterns = [
 
 urlpatterns = [
     path("v1/", include((v1_urlpatterns, "v1"))),
-    path("schema/", SpectacularAPIView.as_view(), name="schema"),
-    path("docs/", SpectacularSwaggerView.as_view(url_name="api:schema"), name="docs"),
+    path("schema/", SpectacularAPIView.as_view(permission_classes=[IsAdminUser]), name="schema"),
+    path("docs/", SpectacularSwaggerView.as_view(url_name="api:schema", permission_classes=[IsAdminUser]), name="docs"),
 ]

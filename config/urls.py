@@ -6,7 +6,7 @@ from django.urls import include, path
 from work.views.index import index
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    path("taya-panel/", admin.site.urls),
     path("api/", include("api.urls")),
     path("telegram/", include("telegram.urls", namespace="telegram")),
     path("work/", include("work.urls", namespace="work")),

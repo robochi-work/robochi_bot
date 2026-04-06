@@ -1,4 +1,3 @@
-from django.contrib.auth.decorators import login_required
 from django.core.handlers.wsgi import WSGIRequest
 from django.shortcuts import redirect, render
 
@@ -12,8 +11,9 @@ from work.blocks.registry import block_registry
 from work.choices import WorkProfileRole
 
 
-@login_required
 def index(request: WSGIRequest):
+    if not request.user.is_authenticated:
+        return redirect("https://robochi.work")
     user = request.user
 
     # If phone not confirmed, redirect to phone-required page

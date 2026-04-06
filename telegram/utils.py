@@ -50,7 +50,7 @@ def check_webapp_signature(init_data: str) -> tuple[bool, int | None]:
     auth_date = parsed_data.get("auth_date")
     if not auth_date:
         return False, user_id
-    if time.time() - int(auth_date) > 86400:
+    if time.time() - int(auth_date) > 7200:
         logger.warning("WEBAPP AUTH initData expired, auth_date=%s", auth_date)
         return False, user_id
 
