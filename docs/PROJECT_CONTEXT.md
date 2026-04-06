@@ -953,3 +953,32 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 
 ### API app (не удалён)
 Приложение `api/` (DRF + simplejwt + corsheaders + drf_spectacular) оставлено в проекте — используется `MonobankWebhookView` (`api/views/payment.py`) для приёма webhook Monobank. Остальные endpoints (auth, user, vacancy) не используются фронтом (WebApp работает через Django views).
+
+## Безопасность (настроено 06.04.2026)
+
+**Серверная безопасность:**
+- **UFW firewall**: включен, открыты только 22/tcp, 80/tcp, 443/tcp
+- **Redis**: пароль установлен (hex, без спецсимволов), Celery broker использует `redis://:PASSWORD@localhost:6379/0`
+- **`.env` права**: `chmod 600` — читаем только владельцем (webuser)
+- **Nginx**: `server_tokens off` (версия скрыта), `client_max_body_size 2m`
+- **Бэкап БД**: cron ежедневно в 03:00, хранение 14 дней, `/home/webuser/backups/`
+
+**Django security:**
+- **Django admin URL**: `/taya-panel/` (не стандартный `/admin/`)
+- **API schema/docs**: закрыты `IsAdminUser` — 403 для неавторизованных
+- **Неавторизованные пользователи**: корневой URL `/` → redirect на `https://robochi.work`
+- **auth_date expiry**: 7200 секунд (2 часа) вместо 86400 (24 часа)
+- **Session hardening** (production.py): `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SESSION_COOKIE_HTTPONLY`, `CSRF_COOKIE_HTTPONLY`, `SESSION_COOKIE_AGE=86400`
+- **SameSite=None**: оставлено — необходимо для Telegram WebApp iframe
+
+**Nginx security headers:**
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Content-Security-Policy`: self + telegram.org + monobank.ua
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+- `X-Robots-Tag: noindex, nofollow`
+
+**Nginx rate limiting:**
+- `/telegram/webhook-*`: 30r/s burst=50
+- `/telegram/authenticate-web-app/`: 5r/s burst=10
+
+**Тесты безопасности:** `tests/test_security.py` — 12 тестов (admin URL, API schema, unauth redirect, auth_date expiry, Redis password, session settings)
