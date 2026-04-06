@@ -143,46 +143,52 @@ document.querySelector('form').addEventListener('submit', function(e) {
 
     function getMinStart() {
         var now = new Date();
-        var h = now.getHours() + 1;
-        var m = Math.ceil(now.getMinutes() / 15) * 15;
-        if (m >= 60) { h++; m = 0; }
-        return h * 60 + m;
+        var totalMin = (now.getHours() * 60 + now.getMinutes()) + 60;
+        var rounded = Math.ceil(totalMin / 15) * 15;
+        if (rounded >= 1440) rounded = 1440;
+        return rounded;
     }
 
-    function filterOptions(sel, valid) {
+    function rebuildSelect(sel, validValues) {
         var cur = sel.value;
+        while (sel.options.length > 0) sel.remove(0);
         var found = false;
-        for (var i = 0; i < sel.options.length; i++) {
-            var opt = sel.options[i];
-            if (valid.indexOf(opt.value) >= 0) {
-                opt.disabled = false;
-                opt.style.display = '';
-                if (opt.value === cur) found = true;
-            } else {
-                opt.disabled = true;
-                opt.style.display = 'none';
-            }
+        for (var i = 0; i < validValues.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = validValues[i];
+            opt.textContent = validValues[i];
+            sel.appendChild(opt);
+            if (validValues[i] === cur) found = true;
         }
-        if (!found && valid.length > 0) sel.value = valid[0];
+        if (found) {
+            sel.value = cur;
+        } else if (validValues.length > 0) {
+            sel.value = validValues[0];
+        }
     }
 
     function updateStart() {
         if (getDateChoice() === 'now') {
             var minTotal = getMinStart();
+            if (minTotal >= 1440) {
+                rebuildSelect(startHour, []);
+                rebuildSelect(startMinute, []);
+                return;
+            }
             var minH = Math.floor(minTotal / 60);
             var minM = minTotal % 60;
             var vh = allHours.filter(function(h) { return parseInt(h) >= minH; });
-            filterOptions(startHour, vh);
+            rebuildSelect(startHour, vh);
             var selH = parseInt(startHour.value);
             if (selH === minH) {
                 var vm = allMinutes.filter(function(m) { return parseInt(m) >= minM; });
-                filterOptions(startMinute, vm);
+                rebuildSelect(startMinute, vm);
             } else {
-                filterOptions(startMinute, allMinutes);
+                rebuildSelect(startMinute, allMinutes);
             }
         } else {
-            filterOptions(startHour, allHours);
-            filterOptions(startMinute, allMinutes);
+            rebuildSelect(startHour, allHours);
+            rebuildSelect(startMinute, allMinutes);
         }
         updateEnd();
     }
@@ -190,6 +196,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
     function updateEnd() {
         var sH = parseInt(startHour.value);
         var sM = parseInt(startMinute.value);
+        if (isNaN(sH) || isNaN(sM)) return;
         var sTotal = sH * 60 + sM;
         var minEnd = sTotal + 180;
         var maxEnd = sTotal + 720;
@@ -202,15 +209,16 @@ document.querySelector('form').addEventListener('submit', function(e) {
                 return t >= minEnd && t <= maxEnd;
             });
         });
-        filterOptions(endHour, vh);
+        rebuildSelect(endHour, vh);
 
         var eH = parseInt(endHour.value);
+        if (isNaN(eH)) return;
         var vm = allMinutes.filter(function(m) {
             var t = eH * 60 + parseInt(m);
             if (t <= sTotal) t += 1440;
             return t >= minEnd && t <= maxEnd;
         });
-        filterOptions(endMinute, vm);
+        rebuildSelect(endMinute, vm);
     }
 
     document.querySelector('form').addEventListener('submit', function(e) {
@@ -232,11 +240,11 @@ document.querySelector('form').addEventListener('submit', function(e) {
         if (getDateChoice() === 'now') {
             var minTotal = getMinStart();
             var selTotal = parseInt(startHour.value) * 60 + parseInt(startMinute.value);
-            if (selTotal < minTotal) {
+            if (isNaN(selTotal) || selTotal < minTotal) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
-                var btn = this.querySelector('button[type="submit"]');
-                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
+                var btn2 = this.querySelector('button[type="submit"]');
+                if (btn2) { btn2.disabled = false; btn2.textContent = 'Створити вакансію'; }
                 document.getElementById('time-modal').style.display = 'flex';
                 return false;
             }
@@ -244,7 +252,21 @@ document.querySelector('form').addEventListener('submit', function(e) {
     }, true);
 
     dateRadios.forEach(function(r) { r.addEventListener('change', updateStart); });
-    startHour.addEventListener('change', updateStart);
+    startHour.addEventListener('change', function() {
+        if (getDateChoice() === 'now') {
+            var minTotal = getMinStart();
+            var minH = Math.floor(minTotal / 60);
+            var minM = minTotal % 60;
+            var selH = parseInt(startHour.value);
+            if (selH === minH) {
+                var vm = allMinutes.filter(function(m) { return parseInt(m) >= minM; });
+                rebuildSelect(startMinute, vm);
+            } else {
+                rebuildSelect(startMinute, allMinutes);
+            }
+        }
+        updateEnd();
+    });
     startMinute.addEventListener('change', updateEnd);
     endHour.addEventListener('change', updateEnd);
     updateStart();
