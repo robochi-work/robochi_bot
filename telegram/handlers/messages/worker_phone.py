@@ -49,7 +49,7 @@ def handle_worker_phone(message):
     if not _is_valid_phone(phone_text):
         bot.send_message(
             chat_id=message.chat.id,
-            text=("Невірний формат номера. Введіть номер у форматі +380XXXXXXXXX або 0XXXXXXXXX."),
+            text="Введіть коректний номер телефону!",
         )
         return
 

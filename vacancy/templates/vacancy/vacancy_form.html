@@ -93,7 +93,6 @@
     <div class="column">
         <label for="{{ form.contact_phone.id_for_label }}">{% trans "Contact phone" %}:</label>
         {{ form.contact_phone }}
-        {{ form.contact_phone.errors }}
     </div>
 
     <button type="submit">{% trans "Create vacancy" %}</button>
@@ -114,6 +113,13 @@ document.querySelector('form').addEventListener('submit', function(e) {
   <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
     <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Оберіть час початку роботи не раніше ніж через годину.</p>
     <button type="button" onclick="document.getElementById('time-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<div id="phone-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
+  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Введіть коректний номер телефону!</p>
+    <button type="button" onclick="document.getElementById('phone-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
   </div>
 </div>
 
@@ -161,7 +167,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
     }
 
     function updateStart() {
-        if (getDateChoice() === 'today') {
+        if (getDateChoice() === 'now') {
             var minTotal = getMinStart();
             var minH = Math.floor(minTotal / 60);
             var minM = minTotal % 60;
@@ -208,7 +214,22 @@ document.querySelector('form').addEventListener('submit', function(e) {
     }
 
     document.querySelector('form').addEventListener('submit', function(e) {
-        if (getDateChoice() === 'today') {
+        // Phone validation
+        var phoneInput = document.querySelector('input[name="contact_phone"]');
+        if (phoneInput && phoneInput.value.trim() !== '') {
+            var cleaned = phoneInput.value.replace(/[\s\-\(\)]/g, '');
+            var phoneRe = /^(\+380\d{9}|380\d{9}|0\d{9})$/;
+            if (!phoneRe.test(cleaned)) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn = this.querySelector('button[type="submit"]');
+                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
+                document.getElementById('phone-modal').style.display = 'flex';
+                return false;
+            }
+        }
+
+        if (getDateChoice() === 'now') {
             var minTotal = getMinStart();
             var selTotal = parseInt(startHour.value) * 60 + parseInt(startMinute.value);
             if (selTotal < minTotal) {

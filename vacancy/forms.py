@@ -219,6 +219,18 @@ class VacancyForm(forms.Form):
         ]
         self.fields["date_choice"].initial = tomorrow_str
 
+    def clean_contact_phone(self):
+        import re
+
+        phone = self.cleaned_data.get("contact_phone", "").strip()
+        if not phone:
+            return phone
+        cleaned = re.sub(r"[\s\-\(\)]", "", phone)
+        phone_re = re.compile(r"^(\+380\d{9}|380\d{9}|0\d{9})$")
+        if not phone_re.match(cleaned):
+            raise forms.ValidationError("Введіть коректний номер телефону!")
+        return cleaned
+
     def clean_map_link(self):
         link = self.cleaned_data.get("map_link")
         if link:
