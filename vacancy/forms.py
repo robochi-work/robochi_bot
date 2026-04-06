@@ -217,7 +217,7 @@ class VacancyForm(forms.Form):
             (DATE_TODAY, mark_safe(f"<div>{_('Today')}</div> <div>{today.strftime('%d.%m.%Y')}</div>")),
             (DATE_TOMORROW, mark_safe(f"<div>{_('Tomorrow')}</div> <div>{tomorrow_str}</div>")),
         ]
-        self.fields["date_choice"].initial = tomorrow_str
+        self.fields["date_choice"].initial = DATE_TODAY
 
     def clean_contact_phone(self):
         import re

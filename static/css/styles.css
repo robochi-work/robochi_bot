@@ -929,3 +929,13 @@ a.info,
         color: #ffffff;
     }
 }
+
+.time-select-widget {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.time-separator {
+    font-size: 20px;
+    font-weight: 700;
+}

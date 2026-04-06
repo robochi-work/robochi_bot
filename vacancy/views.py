@@ -82,6 +82,41 @@ def vacancy_create(request):
                 "skills": last_vacancy.skills,
                 "contact_phone": last_vacancy.contact_phone,
             }
+        # Auto-set start_time to now+1h (rounded to 15min) for today
+        import datetime as d
+        from datetime import datetime, timedelta
+
+        from django.utils import timezone
+
+        now = timezone.localtime(timezone.now())
+        min_start = now + timedelta(hours=1)
+        # Round up to nearest 15 minutes
+        minute = min_start.minute
+        rounded = ((minute + 14) // 15) * 15
+        if rounded >= 60:
+            min_start = min_start.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        else:
+            min_start = min_start.replace(minute=rounded, second=0, microsecond=0)
+
+        min_start_time = d.time(min_start.hour, min_start.minute)
+
+        # Set default date_choice to today
+        initial.setdefault("date_choice", "now")
+
+        # Auto-adjust start_time if not set or too early
+        current_start = initial.get("start_time")
+        if not current_start or (isinstance(current_start, d.time) and current_start < min_start_time):
+            initial["start_time"] = min_start_time
+
+        # Auto-adjust end_time: must be start + 3h minimum
+        current_end = initial.get("end_time")
+        start_for_end = initial.get("start_time", min_start_time)
+        if isinstance(start_for_end, d.time):
+            min_end_dt = datetime.combine(datetime.today(), start_for_end) + timedelta(hours=3)
+            min_end_time = min_end_dt.time()
+            if not current_end or (isinstance(current_end, d.time) and current_end <= start_for_end):
+                initial["end_time"] = min_end_time
+
         vacancy_form = VacancyForm(initial=initial, work_profile=work_profile)
 
     # First visit = employer has never created any vacancy
