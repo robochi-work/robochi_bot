@@ -286,3 +286,10 @@ python manage.py shell -c "from telegram.handlers.set_commands import setup_bot_
 ### service/telegram_markup_factory.py (обновлено 25.03.2026)
 - `admin_vacancy_reply_markup` — кнопка "Модерувати" теперь ведёт на ЛК Администратора
   (`/work/admin-panel/vacancy/<id>/moderate/`), а НЕ на `/admin/vacancy/vacancy/<id>/change/`
+
+## Безопасность — важно для разработки (06.04.2026)
+
+- **Django admin URL**: `/taya-panel/` — НЕ стандартный `/admin/`. Всегда давай именно этот URL.
+- **Корневой URL `/`**: редирект неавторизованных пользователей на `https://robochi.work` (не страница входа).
+- **Redis broker**: требует пароль — формат `redis://:PASSWORD@localhost:6379/0`. Пароль в `.env` как `REDIS_PASSWORD`.
+- **auth_date expiry**: 7200 секунд (2 часа). Учитывай при отладке проблем аутентификации WebApp.
