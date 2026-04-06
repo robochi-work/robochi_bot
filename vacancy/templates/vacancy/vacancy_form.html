@@ -135,126 +135,86 @@ document.querySelector('form').addEventListener('submit', function(e) {
     var allHours = [];
     for (var i = 0; i < 24; i++) allHours.push(String(i).padStart(2, '0'));
     var allMinutes = ['00', '15', '30', '45'];
-    var initialized = false;
 
     function getDateChoice() {
         var el = document.querySelector('input[name="date_choice"]:checked');
         return el ? el.value : null;
     }
 
-    function getMinStartMinutes() {
+    function getMinStart() {
         var now = new Date();
-        var total = (now.getHours() * 60 + now.getMinutes()) + 60;
-        return Math.ceil(total / 15) * 15;
+        var h = now.getHours() + 1;
+        var m = Math.ceil(now.getMinutes() / 15) * 15;
+        if (m >= 60) { h++; m = 0; }
+        return h * 60 + m;
     }
 
-    function replaceOptions(sel, values, keepValue) {
-        var prev = keepValue || sel.value;
-        sel.innerHTML = '';
+    function filterOptions(sel, valid) {
+        var cur = sel.value;
         var found = false;
-        for (var i = 0; i < values.length; i++) {
-            var o = document.createElement('option');
-            o.value = values[i];
-            o.textContent = values[i];
-            sel.appendChild(o);
-            if (values[i] === prev) found = true;
-        }
-        if (found) { sel.value = prev; } else if (values.length > 0) { sel.value = values[0]; }
-    }
-
-    function getValidStartHours() {
-        if (getDateChoice() !== 'now') return allHours;
-        var minH = Math.floor(getMinStartMinutes() / 60);
-        if (minH >= 24) return [];
-        return allHours.filter(function(h) { return parseInt(h) >= minH; });
-    }
-
-    function getValidStartMinutes() {
-        if (getDateChoice() !== 'now') return allMinutes;
-        var minTotal = getMinStartMinutes();
-        var minH = Math.floor(minTotal / 60);
-        var minM = minTotal % 60;
-        var selH = parseInt(startHour.value);
-        if (isNaN(selH)) return allMinutes;
-        if (selH === minH) {
-            return allMinutes.filter(function(m) { return parseInt(m) >= minM; });
-        }
-        return allMinutes;
-    }
-
-    function getValidEndHours() {
-        var sH = parseInt(startHour.value);
-        var sM = parseInt(startMinute.value);
-        if (isNaN(sH) || isNaN(sM)) return allHours;
-        var sTotal = sH * 60 + sM;
-        var minEnd = sTotal + 180;
-        var maxEnd = sTotal + 720;
-        return allHours.filter(function(h) {
-            var hh = parseInt(h);
-            for (var i = 0; i < 4; i++) {
-                var t = hh * 60 + [0,15,30,45][i];
-                if (t <= sTotal) t += 1440;
-                if (t >= minEnd && t <= maxEnd) return true;
+        for (var i = 0; i < sel.options.length; i++) {
+            var opt = sel.options[i];
+            if (valid.indexOf(opt.value) >= 0) {
+                opt.disabled = false;
+                opt.style.display = '';
+                if (opt.value === cur) found = true;
+            } else {
+                opt.disabled = true;
+                opt.style.display = 'none';
             }
-            return false;
-        });
+        }
+        if (!found && valid.length > 0) sel.value = valid[0];
     }
 
-    function getValidEndMinutes() {
+    function updateStart() {
+        if (getDateChoice() === 'now') {
+            var minTotal = getMinStart();
+            var minH = Math.floor(minTotal / 60);
+            var minM = minTotal % 60;
+            var vh = allHours.filter(function(h) { return parseInt(h) >= minH; });
+            filterOptions(startHour, vh);
+            var selH = parseInt(startHour.value);
+            if (selH === minH) {
+                var vm = allMinutes.filter(function(m) { return parseInt(m) >= minM; });
+                filterOptions(startMinute, vm);
+            } else {
+                filterOptions(startMinute, allMinutes);
+            }
+        } else {
+            filterOptions(startHour, allHours);
+            filterOptions(startMinute, allMinutes);
+        }
+        updateEnd();
+    }
+
+    function updateEnd() {
         var sH = parseInt(startHour.value);
         var sM = parseInt(startMinute.value);
-        var eH = parseInt(endHour.value);
-        if (isNaN(sH) || isNaN(sM) || isNaN(eH)) return allMinutes;
         var sTotal = sH * 60 + sM;
         var minEnd = sTotal + 180;
         var maxEnd = sTotal + 720;
-        return allMinutes.filter(function(m) {
+
+        var vh = allHours.filter(function(h) {
+            var hh = parseInt(h);
+            return allMinutes.some(function(m) {
+                var t = hh * 60 + parseInt(m);
+                if (t <= sTotal) t += 1440;
+                return t >= minEnd && t <= maxEnd;
+            });
+        });
+        filterOptions(endHour, vh);
+
+        var eH = parseInt(endHour.value);
+        var vm = allMinutes.filter(function(m) {
             var t = eH * 60 + parseInt(m);
             if (t <= sTotal) t += 1440;
             return t >= minEnd && t <= maxEnd;
         });
+        filterOptions(endMinute, vm);
     }
 
-    function rebuildStartSelects() {
-        replaceOptions(startHour, getValidStartHours());
-        replaceOptions(startMinute, getValidStartMinutes());
-    }
-
-    function rebuildEndSelects() {
-        replaceOptions(endHour, getValidEndHours());
-        replaceOptions(endMinute, getValidEndMinutes());
-    }
-
-    // Event: date_choice changed
-    dateRadios.forEach(function(r) {
-        r.addEventListener('change', function() {
-            initialized = true;
-            rebuildStartSelects();
-            rebuildEndSelects();
-        });
-    });
-
-    // Event: start hour changed
-    startHour.addEventListener('change', function() {
-        if (!initialized) return;
-        replaceOptions(startMinute, getValidStartMinutes());
-        rebuildEndSelects();
-    });
-
-    // Event: start minute changed
-    startMinute.addEventListener('change', function() {
-        if (!initialized) return;
-        rebuildEndSelects();
-    });
-
-    // Event: end hour changed
-    endHour.addEventListener('change', function() {
-        if (!initialized) return;
-        replaceOptions(endMinute, getValidEndMinutes());
-    });
-
-    // Submit validation
     document.querySelector('form').addEventListener('submit', function(e) {
+        // Phone validation
         var phoneInput = document.querySelector('input[name="contact_phone"]');
         if (phoneInput && phoneInput.value.trim() !== '') {
             var cleaned = phoneInput.value.replace(/[\s\-\(\)]/g, '');
@@ -268,21 +228,25 @@ document.querySelector('form').addEventListener('submit', function(e) {
                 return false;
             }
         }
+
         if (getDateChoice() === 'now') {
-            var minTotal = getMinStartMinutes();
+            var minTotal = getMinStart();
             var selTotal = parseInt(startHour.value) * 60 + parseInt(startMinute.value);
-            if (isNaN(selTotal) || selTotal < minTotal) {
+            if (selTotal < minTotal) {
                 e.preventDefault();
                 e.stopImmediatePropagation();
-                var btn2 = this.querySelector('button[type="submit"]');
-                if (btn2) { btn2.disabled = false; btn2.textContent = 'Створити вакансію'; }
+                var btn = this.querySelector('button[type="submit"]');
+                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
                 document.getElementById('time-modal').style.display = 'flex';
                 return false;
             }
         }
     }, true);
 
-    // NO initial update — Django rendered correct initial values
-    // Mark initialized only after first user interaction with date_choice
+    dateRadios.forEach(function(r) { r.addEventListener('change', updateStart); });
+    startHour.addEventListener('change', updateStart);
+    startMinute.addEventListener('change', updateEnd);
+    endHour.addEventListener('change', updateEnd);
+    updateStart();
 })();
 </script>
