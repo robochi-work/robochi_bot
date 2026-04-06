@@ -321,6 +321,27 @@ def admin_close_vacancy(request, vacancy_id):
 
 
 @staff_required
+@require_POST
+def admin_delete_vacancy(request, vacancy_id):
+    """Delete vacancy completely (same as Django admin delete)."""
+    vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
+
+    vacancy_id_log = vacancy.id
+
+    # Release group back to pool if assigned
+    if vacancy.group:
+        from telegram.choices import STATUS_FREE
+
+        group = vacancy.group
+        group.status = STATUS_FREE
+        group.save(update_fields=["status"])
+
+    vacancy.delete()
+    logger.info("moderation_deleted", extra={"admin_id": request.user.id, "vacancy_id": vacancy_id_log})
+    return redirect("work:admin_dashboard")
+
+
+@staff_required
 def admin_block_user(request, user_id):
     """Block/unblock a user."""
     logger.warning(f"BLOCK VIEW HIT: user_id={user_id} method={request.method} POST={dict(request.POST)}")
