@@ -54,10 +54,26 @@ sudo systemctl restart gunicorn.service
 sudo systemctl status gunicorn.service --no-pager
 ```
 
+После изменения Celery tasks:
+```bash
+sudo systemctl restart celery-worker
+sudo systemctl restart celery-beat
+```
+
+Перед применением изменений — проверка:
+```bash
+python3 manage.py check
+```
+
 ## Как смотреть логи
 
 ```bash
+# Gunicorn
 sudo journalctl -u gunicorn.service --since "5 min ago" --no-pager
+# Celery worker
+sudo journalctl -u celery-worker --since "5 min ago" --no-pager
+# Celery beat
+sudo journalctl -u celery-beat --since "5 min ago" --no-pager
 ```
 
 ## Как коммитить
@@ -92,14 +108,57 @@ cd /home/webuser/robochi_bot
 ```
 (открывает nano, после сохранения автоматически делает commit и push в develop)
 
+## Как запускать тесты
+
+Тесты используют SQLite (настройки `config/django/test.py`) — не нужны права CREATEDB в PostgreSQL:
+```bash
+cd /home/webuser/robochi_bot
+source venv/bin/activate
+set -a; source .env; set +a
+DJANGO_SETTINGS_MODULE=config.django.test python manage.py test tests.<имя_модуля> --verbosity=2
+```
+
+Файл тест-настроек: `config/django/test.py` — переопределяет DATABASE на SQLite `/tmp/test_robochi.sqlite3`.
+
+## Django settings файлы
+
+- `config/django/base.py` — базовые настройки
+- `config/django/production.py` — продакшн (используется по умолчанию, задан в `.env`)
+- `config/django/local.py` — локальная разработка
+- `config/django/test.py` — тесты с SQLite
+- `DJANGO_SETTINGS_MODULE=config.django.production` задан в `.env`
+
+## Pre-commit hooks
+
+При коммите автоматически запускаются:
+- `ruff` — линтер Python
+- `ruff-format` — форматтер (может изменить файлы, нужен второй проход)
+- `django-upgrade` — апгрейд синтаксиса Django
+
+Если ruff-format изменил файлы — pre-commit сделает второй проход автоматически.
+
+## Полный деплой (после git pull)
+
+```bash
+cd /home/webuser/robochi_bot
+source venv/bin/activate
+set -a; source .env; set +a
+pip install -r requirements.txt
+python3 manage.py migrate
+python3 manage.py collectstatic --noinput
+python3 manage.py compilemessages
+sudo systemctl restart gunicorn
+sudo systemctl restart celery-worker
+sudo systemctl restart celery-beat
+```
+
 ## Общие правила
 
 - Перед каждым шагом формулируй задачу, чтоб мы правильно понимали друг друга
 - Давай команды на русском языке (комментарии в коде — на английском)
 - Все команды давай готовыми для копирования в терминал
-- Если нужно отредактировать файл — используй `cat >`, `sed`, или `python3 /tmp/patch.py`
 - Не забывай рестартовать gunicorn после изменений Python-файлов
-- Для просмотра файлов используй `cat`, для проверки результата — `grep` или `head/tail`
+- Если менялись Celery tasks — рестартовать celery-worker и celery-beat
 
 ## Новые приложения (добавлены 16.03.2026)
 
