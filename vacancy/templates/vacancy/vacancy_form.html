@@ -125,94 +125,16 @@ document.querySelector('form').addEventListener('submit', function(e) {
 
 <script>
 (function() {
-    var dateRadios = document.querySelectorAll('input[name="date_choice"]');
-    var startHour = document.querySelector('select[name="start_time_0"]');
-    var startMinute = document.querySelector('select[name="start_time_1"]');
-    var endHour = document.querySelector('select[name="end_time_0"]');
-    var endMinute = document.querySelector('select[name="end_time_1"]');
-    if (!startHour || !startMinute || !endHour || !endMinute) return;
-
-    var allHours = [];
-    for (var i = 0; i < 24; i++) allHours.push(String(i).padStart(2, '0'));
-    var allMinutes = ['00', '15', '30', '45'];
-
-    function getDateChoice() {
-        var el = document.querySelector('input[name="date_choice"]:checked');
-        return el ? el.value : null;
-    }
-
-    function getMinStart() {
-        var now = new Date();
-        var h = now.getHours() + 1;
-        var m = Math.ceil(now.getMinutes() / 15) * 15;
-        if (m >= 60) { h++; m = 0; }
-        return h * 60 + m;
-    }
-
-    function filterOptions(sel, valid) {
-        var cur = sel.value;
-        var found = false;
-        for (var i = 0; i < sel.options.length; i++) {
-            var opt = sel.options[i];
-            if (valid.indexOf(opt.value) >= 0) {
-                opt.disabled = false;
-                opt.style.display = '';
-                if (opt.value === cur) found = true;
-            } else {
-                opt.disabled = true;
-                opt.style.display = 'none';
-            }
-        }
-        if (!found && valid.length > 0) sel.value = valid[0];
-    }
-
-    function updateStart() {
-        if (getDateChoice() === 'now') {
-            var minTotal = getMinStart();
-            var minH = Math.floor(minTotal / 60);
-            var minM = minTotal % 60;
-            var vh = allHours.filter(function(h) { return parseInt(h) >= minH; });
-            filterOptions(startHour, vh);
-            var selH = parseInt(startHour.value);
-            if (selH === minH) {
-                var vm = allMinutes.filter(function(m) { return parseInt(m) >= minM; });
-                filterOptions(startMinute, vm);
-            } else {
-                filterOptions(startMinute, allMinutes);
-            }
-        } else {
-            filterOptions(startHour, allHours);
-            filterOptions(startMinute, allMinutes);
-        }
-        updateEnd();
-    }
-
-    function updateEnd() {
-        var sH = parseInt(startHour.value);
-        var sM = parseInt(startMinute.value);
-        var sTotal = sH * 60 + sM;
-        var minEnd = sTotal + 180;
-        var maxEnd = sTotal + 720;
-
-        var vh = allHours.filter(function(h) {
-            var hh = parseInt(h);
-            return allMinutes.some(function(m) {
-                var t = hh * 60 + parseInt(m);
-                if (t <= sTotal) t += 1440;
-                return t >= minEnd && t <= maxEnd;
-            });
+    var radios = document.querySelectorAll('input[name="date_choice"]');
+    radios.forEach(function(r) {
+        r.addEventListener('change', function() {
+            var url = new URL(window.location.href);
+            url.searchParams.set('date', this.value);
+            window.location.href = url.toString();
         });
-        filterOptions(endHour, vh);
+    });
 
-        var eH = parseInt(endHour.value);
-        var vm = allMinutes.filter(function(m) {
-            var t = eH * 60 + parseInt(m);
-            if (t <= sTotal) t += 1440;
-            return t >= minEnd && t <= maxEnd;
-        });
-        filterOptions(endMinute, vm);
-    }
-
+    // Submit validation: phone + time
     document.querySelector('form').addEventListener('submit', function(e) {
         // Phone validation
         var phoneInput = document.querySelector('input[name="contact_phone"]');
@@ -228,25 +150,25 @@ document.querySelector('form').addEventListener('submit', function(e) {
                 return false;
             }
         }
-
-        if (getDateChoice() === 'now') {
-            var minTotal = getMinStart();
-            var selTotal = parseInt(startHour.value) * 60 + parseInt(startMinute.value);
-            if (selTotal < minTotal) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                var btn = this.querySelector('button[type="submit"]');
-                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
-                document.getElementById('time-modal').style.display = 'flex';
-                return false;
+        // Start time validation for today
+        var dateEl = document.querySelector('input[name="date_choice"]:checked');
+        if (dateEl && dateEl.value === 'now') {
+            var sh = document.querySelector('select[name="start_time_0"]');
+            var sm = document.querySelector('select[name="start_time_1"]');
+            if (sh && sm) {
+                var now = new Date();
+                var minTotal = Math.ceil(((now.getHours() * 60 + now.getMinutes()) + 60) / 15) * 15;
+                var selTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
+                if (isNaN(selTotal) || selTotal < minTotal) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    var btn2 = this.querySelector('button[type="submit"]');
+                    if (btn2) { btn2.disabled = false; btn2.textContent = 'Створити вакансію'; }
+                    document.getElementById('time-modal').style.display = 'flex';
+                    return false;
+                }
             }
         }
     }, true);
-
-    dateRadios.forEach(function(r) { r.addEventListener('change', updateStart); });
-    startHour.addEventListener('change', updateStart);
-    startMinute.addEventListener('change', updateEnd);
-    endHour.addEventListener('change', updateEnd);
-    updateStart();
 })();
 </script>
