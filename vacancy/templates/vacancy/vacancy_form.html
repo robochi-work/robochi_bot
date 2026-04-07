@@ -123,6 +123,20 @@ document.querySelector('form').addEventListener('submit', function(e) {
   </div>
 </div>
 
+<div id="time-min-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
+  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Мінімальний робочий час — 3 години.</p>
+    <button type="button" onclick="document.getElementById('time-min-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<div id="time-max-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
+  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Максимальний робочий час — 12 годин.</p>
+    <button type="button" onclick="document.getElementById('time-max-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
 <script>
 (function() {
     var radios = document.querySelectorAll('input[name="date_choice"]');
@@ -167,6 +181,33 @@ document.querySelector('form').addEventListener('submit', function(e) {
                     document.getElementById('time-modal').style.display = 'flex';
                     return false;
                 }
+            }
+        }
+        // End time validation (both today and tomorrow): min 3h, max 12h
+        var sh2 = document.querySelector('select[name="start_time_0"]');
+        var sm2 = document.querySelector('select[name="start_time_1"]');
+        var eh = document.querySelector('select[name="end_time_0"]');
+        var em = document.querySelector('select[name="end_time_1"]');
+        if (sh2 && sm2 && eh && em) {
+            var sTotal = parseInt(sh2.value) * 60 + parseInt(sm2.value);
+            var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
+            if (eTotal <= sTotal) eTotal += 1440;
+            var diff = eTotal - sTotal;
+            if (diff < 180) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn3 = this.querySelector('button[type="submit"]');
+                if (btn3) { btn3.disabled = false; btn3.textContent = 'Створити вакансію'; }
+                document.getElementById('time-min-modal').style.display = 'flex';
+                return false;
+            }
+            if (diff > 720) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn4 = this.querySelector('button[type="submit"]');
+                if (btn4) { btn4.disabled = false; btn4.textContent = 'Створити вакансію'; }
+                document.getElementById('time-max-modal').style.display = 'flex';
+                return false;
             }
         }
     }, true);

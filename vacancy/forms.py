@@ -51,7 +51,7 @@ class TimeSelectWidget(forms.MultiWidget):
         if isinstance(value, str) and ":" in value:
             parts = value.split(":")
             return [parts[0].zfill(2), parts[1].zfill(2)]
-        return ["07", "00"]
+        return ["00", "00"]
 
 
 class TimeSelectField(forms.MultiValueField):

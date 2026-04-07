@@ -122,6 +122,11 @@ def vacancy_create(request):
                 if not current_end or (isinstance(current_end, d.time) and current_end <= start_for_end):
                     initial["end_time"] = min_end_time
 
+        # For tomorrow: default start/end to 00:00 if coming from last vacancy with old times
+        if date_param == "tomorrow":
+            initial.setdefault("start_time", d.time(0, 0))
+            initial.setdefault("end_time", d.time(0, 0))
+
         vacancy_form = VacancyForm(initial=initial, work_profile=work_profile)
 
     # First visit = employer has never created any vacancy
