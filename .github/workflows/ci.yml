@@ -55,7 +55,7 @@ jobs:
         run: pytest tests/ -x --timeout=60
         env:
           # --- Django ---
-          DJANGO_SETTINGS_MODULE: config.django.local
+          DJANGO_SETTINGS_MODULE: config.django.test
           DJANGO_SECRET_KEY: ci-test-secret-key-not-used-in-production
 
           # --- Database (individual vars, not DATABASE_URL) ---
