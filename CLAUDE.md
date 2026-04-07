@@ -293,3 +293,67 @@ python manage.py shell -c "from telegram.handlers.set_commands import setup_bot_
 - **Корневой URL `/`**: редирект неавторизованных пользователей на `https://robochi.work` (не страница входа).
 - **Redis broker**: требует пароль — формат `redis://:PASSWORD@localhost:6379/0`. Пароль в `.env` как `REDIS_PASSWORD`.
 - **auth_date expiry**: 7200 секунд (2 часа). Учитывай при отладке проблем аутентификации WebApp.
+
+## Деплой — обязательный порядок (ВАЖНО!)
+
+После КАЖДОГО изменения Python/HTML/CSS файлов на сервере — обязательно выполнить:
+```bash
+cd /home/webuser/robochi_bot
+source venv/bin/activate
+set -a; source .env; set +a
+python3 manage.py collectstatic --clear --noinput
+sudo systemctl restart gunicorn.service
+```
+
+Без collectstatic + restart изменения НЕ применятся! Это касается:
+- HTML шаблонов (Django рендерит из рабочей директории — restart gunicorn обновляет процесс)
+- CSS файлов (WhiteNoise отдаёт из staticfiles/)
+- Python файлов (gunicorn кеширует в памяти)
+
+## Кнопка Назад — единый стиль (06.04.2026)
+
+Все кнопки "Назад" на страницах мини-приложения используют единый CSS-класс `page-back-btn`:
+- Цвет: чёрный (светлая тема) / белый (тёмная тема)
+- font-size: 15px, font-weight: 600, text-decoration: none
+- Стиль определён в telegram/static/css/styles.css
+- На странице "Поточні вакансії" (vacancy_my_list.html) — текст "← На головну" вместо "← Назад"
+
+## Форма создания вакансии — ограничения времени (06.04.2026)
+
+### Серверная логика (vacancy/views.py):
+- По умолчанию date_choice = "now" (На сьогодні)
+- При GET-запросе читается параметр ?date=now|tomorrow
+- Для "now": start_time автоматически = now+1h (округлено до 15мин)
+- Для "now": end_time автоматически = start_time+3h если текущее end_time невалидно
+- Для "tomorrow": start_time и end_time = 00:00 по умолчанию
+
+### Клиентская логика (vacancy_form.html JS):
+- При переключении date_choice radio — JS делает redirect с ?date=now|tomorrow (страница перезагружается, Django рендерит правильные initial)
+- НЕ используем JS для фильтрации <select> options (display:none / disabled / DOM rebuild) — это ломает Android Telegram WebApp native picker
+- Валидация при submit через модальные окна:
+  - time-modal: "Оберіть час початку роботи не раніше ніж через годину" (только для "На сьогодні")
+  - time-min-modal: "Мінімальний робочий час — 3 години"
+  - time-max-modal: "Максимальний робочий час — 12 годин"
+  - phone-modal: "Введіть коректний номер телефону!"
+
+### Бэкенд валидация (vacancy/forms.py):
+- clean() — min 3h, max 12h длительность смены
+- clean() — start_time >= now+1h для "На сьогодні"
+- clean_contact_phone() — regex маска украинского номера
+
+## Валидация телефона (06.04.2026)
+
+### Employer (форма вакансии):
+- JS валидация + модальное окно phone-modal при submit
+- Бэкенд: clean_contact_phone() в VacancyForm
+
+### Worker (бот):
+- telegram/handlers/messages/worker_phone.py — regex валидация при вводе
+- Сообщение: "Введіть коректний номер телефону!"
+- Маска: +380XXXXXXXXX | 380XXXXXXXXX | 0XXXXXXXXX (пробелы/дефисы/скобки убираются)
+
+## Модерация вакансии — кнопка удаления (06.04.2026)
+
+- work/views/admin_panel.py: admin_delete_vacancy — POST view, удаляет вакансию + освобождает группу
+- work/urls.py: path admin-panel/vacancy/<id>/delete/
+- admin_moderate_vacancy.html: кнопка "ВИДАЛИТИ" с модальным окном подтверждения
