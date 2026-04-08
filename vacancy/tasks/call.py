@@ -281,11 +281,19 @@ def start_call_check_task():
     # Initial send: vacancies in the 0–10 min after start window
     start_call_check(vacancies=get_start_vacancies())
     # Reminder window: sent but unconfirmed (incl. SEARCH_STOPPED after auto-stop)
-    reminder_candidates = Vacancy.objects.filter(
+    # IMPORTANT: only pick vacancies where start_time has already passed!
+    naive_now = datetime.now()
+    aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
+    reminder_candidates = []
+    for v in Vacancy.objects.filter(
         date=date.today(),
         status__in=[STATUS_ACTIVE, STATUS_APPROVED, STATUS_SEARCH_STOPPED],
         first_rollcall_passed=False,
-    )
+    ):
+        start_naive = datetime.combine(v.date, v.start_time)
+        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        if aware_now >= start_aware:
+            reminder_candidates.append(v)
     start_call_check(vacancies=reminder_candidates)
     logger.info("task_completed", extra={"task": "start_call_check_task", "processed": None})
 
