@@ -349,6 +349,18 @@ def admin_delete_vacancy(request, vacancy_id):
         group.status = STATUS_FREE
         group.save(update_fields=["status"])
 
+    # Delete admin moderation messages from bot
+    admin_msgs = vacancy.extra.get("admin_moderation_messages", {}) if vacancy.extra else {}
+    if admin_msgs:
+        from telegram.handlers.bot_instance import get_bot
+
+        bot = get_bot()
+        for admin_chat_id, msg_id in admin_msgs.items():
+            try:
+                bot.delete_message(int(admin_chat_id), msg_id)
+            except Exception:
+                logger.debug("Could not delete moderation msg for admin %s", admin_chat_id)
+
     vacancy.delete()
     logger.info("moderation_deleted", extra={"admin_id": request.user.id, "vacancy_id": vacancy_id_log})
     return redirect("work:admin_dashboard")
