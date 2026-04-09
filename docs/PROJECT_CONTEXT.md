@@ -41,6 +41,7 @@
 - /vacancy/<pk>/users/ → список учасників з модальним вікном
 - /vacancy/<pk>/user/<user_id>/reviews/ → рейтинг + відгуки конкретного користувача
 - /vacancy/<pk>/send-contact/ → POST, worker отримує телефон замовника в бот
+- /work/employer/cities/ → страница каналов города (Загальна стрічка вакансій)
 
 Новые (DRF REST API):
 - /api/v1/auth/telegram/ → POST, получение JWT по Telegram initData
@@ -451,6 +452,7 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
    - `admin-panel/vacancy/<int:vacancy_id>/moderate/` → `admin_moderate_vacancy`
    - `employer/reviews/` → `employer_reviews`
    - `employer/faq/` → `employer_faq`
+   - `employer/cities/` → `employer_cities`
 
 **Новые/обновлённые файлы:**
 - work/views/admin_panel.py — все admin views

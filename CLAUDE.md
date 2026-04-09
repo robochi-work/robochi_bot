@@ -357,3 +357,25 @@ sudo systemctl restart gunicorn.service
 - work/views/admin_panel.py: admin_delete_vacancy — POST view, удаляет вакансию + освобождает группу
 - work/urls.py: path admin-panel/vacancy/<id>/delete/
 - admin_moderate_vacancy.html: кнопка "ВИДАЛИТИ" с модальным окном подтверждения
+
+## ЛК Employer — кнопка каналов (09.04.2026)
+
+### Переименование и унификация
+- Кнопка «Мої міста» переименована в «Загальна стрічка вакансій» во всех шаблонах
+- Для ВСЕХ заказчиков (и с мультигородом, и без) кнопка ведёт на страницу employer_cities (work:employer_cities)
+- Раньше для заказчиков без мультигорода кнопка вела напрямую по channel.invite_link — это ломалось в Telegram WebApp (ссылки t.me открывались во внутреннем WebView, а не в Telegram)
+
+### Telegram.WebApp.openTelegramLink()
+- Ссылки на каналы в employer_cities.html используют Telegram.WebApp.openTelegramLink() вместо target=_blank
+- Это единственный правильный способ открыть t.me ссылку из Mini App — через JS SDK Telegram
+
+### Кнопка на странице деталей вакансии
+- На vacancy_detail.html добавлена кнопка «Загальна стрічка вакансій» между «Закрити вакансію» и «Перекличка»
+- В контекст vacancy_detail view добавлены channel_invite_link и channel_title
+
+### Затронутые файлы
+- work/templates/work/employer_dashboard.html — унификация кнопки
+- work/templates/work/employer_cities.html — переименование + openTelegramLink
+- vacancy/templates/vacancy/vacancy_detail.html — новая кнопка
+- vacancy/views.py — channel context в vacancy_detail
+- work/views/employer.py — view без изменений (уже поддерживал single-city)
