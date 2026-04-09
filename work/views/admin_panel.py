@@ -192,7 +192,9 @@ def admin_moderate_vacancy(request, vacancy_id):
     work_profile = getattr(request.user, "work_profile", None)
 
     if request.method == "POST" and vacancy.status != STATUS_PENDING:
-        return redirect("work:admin_vacancy_card", user_id=vacancy.owner_id)
+        from django.urls import reverse
+
+        return redirect(reverse("vacancy:my_list") + "?for_user=" + str(vacancy.owner_id))
 
     if request.method == "POST":
         owner_profile = getattr(vacancy.owner, "work_profile", None)
@@ -273,7 +275,9 @@ def admin_moderate_vacancy(request, vacancy_id):
                     vacancy.extra.pop("admin_moderation_messages", None)
                     vacancy.save(update_fields=["extra"])
                 vacancy_publisher.notify(VACANCY_APPROVED_EVENT, {"vacancy": vacancy, "request": request})
-                return redirect("work:admin_vacancy_card", user_id=vacancy.owner_id)
+                from django.urls import reverse
+
+                return redirect(reverse("vacancy:my_list") + "?for_user=" + str(vacancy.owner_id))
             except Exception as e:
                 form.add_error(None, str(e))
     else:

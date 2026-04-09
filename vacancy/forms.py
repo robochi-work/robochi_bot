@@ -271,7 +271,7 @@ class VacancyForm(forms.Form):
                 min_start = (now + timedelta(hours=1)).time()
                 if start_time < min_start:
                     raise ValidationError(
-                        _("Start time must be at least 1 hour from now (earliest: %(time)s)."),
+                        _("Час початку має бути не раніше ніж через 1 годину (найраніше: %(time)s)."),
                         code="too_early",
                         params={"time": min_start.strftime("%H:%M")},
                     )

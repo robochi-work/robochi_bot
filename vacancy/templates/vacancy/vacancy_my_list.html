@@ -42,28 +42,6 @@
         </div>
     </div>
 
-    <div class="block-status-card">
-        {% if active_block %}
-        <div class="block-status-badge block-status-badge--active">
-            {% if active_block.block_type == 'permanent' %}
-            🔴 Постійне блокування
-            {% else %}
-            🟡 Тимчасове блокування{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}
-            {% endif %}
-        </div>
-        <div class="block-status-reason">Причина: {{ active_block.get_reason_display }}</div>
-        {% if active_block.comment %}<div class="block-status-comment">{{ active_block.comment }}</div>{% endif %}
-        <form method="post" action="{% url 'work:admin_block_user' target_user.pk %}">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="unblock">
-            <input type="hidden" name="block_id" value="{{ active_block.pk }}">
-            <button type="submit" class="btn-primary block-action-btn" onclick="return confirm('Розблокувати користувача?')">Розблокувати</button>
-        </form>
-        {% else %}
-        <div class="block-status-badge block-status-badge--none">✅ Не заблоковано</div>
-        <button type="button" class="btn-danger block-action-btn" onclick="openBlockModal()">Заблокувати</button>
-        {% endif %}
-    </div>
     {% endif %}
 
     {% if vacancy_list %}
