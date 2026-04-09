@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 @bot.chat_join_request_handler(func=lambda c: True)
 def auto_approve(req: ChatJoinRequest):
     logger.info("join_request", extra={"user_id": req.from_user.id, "group_id": req.chat.id})
+    if req.chat.type != "supergroup":
+        return
     try:
         user, created = User.objects.update_or_create(
             id=req.from_user.id,
@@ -172,6 +174,8 @@ def handle_user_status_change(event: ChatMemberUpdated):
     if event.old_chat_member.status in ["kicked", "left"] and event.new_chat_member.status in ["kicked", "left"]:
         return
     if event.new_chat_member.status in [Status.ADMINISTRATOR.value]:
+        return
+    if event.chat.type != "supergroup":
         return
 
     group, _ = Group.objects.update_or_create(

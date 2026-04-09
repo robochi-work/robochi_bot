@@ -265,6 +265,7 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 - **Invite links:** Bot must never call `create_chat_invite_link` or `export_chat_invite_link`. Links are set manually in Django admin. If bot has `can_invite_users` right, Telegram auto-creates primary links for it — this right must be disabled manually in group settings. `revoke_chat_invite_link` deactivates a link but Telegram creates a replacement — the only way to have zero bot links is to remove `can_invite_users`.
 - **Group cleanup (ЖЦВ):** `kick_all_users` relies on `UserInGroup` records in DB. If users joined outside normal flow (test users), they won't be in DB and won't be kicked. Telegram Bot API cannot delete messages older than 48 hours (except bot's own messages). For full group reset, delete messages within 48h window during normal ЖЦВ closure.
 - **Bot cannot promote/demote itself** — `promote_chat_member` with bot's own ID returns "can't promote self". Admin rights changes for the bot must be done manually by group owner.
+- **chat_member / chat_join_request events can arrive with chat.type="channel"** (linked discussion groups). Handlers `auto_approve` and `handle_user_status_change` in `telegram/handlers/member/user/group.py` MUST check `chat.type == "supergroup"` before any access to the Group model, otherwise channel IDs leak into the Group table. Fix: 09.04.2026.
 
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
@@ -982,3 +983,5 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 - `/telegram/authenticate-web-app/`: 5r/s burst=10
 
 **Тесты безопасности:** `tests/test_security.py` — 12 тестов (admin URL, API schema, unauth redirect, auth_date expiry, Redis password, session settings)
+
+**Регресійні тести:** `tests/test_bugfix_channel_in_groups.py` — 2 тести (09.04.2026): `auto_approve` та `handle_user_status_change` не створюють Group для каналів (chat.type="channel")
