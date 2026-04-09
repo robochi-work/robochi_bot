@@ -415,6 +415,8 @@ def vacancy_detail(request, pk):
             "is_closed_lifecycle": is_closed_lifecycle,
             "is_paid": is_paid,
             "show_payment": show_payment,
+            "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
+            "channel_title": vacancy.channel.title if vacancy.channel else "",
         },
     )
 

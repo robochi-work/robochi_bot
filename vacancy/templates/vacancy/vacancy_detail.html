@@ -76,6 +76,17 @@
             </a>
             {% endif %}
 
+            {# Channel link #}
+            {% if channel_invite_link %}
+            <a href="{{ channel_invite_link }}" target="_blank" class="worker-btn">
+                <span class="worker-btn__icon">🏙️</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Загальна стрічка вакансій</span>
+                    <span class="worker-btn__sub">{{ channel_title }}</span>
+                </span>
+            </a>
+            {% endif %}
+
             {# 2. Rollcall #}
             {% if show_start_rollcall %}
             <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="worker-btn">

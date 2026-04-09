@@ -75,15 +75,15 @@
         <a href="{% url 'work:employer_cities' %}" class="worker-btn">
             <span class="worker-btn__icon">🏙️</span>
             <span class="worker-btn__text">
-                <span class="worker-btn__title">Мої міста</span>
-                <span class="worker-btn__sub">{{ city_channels|length }} міст</span>
+                <span class="worker-btn__title">Загальна стрічка вакансій</span>
+                <span class="worker-btn__sub">Канали з вакансіями</span>
             </span>
         </a>
         {% elif channel %}
         <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
             <span class="worker-btn__icon">🏙️</span>
             <span class="worker-btn__text">
-                <span class="worker-btn__title">Мої міста</span>
+                <span class="worker-btn__title">Загальна стрічка вакансій</span>
                 <span class="worker-btn__sub">{{ channel.title }}</span>
             </span>
         </a>
