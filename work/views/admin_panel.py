@@ -259,6 +259,19 @@ def admin_moderate_vacancy(request, vacancy_id):
                 vacancy.status = STATUS_APPROVED
                 vacancy.save()
                 logger.info("moderation_approved", extra={"admin_id": request.user.id, "vacancy_id": vacancy.id})
+                # Delete admin moderation messages from bot
+                admin_msgs = vacancy.extra.get("admin_moderation_messages", {}) if vacancy.extra else {}
+                if admin_msgs:
+                    from telegram.handlers.bot_instance import get_bot
+
+                    bot = get_bot()
+                    for admin_chat_id, msg_id in admin_msgs.items():
+                        try:
+                            bot.delete_message(int(admin_chat_id), msg_id)
+                        except Exception:
+                            logger.debug("Could not delete moderation msg for admin %s", admin_chat_id)
+                    vacancy.extra.pop("admin_moderation_messages", None)
+                    vacancy.save(update_fields=["extra"])
                 vacancy_publisher.notify(VACANCY_APPROVED_EVENT, {"vacancy": vacancy, "request": request})
                 return redirect("work:admin_vacancy_card", user_id=vacancy.owner_id)
             except Exception as e:
