@@ -104,6 +104,7 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - AutoRatingObserver (`vacancy/services/observers/auto_rating.py`) — автоматические UserFeedback (is_auto=True):
   - Worker: +like за успешное завершение вакансии (AFTER_START_CALL_SUCCESS), +dislike за провал переклички
   - Employer: +like за оплату, +dislike за отмену/непоявление
+- VacancyCreatedAdminObserver (`vacancy/services/observers/created_admin_observer.py`) — отправляет уведомления админам поштучно (не через broadcast), сохраняет message_id в vacancy.extra['admin_moderation_messages'] = {admin_chat_id: msg_id} для последующего удаления при approve/delete
 - Подписки: vacancy/services/observers/subscriber_setup.py, work/service/subscriber_setup.py
 
 ## Celery Tasks (vacancy/tasks/)
@@ -379,6 +380,7 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
    - Кнопка «Група з робітниками» → invite_link группы
    - Кнопка «Управління вакансією» → модальное окно с: Повторний пошук, Перекличка Початок/Кінець роботи
    - Список робітників (VacancyUser members)
+   - **Скрытие кнопок по статусу (09.04.2026):** для pending и closed статусов ВСЕ кнопки действий скрыты (is_pending, is_closed_lifecycle из view); отображается только карточка и статус-бейдж
 
 4. **Маршрутизация Employer в index.py**:
    - Первый вход (нет ни одной вакансии) → redirect на /vacancy/create/ (без кнопки «Назад»)
@@ -987,3 +989,10 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 **Тесты безопасности:** `tests/test_security.py` — 12 тестов (admin URL, API schema, unauth redirect, auth_date expiry, Redis password, session settings)
 
 **Регресійні тести:** `tests/test_bugfix_channel_in_groups.py` — 2 тести (09.04.2026): `auto_approve` та `handle_user_status_change` не створюють Group для каналів (chat.type="channel")
+
+## Скрытие кнопок vacancy_detail + удаление сообщений модерации (09.04.2026)
+
+- **vacancy_detail:** кнопки действий скрыты для pending и closed статусов. Шаблон: `{% if not is_pending and not is_closed_lifecycle %}`. Переменные из view: `is_pending`, `is_closed_lifecycle`.
+- **VacancyCreatedAdminObserver:** отправляет сообщения каждому админу поштучно, сохраняет `vacancy.extra['admin_moderation_messages'] = {str(admin_chat_id): msg_id}`.
+- **Удаление при approve/delete:** `admin_moderate_vacancy` и `admin_delete_vacancy` (work/views/admin_panel.py) итерируют `admin_moderation_messages`, удаляют сообщения через `bot.delete_message()`, затем очищают ключ из `extra`.
+- **Регресійні тести:** `tests/test_vacancy_detail_buttons.py` — 8 тестів (09.04.2026)

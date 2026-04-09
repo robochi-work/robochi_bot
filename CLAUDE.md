@@ -379,3 +379,23 @@ sudo systemctl restart gunicorn.service
 - vacancy/templates/vacancy/vacancy_detail.html — новая кнопка
 - vacancy/views.py — channel context в vacancy_detail
 - work/views/employer.py — view без изменений (уже поддерживал single-city)
+
+## Страница деталей вакансии — скрытие кнопок по статусу (09.04.2026)
+
+### Логика отображения кнопок
+- Для статусов pending (на модерації) и closed (завершена) на vacancy_detail.html скрываются ВСЕ кнопки действий
+- Остаётся только карточка с данными вакансии и статус-бейдж
+- Скрываемые кнопки: Закрити вакансію, Загальна стрічка вакансій, Перекличка, Група з працівниками, Зупинити/Поновити пошук, Група в Telegram, список робітників
+- Условие в шаблоне: {% if not is_pending and not is_closed_lifecycle %}
+- Переменные is_pending и is_closed_lifecycle передаются из vacancy_detail view
+
+### Удаление сообщений модерации у админов
+- При создании вакансии (VACANCY_CREATED event) observer VacancyCreatedAdminObserver отправляет сообщение каждому админу отдельно и сохраняет message_id в vacancy.extra['admin_moderation_messages'] = {admin_chat_id: msg_id}
+- При approve (admin_moderate_vacancy) и при delete (admin_delete_vacancy) — все сообщения удаляются у ВСЕХ админов через bot.delete_message()
+- После удаления ключ admin_moderation_messages удаляется из extra
+
+### Затронутые файлы
+- vacancy/views.py — can_close, can_stop_search исключают pending; is_pending в контексте
+- vacancy/templates/vacancy/vacancy_detail.html — {% if not is_pending and not is_closed_lifecycle %} на всех кнопках
+- vacancy/services/observers/created_admin_observer.py — отправка поштучно + сохранение message_id
+- work/views/admin_panel.py — удаление сообщений в admin_moderate_vacancy и admin_delete_vacancy
