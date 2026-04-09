@@ -70,21 +70,13 @@
             </span>
         </a>
 
-        {# 4. Мої міста #}
-        {% if city_channels %}
+        {# 4. Загальна стрічка вакансій #}
+        {% if city_channels or channel %}
         <a href="{% url 'work:employer_cities' %}" class="worker-btn">
             <span class="worker-btn__icon">🏙️</span>
             <span class="worker-btn__text">
                 <span class="worker-btn__title">Загальна стрічка вакансій</span>
                 <span class="worker-btn__sub">Канали з вакансіями</span>
-            </span>
-        </a>
-        {% elif channel %}
-        <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
-            <span class="worker-btn__icon">🏙️</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Загальна стрічка вакансій</span>
-                <span class="worker-btn__sub">{{ channel.title }}</span>
             </span>
         </a>
         {% endif %}
