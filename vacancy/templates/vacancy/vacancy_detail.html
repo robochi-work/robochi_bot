@@ -9,7 +9,11 @@
     <div class="detail-container">
 
         <div class="detail-header">
+            {% if is_admin_view %}
+            <a href="{% url 'vacancy:my_list' %}?for_user={{ vacancy.owner.pk }}" class="page-back-btn">← Заявки</a>
+            {% else %}
             <a href="{% url 'vacancy:my_list' %}" class="page-back-btn">← Заявки</a>
+            {% endif %}
             <span class="vacancy-card__status vacancy-card__status--{{ vacancy.status }}">
                 {{ status_label }}
             </span>

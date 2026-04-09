@@ -334,9 +334,22 @@ def vacancy_test_task(request):
 @login_required
 def vacancy_my_list(request):
     """List of all employer's vacancies with statuses."""
+    target_user = request.user
+    is_admin_view = False
+    active_block = None
+
+    if request.user.is_staff:
+        for_user_id = request.GET.get("for_user")
+        if for_user_id:
+            target_user = get_object_or_404(User, pk=for_user_id)
+            is_admin_view = True
+            from user.services import BlockService
+
+            active_block = BlockService.get_active_block(target_user)
+
     statuses = [STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]
     vacancies = (
-        Vacancy.objects.filter(owner=request.user, status__in=statuses)
+        Vacancy.objects.filter(owner=target_user, status__in=statuses)
         .select_related("group", "channel")
         .order_by("-date", "-start_time")
     )
@@ -364,6 +377,9 @@ def vacancy_my_list(request):
         {
             "vacancy_list": vacancy_list,
             "work_profile": getattr(request.user, "work_profile", None),
+            "is_admin_view": is_admin_view,
+            "target_user": target_user if is_admin_view else None,
+            "active_block": active_block,
         },
     )
 
@@ -371,7 +387,11 @@ def vacancy_my_list(request):
 @login_required
 def vacancy_detail(request, pk):
     """Detail page for a single vacancy with management buttons."""
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    is_admin_view = request.user.is_staff and vacancy.owner_id != request.user.id
 
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
@@ -420,6 +440,7 @@ def vacancy_detail(request, pk):
             "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
             "channel_title": vacancy.channel.title if vacancy.channel else "",
             "is_pending": vacancy.status == "pending",
+            "is_admin_view": is_admin_view,
         },
     )
 
@@ -427,7 +448,10 @@ def vacancy_detail(request, pk):
 @login_required
 def vacancy_stop_search(request, pk):
     """Stop search: set STATUS_SEARCH_STOPPED, remove button from channel."""
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
         from django.utils import timezone
@@ -469,7 +493,10 @@ def vacancy_stop_search(request, pk):
 @login_required
 def vacancy_resume_search(request, pk):
     """Resume search after stop: re-submit vacancy for moderation."""
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
     work_profile = getattr(request.user, "work_profile", None)
 
     if request.method == "POST":
@@ -539,7 +566,10 @@ def vacancy_resume_search(request, pk):
 @login_required
 def vacancy_close_lifecycle(request, pk):
     """Start vacancy close: set closed_at timer (Celery will kick users after 3h)."""
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     if vacancy.status != STATUS_CLOSED:
         from django.utils import timezone
@@ -582,7 +612,10 @@ def vacancy_payment(request, pk):
     from payment.models import MonobankPayment
     from vacancy.services.invoice import get_vacancy_invoice_amount
 
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
     amount = get_vacancy_invoice_amount(vacancy)  # UAH
     workers_count = len(vacancy.extra.get("calls", {}).get("after_start", []))
 
@@ -636,7 +669,10 @@ def vacancy_payment(request, pk):
 @login_required
 def vacancy_members(request, pk):
     """Page showing all users who joined the vacancy group."""
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     all_users = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
 
@@ -696,7 +732,10 @@ def vacancy_kick_member(request, pk, user_id):
     if request.method != "POST":
         return redirect("vacancy:members", pk=pk)
 
-    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     from telegram.service.group import GroupService
 
