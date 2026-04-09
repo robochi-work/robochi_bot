@@ -383,9 +383,11 @@ def vacancy_detail(request, pk):
 
     members = vacancy.members.select_related("user")
 
-    can_stop_search = vacancy.search_active
-    can_resume_search = vacancy.status == STATUS_SEARCH_STOPPED and not vacancy.first_rollcall_passed
-    can_close = vacancy.status != STATUS_CLOSED
+    can_stop_search = vacancy.search_active and vacancy.status != "pending"
+    can_resume_search = (
+        vacancy.status == STATUS_SEARCH_STOPPED and not vacancy.first_rollcall_passed and vacancy.status != "pending"
+    )
+    can_close = vacancy.status not in [STATUS_CLOSED, "pending"]
     show_start_rollcall = not vacancy.first_rollcall_passed and vacancy.status in [
         STATUS_APPROVED,
         STATUS_ACTIVE,
@@ -417,6 +419,7 @@ def vacancy_detail(request, pk):
             "show_payment": show_payment,
             "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
             "channel_title": vacancy.channel.title if vacancy.channel else "",
+            "is_pending": vacancy.status == "pending",
         },
     )
 

@@ -77,7 +77,7 @@
             {% endif %}
 
             {# Channel link #}
-            {% if channel_invite_link %}
+            {% if channel_invite_link and not is_pending %}
             <a href="{{ channel_invite_link }}" target="_blank" class="worker-btn">
                 <span class="worker-btn__icon">🏙️</span>
                 <span class="worker-btn__text">
@@ -107,6 +107,7 @@
             {% endif %}
 
             {# 3. Members page #}
+            {% if not is_pending %}
             <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="worker-btn">
                 <span class="worker-btn__icon">👥</span>
                 <span class="worker-btn__text">
@@ -114,6 +115,7 @@
                     <span class="worker-btn__sub">Список учасників</span>
                 </span>
             </a>
+            {% endif %}
 
             {# 4. Payment button (after second rollcall) #}
             {% if show_payment %}
@@ -163,7 +165,7 @@
             {% endif %}
 
             {# Group invite link #}
-            {% if vacancy.group and vacancy.group.invite_link %}
+            {% if vacancy.group and vacancy.group.invite_link and not is_pending %}
             <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
                 <span class="worker-btn__icon">💬</span>
                 <span class="worker-btn__text">
@@ -174,7 +176,7 @@
             {% endif %}
 
             {# Members list #}
-            {% if members_count > 0 %}
+            {% if members_count > 0 and not is_pending %}
             <div class="detail-members">
                 <h3>Робітники ({{ members_count }})</h3>
                 {% for vu in members %}
