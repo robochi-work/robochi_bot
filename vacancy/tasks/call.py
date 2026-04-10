@@ -404,8 +404,6 @@ def worker_join_confirm_check_task():
                     logger.warning(f"worker_join_confirm: kick failed for user {user.id}: {e}")
             call.status = CallStatus.REJECT.value
             call.save(update_fields=["status"])
-            user.is_active = False
-            user.save(update_fields=["is_active"])
             logger.info(f"worker_join_confirm: kicked user {user.id} (no confirm in 5 min)")
             continue
 

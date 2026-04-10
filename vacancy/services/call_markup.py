@@ -24,11 +24,23 @@ def get_vacancy_my_list_markup() -> InlineKeyboardMarkup:
 def get_before_start_call_markup(vacancy: Vacancy, **kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
-        ButtonStorage.before_start_call_confirm_btn(
-            vacancy_id=vacancy.id,
-        )
+        IKB(
+            "Підтвердити",
+            callback_data=CallbackStorage.call_handler.new(
+                call_type=CallType.BEFORE_START.value,
+                status=CallStatus.CONFIRM.value,
+                vacancy_id=vacancy.id,
+            ),
+        ),
+        IKB(
+            "Відміна",
+            callback_data=CallbackStorage.call_handler.new(
+                call_type=CallType.BEFORE_START.value,
+                status=CallStatus.REJECT.value,
+                vacancy_id=vacancy.id,
+            ),
+        ),
     )
-
     return markup
 
 
@@ -135,7 +147,7 @@ def get_worker_join_confirm_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup()
     markup.row(
         IKB(
-            _("Confirm"),
+            "Підтвердити",
             callback_data=CallbackStorage.call_handler.new(
                 call_type=CallType.WORKER_JOIN_CONFIRM.value,
                 status=CallStatus.CONFIRM.value,
@@ -143,7 +155,7 @@ def get_worker_join_confirm_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
             ),
         ),
         IKB(
-            _("Reject"),
+            "Відміна",
             callback_data=CallbackStorage.call_handler.new(
                 call_type=CallType.WORKER_JOIN_CONFIRM.value,
                 status=CallStatus.REJECT.value,

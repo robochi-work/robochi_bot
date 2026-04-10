@@ -97,6 +97,22 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     chat_id=callback.message.chat.id,
                     text="Напишіть актуальний номер телефону",
                 )
+                # Контакт замовника — тільки якщо до початку роботи <= 2 години
+                import datetime
+
+                from django.utils import timezone
+
+                start_dt = datetime.datetime.combine(vacancy.date, vacancy.start_time)
+                if timezone.is_naive(start_dt):
+                    start_dt = timezone.make_aware(start_dt)
+                time_until_start = start_dt - timezone.now()
+                if time_until_start <= datetime.timedelta(hours=2):
+                    phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+                    if phone:
+                        bot.send_message(
+                            chat_id=callback.message.chat.id,
+                            text=f"Контактний телефон замовника за вакансією {vacancy.address}: {phone}",
+                        )
             else:  # REJECT
                 logger.info(
                     "call_declined",
@@ -104,8 +120,6 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                 )
                 if vacancy.group:
                     GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
-                user.is_active = False
-                user.save(update_fields=["is_active"])
                 bot.send_message(
                     chat_id=callback.message.chat.id,
                     text="Ви відмовились від вакансії.",
@@ -163,6 +177,33 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
             chat_id=callback.message.chat.id,
             message_id=callback.message.message_id,
         )
+        if data["call_type"] == CallType.BEFORE_START.value:
+            if data["status"] == CallStatus.CONFIRM.value:
+                bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text=_("Answer saved"),
+                )
+                # Контакт замовника після підтвердження переклички за 2 години
+                phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+                if phone:
+                    bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text=f"Контактний телефон замовника за вакансією {vacancy.address}: {phone}",
+                    )
+                return
+            else:
+                # REJECT або ігнор — кік з групи
+                if vacancy.group:
+                    try:
+                        GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
+                    except Exception:
+                        sentry_sdk.capture_exception()
+                bot.send_message(
+                    chat_id=callback.message.chat.id,
+                    text="Ви відмовились від вакансії.",
+                )
+                return
+
         bot.send_message(chat_id=callback.message.chat.id, text=_("Answer saved"))
     except ObjectDoesNotExist:
         bot.send_message(chat_id=callback.message.chat.id, text=_("You are no longer a participant in this vacancy."))

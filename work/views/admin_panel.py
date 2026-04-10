@@ -83,6 +83,7 @@ def admin_search_users(request):
     for u in users_list:
         block = UserBlock.objects.filter(user=u, is_active=True).order_by("-created_at").first()
         u.active_block_id = block.pk if block else None
+        u.active_block_type = block.block_type if block else None
 
     response = render(
         request,
@@ -136,11 +137,19 @@ def admin_search_vacancies(request):
 
     qs = qs.order_by("-date_joined")[:100]
 
+    from user.models import UserBlock
+
+    users_list = list(qs)
+    for u in users_list:
+        block = UserBlock.objects.filter(user=u, is_active=True).order_by("-created_at").first()
+        u.active_block_id = block.pk if block else None
+        u.active_block_type = block.block_type if block else None
+
     response = render(
         request,
         "work/admin_search_results.html",
         {
-            "users": qs,
+            "users": users_list,
             "search_type": "vacancies",
             "work_profile": getattr(request.user, "work_profile", None),
         },
@@ -403,8 +412,6 @@ def admin_block_user(request, user_id):
                 blocked_until=blocked_until,
                 comment=comment,
             )
-            target_user.is_active = False
-            target_user.save(update_fields=["is_active"])
             logger.info(
                 "user_blocked",
                 extra={
@@ -430,14 +437,31 @@ def admin_block_user(request, user_id):
             if block_type == "permanent":
                 try:
                     from telegram.handlers.bot_instance import get_bot
+                    from telegram.models import Channel, Group
 
+                    _bot = get_bot()
                     profile = getattr(target_user, "work_profile", None)
-                    if profile and profile.city:
-                        from telegram.models import Channel
 
-                        channel = Channel.objects.filter(city=profile.city).first()
-                        if channel:
-                            get_bot().ban_chat_member(channel.id, target_user.id)
+                    # Кикаем из всех групп где состоит
+                    active_groups = Group.objects.filter(
+                        useringroup__user=target_user,
+                    ).distinct()
+                    for group in active_groups:
+                        try:
+                            _bot.ban_chat_member(group.id, target_user.id)
+                            _bot.unban_chat_member(group.id, target_user.id)
+                        except Exception:
+                            sentry_sdk.capture_exception()
+
+                    # Кикаем из каналов города без бана
+                    if profile and profile.city:
+                        channels = Channel.objects.filter(city=profile.city)
+                        for channel in channels:
+                            try:
+                                _bot.ban_chat_member(channel.id, target_user.id)
+                                _bot.unban_chat_member(channel.id, target_user.id)
+                            except Exception:
+                                sentry_sdk.capture_exception()
                 except Exception:
                     sentry_sdk.capture_exception()
 
@@ -445,8 +469,6 @@ def admin_block_user(request, user_id):
             block_id = request.POST.get("block_id")
             if block_id:
                 BlockService.unblock_user(int(block_id))
-                target_user.is_active = True
-                target_user.save(update_fields=["is_active"])
                 logger.info("user_unblocked", extra={"admin_id": request.user.id, "target_user_id": target_user.id})
                 try:
                     from telegram.handlers.bot_instance import get_bot

@@ -167,7 +167,21 @@ class UserAdmin(BaseUserAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("work_profile", "work_profile__city")
+        qs = super().get_queryset(request).select_related("work_profile", "work_profile__city")
+        if not request.user.is_superuser:
+            qs = qs.filter(is_staff=False)
+        return qs
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if not request.user.is_superuser:
+            readonly.extend(["is_staff", "is_superuser", "is_active"])
+        return readonly
+
+    def has_delete_permission(self, request, obj=None):
+        if obj and obj.is_staff and not request.user.is_superuser:
+            return False
+        return super().has_delete_permission(request, obj)
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
