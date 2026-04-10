@@ -399,3 +399,14 @@ sudo systemctl restart gunicorn.service
 - vacancy/templates/vacancy/vacancy_detail.html — {% if not is_pending and not is_closed_lifecycle %} на всех кнопках
 - vacancy/services/observers/created_admin_observer.py — отправка поштучно + сохранение message_id
 - work/views/admin_panel.py — удаление сообщений в admin_moderate_vacancy и admin_delete_vacancy
+
+## ЛК Администратора — доступ к вакансиям заказчика (09-10.04.2026)
+
+### Что изменилось
+- Админ (is_staff) видит вакансии заказчика через vacancy:my_list?for_user=<user_id>
+- vacancy_detail доступен для staff без ограничения owner=request.user
+- Все action views (stop_search, call, kick_member, members, close_lifecycle, payment) доступны для staff
+- После модерации redirect на vacancy:my_list?for_user=<owner_id>
+- Убран блок block-status-card из vacancy_my_list при admin view
+- Валидация start_time переведена на украинский
+- Карточки пользователей admin_search_results: uniform width (100%, box-sizing)

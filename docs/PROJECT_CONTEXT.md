@@ -996,3 +996,12 @@ BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporar
 - **VacancyCreatedAdminObserver:** отправляет сообщения каждому админу поштучно, сохраняет `vacancy.extra['admin_moderation_messages'] = {str(admin_chat_id): msg_id}`.
 - **Удаление при approve/delete:** `admin_moderate_vacancy` и `admin_delete_vacancy` (work/views/admin_panel.py) итерируют `admin_moderation_messages`, удаляют сообщения через `bot.delete_message()`, затем очищают ключ из `extra`.
 - **Регресійні тести:** `tests/test_vacancy_detail_buttons.py` — 8 тестів (09.04.2026)
+
+### Обновления 09-10.04.2026
+- Карточки пользователей в ЛК Администратора: uniform width (width:100%, box-sizing)
+- Админ получил доступ к ЛК заказчика: vacancy:my_list?for_user=X, vacancy:detail для staff
+- Все vacancy action views разрешены для is_staff (owner check обходится)
+- Убран блок-статус из vacancy_my_list при admin view
+- Валидация формы вакансии: сообщение о start_time переведено на укр
+- После модерации redirect на vacancy:my_list?for_user= вместо admin_vacancy_card
+- Регрессионные тесты: tests/test_admin_panel.py
