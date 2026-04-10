@@ -676,15 +676,19 @@ def vacancy_members(request, pk):
 
     all_users = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
 
+    from user.services import BlockService
+
     members_list = []
     for vu in all_users:
         feedbacks = UserFeedback.objects.filter(user=vu.user).count()
+        is_user_blocked = BlockService.is_blocked(vu.user)
         members_list.append(
             {
                 "vacancy_user": vu,
                 "user": vu.user,
                 "status": vu.get_status_display(),
                 "is_member": vu.status == "member",
+                "is_blocked": is_user_blocked,
                 "feedbacks_count": feedbacks,
             }
         )
@@ -741,5 +745,60 @@ def vacancy_kick_member(request, pk, user_id):
 
     if vacancy.group:
         GroupService.kick_user(chat_id=vacancy.group.id, user_id=user_id)
+
+    return redirect("vacancy:members", pk=pk)
+
+
+@login_required
+def vacancy_reinvite_worker(request, pk, user_id):
+    """Admin reinvites a kicked/blocked worker back to vacancy group."""
+    if not request.user.is_staff:
+        return redirect("vacancy:detail", pk=pk)
+
+    if request.method != "POST":
+        return redirect("vacancy:members", pk=pk)
+
+    import logging
+
+    from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    from telegram.handlers.bot_instance import get_bot
+    from user.models import User
+    from user.services import BlockService
+
+    vacancy = get_object_or_404(Vacancy, pk=pk)
+    target_user = get_object_or_404(User, pk=user_id)
+
+    # Remove active block if present
+    active_block = BlockService.get_active_block(target_user)
+    if active_block:
+        BlockService.unblock_user(active_block.pk)
+
+    # Send invite via bot
+    try:
+        bot = get_bot()
+        invite_link = vacancy.group.invite_link if vacancy.group else None
+        if invite_link:
+            markup = InlineKeyboardMarkup()
+            markup.row(InlineKeyboardButton("Приєднатися до групи", url=invite_link))
+            bot.send_message(
+                target_user.id,
+                f"Адміністратор запрошує вас повернутися до вакансії: {vacancy.address}.\nНатисніть кнопку щоб приєднатися.",
+                reply_markup=markup,
+            )
+    except Exception:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
+
+    logger = logging.getLogger(__name__)
+    logger.info(
+        "worker_reinvited",
+        extra={
+            "admin_id": request.user.id,
+            "worker_id": target_user.id,
+            "vacancy_id": vacancy.id,
+        },
+    )
 
     return redirect("vacancy:members", pk=pk)
