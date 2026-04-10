@@ -20,7 +20,7 @@
 
         {# 1. Мої вакансії — link to city channel #}
         {% if channel %}
-        {% if is_blocked %}
+        {% if active_block and active_block.block_type == 'permanent' %}
         <a href="#" onclick="return false;" class="worker-btn disabled">
             <span class="worker-btn__icon">📋</span>
             <span class="worker-btn__text">

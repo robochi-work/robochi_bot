@@ -12,6 +12,7 @@ from service.notifications_impl import TelegramNotifier
 from telegram.choices import CallStatus, CallType
 from telegram.handlers.bot_instance import get_bot
 from telegram.service.group import GroupService
+from user.choices import BlockReason, BlockType
 from user.services import BlockService
 from vacancy.models import Vacancy, VacancyUserCall
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
@@ -124,15 +125,28 @@ class VacancyStartCallFailObserver(Observer):
         logger.info("rollcall_result", extra={"vacancy_id": vacancy.id, "confirmed": [], "declined": declined_ids})
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).start_call_fail()
         for call in users_call_reject:
+            user = call.vacancy_user.user
             self.notifier.notify(
-                recipient=SimpleNamespace(chat_id=call.vacancy_user.user.id),
+                recipient=SimpleNamespace(chat_id=user.id),
                 text=text,
             )
-            BlockService.auto_block_rollcall_reject(user=call.vacancy_user.user, blocked_by=vacancy.owner)
+            # Кик из группы вакансии
+            if vacancy.group:
+                try:
+                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
+                except Exception:
+                    sentry_sdk.capture_exception()
+            # Временная блокировка — причина employer_uncheck
+            BlockService.block_user(
+                user=user,
+                block_type=BlockType.TEMPORARY,
+                reason=BlockReason.EMPLOYER_UNCHECK,
+                blocked_by=vacancy.owner,
+            )
             try:
                 get_bot().send_message(
-                    call.vacancy_user.user.id,
-                    CallVacancyTelegramTextFormatter.auto_block_message(reason="неявка на перекличку"),
+                    user.id,
+                    CallVacancyTelegramTextFormatter.auto_block_message(reason="відсутність на перекличці"),
                 )
             except Exception:
                 sentry_sdk.capture_exception()
@@ -181,19 +195,32 @@ class VacancyAfterStartCallFailObserver(Observer):
         users_call_reject = VacancyUserCall.objects.filter(
             vacancy_user__in=vacancy.members,
             status=CallStatus.REJECT,
-            call_type=CallType.START,
+            call_type=CallType.AFTER_START,
         )
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).start_call_fail()
         for call in users_call_reject:
+            user = call.vacancy_user.user
             self.notifier.notify(
-                recipient=SimpleNamespace(chat_id=call.vacancy_user.user.id),
+                recipient=SimpleNamespace(chat_id=user.id),
                 text=text,
             )
-            BlockService.auto_block_rollcall_reject(user=call.vacancy_user.user, blocked_by=vacancy.owner)
+            # Кик из группы вакансии
+            if vacancy.group:
+                try:
+                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
+                except Exception:
+                    sentry_sdk.capture_exception()
+            # Временная блокировка — причина employer_uncheck
+            BlockService.block_user(
+                user=user,
+                block_type=BlockType.TEMPORARY,
+                reason=BlockReason.EMPLOYER_UNCHECK,
+                blocked_by=vacancy.owner,
+            )
             try:
                 get_bot().send_message(
-                    call.vacancy_user.user.id,
-                    CallVacancyTelegramTextFormatter.auto_block_message(reason="неявка на перекличку"),
+                    user.id,
+                    CallVacancyTelegramTextFormatter.auto_block_message(reason="відсутність на перекличці"),
                 )
             except Exception:
                 sentry_sdk.capture_exception()
