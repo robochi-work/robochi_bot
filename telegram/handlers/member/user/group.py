@@ -77,6 +77,21 @@ def auto_approve(req: ChatJoinRequest):
             )
             return
 
+        # Unregistered user — no work_profile or no role
+        work_profile = getattr(user, "work_profile", None)
+        if not work_profile or not work_profile.role:
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "not_registered"})
+            try:
+                bot.send_message(
+                    req.from_user.id,
+                    "Щоб приєднатися до вакансії, спочатку зареєструйтесь у боті.\n"
+                    "Натисніть /start для початку реєстрації.",
+                )
+            except Exception:
+                sentry_sdk.capture_exception()
+            return
+
         group, _ = Group.objects.update_or_create(
             id=req.chat.id,
             defaults={
@@ -104,6 +119,19 @@ def auto_approve(req: ChatJoinRequest):
                 user_id=req.from_user.id,
                 custom_title="Роботодавець",
             )
+            return
+
+        # Employer cannot join another employer's vacancy group
+        if work_profile and work_profile.role == "employer":
+            bot.decline_chat_join_request(req.chat.id, req.from_user.id)
+            logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "employer_not_owner"})
+            try:
+                bot.send_message(
+                    req.from_user.id,
+                    "Ви роботодавець. Ви не можете приєднатися до чужої вакансії.",
+                )
+            except Exception:
+                sentry_sdk.capture_exception()
             return
 
         # Check: already in another active vacancy
