@@ -14,6 +14,7 @@ from vacancy.choices import (
     STATUS_APPROVED,
     STATUS_CLOSED,
     STATUS_PENDING,
+    STATUS_SEARCH_STOPPED,
 )
 from vacancy.forms import VacancyForm
 from vacancy.models import Vacancy
@@ -129,7 +130,7 @@ def admin_search_vacancies(request):
         has_status_filter = True
 
     if request.GET.get("cancelled"):
-        status_filters |= Q(vacancies__extra__cancel_requested=True)
+        status_filters |= Q(vacancies__status__in=[STATUS_SEARCH_STOPPED, STATUS_CLOSED])
         has_status_filter = True
 
     if has_status_filter:

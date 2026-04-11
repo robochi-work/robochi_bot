@@ -95,13 +95,23 @@
 
             {# 2. Rollcall #}
             {% if show_start_rollcall %}
-            <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="worker-btn">
-                <span class="worker-btn__icon">▶️</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Перекличка: Початок роботи</span>
-                    <span class="worker-btn__sub">Відзначте присутніх</span>
-                </span>
-            </a>
+                {% if rollcall_time_reached %}
+                <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="worker-btn">
+                    <span class="worker-btn__icon">▶️</span>
+                    <span class="worker-btn__text">
+                        <span class="worker-btn__title">Перекличка: Початок роботи</span>
+                        <span class="worker-btn__sub">Відзначте присутніх</span>
+                    </span>
+                </a>
+                {% else %}
+                <button type="button" class="worker-btn" onclick="showRollcallTimeModal()">
+                    <span class="worker-btn__icon">▶️</span>
+                    <span class="worker-btn__text">
+                        <span class="worker-btn__title">Перекличка: Початок роботи</span>
+                        <span class="worker-btn__sub">Доступно з {{ vacancy.start_time|time:"H:i" }}</span>
+                    </span>
+                </button>
+                {% endif %}
             {% elif show_end_rollcall %}
             <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='after_start' %}" class="worker-btn">
                 <span class="worker-btn__icon">🏁</span>
@@ -209,6 +219,13 @@
 function showExpiredModal() {
     document.getElementById('expired-modal').style.display = 'flex';
 }
+function closeRollcallTimeModal() {
+    document.getElementById('rollcallTimeModal').style.display = 'none';
+}
+function showRollcallTimeModal() {
+    document.getElementById('rollcallTimeModal').style.display = 'flex';
+}
+
 function closeExpiredModal() {
     document.getElementById('expired-modal').style.display = 'none';
 }

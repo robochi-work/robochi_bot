@@ -396,11 +396,11 @@ def vacancy_detail(request, pk):
 
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
-        STATUS_APPROVED: "Активна (пошук)",
-        STATUS_ACTIVE: "Йде зміна",
+        STATUS_APPROVED: "Активна",
+        STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
         STATUS_AWAITING_PAYMENT: "Очікує оплати",
-        STATUS_CLOSED: "Завершена",
+        STATUS_CLOSED: "Закрита",
     }
 
     members = vacancy.members.select_related("user")
@@ -412,15 +412,29 @@ def vacancy_detail(request, pk):
     can_close = (
         vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT] and vacancy.closed_at is None
     )
+    has_workers = members.count() > 0
     show_start_rollcall = (
         not vacancy.first_rollcall_passed
-        and vacancy.closed_at is None
         and vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED]
+        and has_workers
     )
     show_end_rollcall = (
-        vacancy.first_rollcall_passed and not vacancy.second_rollcall_passed and vacancy.closed_at is None
+        vacancy.first_rollcall_passed
+        and not vacancy.second_rollcall_passed
+        and vacancy.status != STATUS_CLOSED
+        and has_workers
     )
     rollcall_type = "start" if show_start_rollcall else ("after_start" if show_end_rollcall else None)
+
+    # Check if work time has started (for rollcall time gate)
+    from datetime import datetime as _dt
+
+    from django.utils import timezone as _tz
+
+    _now = _tz.now()
+    _start_naive = _dt.combine(vacancy.date, vacancy.start_time)
+    _start_aware = _tz.make_aware(_start_naive, _tz.get_current_timezone())
+    rollcall_time_reached = _now >= _start_aware
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)
     show_payment = vacancy.second_rollcall_passed and not is_paid
@@ -446,6 +460,8 @@ def vacancy_detail(request, pk):
             "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
             "channel_title": vacancy.channel.title if vacancy.channel else "",
             "is_pending": vacancy.status == "pending",
+            "rollcall_time_reached": rollcall_time_reached,
+            "has_workers": has_workers,
             "is_admin_view": is_admin_view,
         },
     )
@@ -491,7 +507,8 @@ def vacancy_stop_search(request, pk):
         vacancy.status = STATUS_SEARCH_STOPPED
         vacancy.search_active = False
         vacancy.search_stopped_at = timezone.now()
-        vacancy.save(update_fields=["status", "search_active", "search_stopped_at"])
+        vacancy.extra["cancel_requested"] = True
+        vacancy.save(update_fields=["status", "search_active", "search_stopped_at", "extra"])
 
     return redirect("vacancy:detail", pk=pk)
 
