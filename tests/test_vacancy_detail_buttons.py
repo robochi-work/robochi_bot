@@ -102,7 +102,7 @@ class VacancyDetailButtonVisibilityTest(TestCase):
         v = self._create_vacancy(status="approved")
         response = self._get_detail(v)
         self.assertContains(response, "Закрити вакансію")
-        self.assertContains(response, "Група з працівниками")
+        self.assertContains(response, "Додавання/Видалення працівників")
 
 
 class AdminModerationMessageDeletionTest(TestCase):

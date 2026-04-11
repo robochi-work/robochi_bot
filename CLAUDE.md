@@ -410,3 +410,21 @@ sudo systemctl restart gunicorn.service
 - Убран блок block-status-card из vacancy_my_list при admin view
 - Валидация start_time переведена на украинский
 - Карточки пользователей admin_search_results: uniform width (100%, box-sizing)
+
+## Блокировки — обновление (апрель 2026)
+
+### Изменения в этой итерации:
+- admin_search_results.html: модальное окно выбора типа блокировки, цветные статусы, скролл к карточке
+- admin_search_vacancies: пофикшен баг отсутствия active_block_id/active_block_type
+- admin_block_user view: убрано дублирование is_active, permanent кикает из всех групп+каналов (ban+unban)
+- worker_dashboard: кнопка «Мої вакансії» активна при temporary блоке
+- Кнопки переклички: Confirm/Reject → Підтвердити/Відміна, добавлена кнопка Відміна в BEFORE_START
+- worker_join_confirm: убрана авто-блокировка при отказе (только кик)
+- BEFORE_START callback: кик при REJECT, контакты заказчика при CONFIRM
+- WORKER_JOIN_CONFIRM callback: контакты заказчика если до начала <= 2ч
+- VacancyStartCallFailObserver и VacancyAfterStartCallFailObserver: кик из группы + reason=employer_uncheck + исправлен баг AFTER_START фильтра
+- auto_approve: проверка незарегистрированных, блок заказчиков в чужих группах
+- vacancy_reinvite_worker: view для возврата рабочего в группу
+- send_vacancy_invoice: Telegram Payments → сообщение с WebApp-кнопкой Monobank
+- process_webhook: авто-разблокировка unpaid, удаление сообщения, уведомление
+- UserAdmin: защита staff от других staff

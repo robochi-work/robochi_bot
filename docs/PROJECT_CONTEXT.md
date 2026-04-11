@@ -229,22 +229,38 @@ AuthIdentity модель (user/models.py) — связывает User с про
 
 ## Система блокировок (UserBlock)
 
-Модель UserBlock (user/models.py): block_type (temporary/permanent), reason (manual/rollcall_reject/employer_uncheck/unpaid/other), blocked_by (FK User, null=авто), blocked_until (информационное поле), comment, is_active, created_at.
+### Модель и сервис
+- **UserBlock** (user/models.py): поля block_type (permanent/temporary), reason (manual/rollcall_reject/employer_uncheck/unpaid/other), blocked_by (FK nullable), blocked_until, comment, is_active, created_at
+- **BlockService** (user/services.py): is_blocked, is_permanently_blocked, is_temporarily_blocked, get_active_block, block_user, unblock_user, auto_block_rollcall_reject, auto_block_employer_unpaid
+- Постоянный блок: user.is_active=False, кик из всех групп и каналов (ban+unban, без ЧС)
+- Временный блок: запрет входа в группу вакансии через auto_approve, запрет создания вакансий. Кнопка «Мої вакансії» остаётся активной — рабочий видит канал.
 
-BlockService (user/services.py): is_blocked, is_permanently_blocked, is_temporarily_blocked, get_active_block, block_user, unblock_user, auto_block_rollcall_reject, auto_block_employer_unpaid.
+### Типы блокировок
+1. **Permanent manual** — админ блокирует вручную через ЛК. Модальное окно с выбором типа (Тимчасове/Постійне). Кик из всех групп+каналов. /start отклоняется.
+2. **Temporary manual** — админ блокирует вручную. Запрет создания вакансий (employer), участия в вакансиях (worker).
+3. **Temporary rollcall_reject** — авто, рабочий проигнорировал перекличку за 2ч до старта (VacancyBeforeCallObserver, 20 мин таймаут). Кик + блок + сообщение.
+4. **Temporary employer_uncheck** — заказчик снял галочку на перекличке «Начало работы» (VacancyStartCallFailObserver). Кик из группы + блок, blocked_by=vacancy.owner.
+5. **Temporary employer_uncheck** — заказчик снял галочку на перекличке «Окончание работы» (VacancyAfterStartCallFailObserver). Кик + блок + уведомление админу.
+6. **Temporary unpaid** — авто, после переклички окончания формируется счёт, заказчик блокируется до оплаты. Авто-разблокировка через Monobank webhook.
 
-Принцип: временная блокировка бессрочная — не истекает автоматически, снимается только вручную админом или системой при оплате. Поле blocked_until — информационное (ориентировочный срок для справки).
+### Дополнительные проверки в auto_approve (chat_join_request)
+- Незарегистрированный пользователь (нет work_profile/role) → decline + ссылка на /start
+- Заказчик в чужую группу вакансии → decline + сообщение
+- Порядок: is_staff → permanent → temporary → is_active → not_registered → vacancy lookup → owner → employer_not_owner → already_in_vacancy → capacity → gender → approve
 
-Постоянная блокировка: user.is_active=False, бан в канале города, блокировка при /start в боте.
-Временная блокировка: запрет Worker нажимать 'Я ГОТОВИЙ ПРАЦЮВАТИ', запрет Employer создавать вакансии.
+### Кнопка «Повернути до групи»
+- Админ может вернуть кикнутого рабочего: view vacancy_reinvite_worker → снять блокировку + отправить invite в бот
+- Страница «Додавання/Видалення працівників» (бывшая «Група з працівниками»)
 
-Автоблокировки (temporary, бессрочные):
-- Неявка на перекличку (check_before_20_start в call_observer)
-- Снятие галочки заказчиком на перекличке старта (VacancyStartCallFailObserver)
-- Снятие галочки заказчиком на перекличке окончания (VacancyAfterStartCallFailObserver)
-- Employer: неоплаченный счёт (auto_block_employer_unpaid)
+### Оплата и блокировка unpaid
+- После 2-й переклички VacancyAfterStartCallSuccessObserver → send_vacancy_invoice → сообщение в бот с WebApp-кнопкой оплаты + auto_block_employer_unpaid
+- Monobank webhook (process_webhook) при SUCCESS → is_paid=True, unblock unpaid, удаление сообщения из бота
+- Telegram Payments больше не используется — только Monobank эквайринг
 
-Интеграция: /start хэндлер, chat_join_request хэндлер, vacancy_create view, worker/employer dashboard шаблоны. Django Admin: UserBlockInline + BlockedFilter + display_block_status. ЛК Админа: модальное окно блокировки на admin_vacancy_card.
+### Защита админов в Django admin
+- Суперюзер: полный доступ
+- Обычный staff: не видит других staff, не может менять is_staff/is_superuser/is_active, не может удалять staff-пользователей
+- Кнопка ЗАБЛОКУВАТИ скрыта для is_staff в admin_search_results
 
 ## Реалізовано та підтверджено в роботі
 
