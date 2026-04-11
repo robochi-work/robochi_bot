@@ -348,26 +348,43 @@ def vacancy_my_list(request):
 
             active_block = BlockService.get_active_block(target_user)
 
-    statuses = [STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]
+    from datetime import timedelta
+
+    from django.db.models import Q
+    from django.utils import timezone as _tz
+
+    statuses = [STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED, STATUS_AWAITING_PAYMENT]
+    threshold_3h = _tz.now() - timedelta(hours=3)
+
     vacancies = (
-        Vacancy.objects.filter(owner=target_user, status__in=statuses)
+        Vacancy.objects.filter(owner=target_user)
+        .filter(
+            Q(status__in=statuses)
+            | Q(status=STATUS_CLOSED, closed_at__gte=threshold_3h)
+            | Q(status=STATUS_CLOSED, extra__is_paid=True, closed_at__gte=threshold_3h)
+        )
         .select_related("group", "channel")
         .order_by("-date", "-start_time")
     )
 
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
-        STATUS_APPROVED: "Активна (пошук)",
-        STATUS_ACTIVE: "Йде зміна",
-        "closed": "Завершена",
+        STATUS_APPROVED: "Активна",
+        STATUS_ACTIVE: "Активна",
+        STATUS_SEARCH_STOPPED: "Пошук зупинено",
+        STATUS_AWAITING_PAYMENT: "Очікує оплати",
+        STATUS_CLOSED: "Закрита",
     }
 
     vacancy_list = []
     for v in vacancies:
+        label = STATUS_LABELS.get(v.status, v.get_status_display())
+        if v.status == STATUS_CLOSED and v.extra.get("is_paid"):
+            label = "Сплачено"
         vacancy_list.append(
             {
                 "vacancy": v,
-                "status_label": STATUS_LABELS.get(v.status, v.get_status_display()),
+                "status_label": label,
                 "members_count": v.members.count(),
             }
         )
@@ -444,7 +461,9 @@ def vacancy_detail(request, pk):
         "vacancy/vacancy_detail.html",
         {
             "vacancy": vacancy,
-            "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
+            "status_label": "Сплачено"
+            if vacancy.status == STATUS_CLOSED and vacancy.extra.get("is_paid")
+            else STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
             "members": members,
             "members_count": members.count(),
             "work_profile": getattr(request.user, "work_profile", None),

@@ -133,6 +133,10 @@ def admin_search_vacancies(request):
         status_filters |= Q(vacancies__status__in=[STATUS_SEARCH_STOPPED, STATUS_CLOSED])
         has_status_filter = True
 
+    if request.GET.get("paid"):
+        status_filters |= Q(vacancies__status=STATUS_CLOSED, vacancies__extra__is_paid=True)
+        has_status_filter = True
+
     if has_status_filter:
         qs = qs.filter(status_filters).distinct()
 

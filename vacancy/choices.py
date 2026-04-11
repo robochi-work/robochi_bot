@@ -41,7 +41,7 @@ STATUS_AWAITING_PAYMENT = "awaiting"
 STATUS_CHOICES = [
     (STATUS_PENDING, _("Очікує модерації")),
     (STATUS_APPROVED, _("Активна")),
-    (STATUS_REJECTED, _("Відхилена")),
+    (STATUS_REJECTED, _("Скасована модератором")),
     (STATUS_ACTIVE, _("Активна")),
     (STATUS_CLOSED, _("Закрита")),
     (STATUS_SEARCH_STOPPED, _("Пошук зупинено")),
