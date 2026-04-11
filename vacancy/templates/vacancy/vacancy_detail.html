@@ -69,15 +69,25 @@
 
             {# 1. Close vacancy #}
             {% if can_close %}
-            <a href="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
-               class="worker-btn worker-btn--danger"
-               onclick="return confirm('Закрити вакансію? Через 3 години групу буде розпущено.')">
+            <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
+                  style="margin:0" onsubmit="return confirm('Закрити вакансію? Через 3 години групу буде розпущено.')">
+                {% csrf_token %}
+                <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
+                    <span class="worker-btn__icon">🔴</span>
+                    <span class="worker-btn__text">
+                        <span class="worker-btn__title">Закрити вакансію</span>
+                        <span class="worker-btn__sub">Завершити підбір та роботу</span>
+                    </span>
+                </button>
+            </form>
+            {% elif vacancy.closed_at and not is_closed_lifecycle %}
+            <div class="worker-btn worker-btn--disabled">
                 <span class="worker-btn__icon">🔴</span>
                 <span class="worker-btn__text">
-                    <span class="worker-btn__title">Закрити вакансію</span>
-                    <span class="worker-btn__sub">Завершити підбір та роботу</span>
+                    <span class="worker-btn__title">Вакансія закривається</span>
+                    <span class="worker-btn__sub">Групу буде розпущено через 3 години</span>
                 </span>
-            </a>
+            </div>
             {% endif %}
 
             {# Channel link #}

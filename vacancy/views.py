@@ -12,6 +12,7 @@ from user.models import User, UserFeedback
 from vacancy.choices import (
     STATUS_ACTIVE,
     STATUS_APPROVED,
+    STATUS_AWAITING_PAYMENT,
     STATUS_CLOSED,
     STATUS_PENDING,
     STATUS_SEARCH_STOPPED,
@@ -398,6 +399,7 @@ def vacancy_detail(request, pk):
         STATUS_APPROVED: "Активна (пошук)",
         STATUS_ACTIVE: "Йде зміна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
+        STATUS_AWAITING_PAYMENT: "Очікує оплати",
         STATUS_CLOSED: "Завершена",
     }
 
@@ -407,7 +409,9 @@ def vacancy_detail(request, pk):
     can_resume_search = (
         vacancy.status == STATUS_SEARCH_STOPPED and not vacancy.first_rollcall_passed and vacancy.status != "pending"
     )
-    can_close = vacancy.status not in [STATUS_CLOSED, "pending"]
+    can_close = (
+        vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT] and vacancy.closed_at is None
+    )
     show_start_rollcall = not vacancy.first_rollcall_passed and vacancy.status in [
         STATUS_APPROVED,
         STATUS_ACTIVE,
@@ -448,6 +452,9 @@ def vacancy_detail(request, pk):
 @login_required
 def vacancy_stop_search(request, pk):
     """Stop search: set STATUS_SEARCH_STOPPED, remove button from channel."""
+    if request.method != "POST":
+        return redirect("vacancy:detail", pk=pk)
+
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)
     else:
@@ -566,20 +573,26 @@ def vacancy_resume_search(request, pk):
 @login_required
 def vacancy_close_lifecycle(request, pk):
     """Start vacancy close: set closed_at timer (Celery will kick users after 3h)."""
+    if request.method != "POST":
+        return redirect("vacancy:detail", pk=pk)
+
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
-    if vacancy.status != STATUS_CLOSED:
+    if vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT]:
         from django.utils import timezone
 
+        from service.broadcast_service import TelegramBroadcastService
         from service.notifications import NotificationMethod
+        from service.notifications_impl import TelegramNotifier
         from service.telegram_strategy_factory import TelegramStrategyFactory
         from telegram.handlers.bot_instance import bot
         from telegram.models import ChannelMessage
         from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
+        # Update channel message to remove button
         if vacancy.channel:
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="closed")
             channel_message = (
@@ -602,6 +615,25 @@ def vacancy_close_lifecycle(request, pk):
         vacancy.closed_at = timezone.now()
         vacancy.search_active = False
         vacancy.save(update_fields=["closed_at", "search_active"])
+
+        # Notify admins about manual close
+        try:
+            notifier = TelegramNotifier(bot)
+            broadcast = TelegramBroadcastService(notifier=notifier)
+            group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
+            broadcast.admin_broadcast(
+                text=(
+                    f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk}\n"
+                    f"\U0001f4cd {vacancy.address}\n"
+                    f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
+                    f"\U0001f4ac Група: {group_link}\n"
+                    f"\u23f3 Групу буде розпущено через 3 години."
+                ),
+            )
+        except Exception as e:
+            import logging
+
+            logging.warning(f"Failed to notify admins on vacancy close: {e}")
 
     return redirect("vacancy:detail", pk=pk)
 
