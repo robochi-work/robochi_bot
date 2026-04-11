@@ -23,7 +23,20 @@ class GroupService:
 
     @classmethod
     def get_available_group(cls) -> Group | None:
-        return Group.objects.filter(status=STATUS_AVAILABLE, is_active=True, invite_link__isnull=False).first()
+        from django.db.models import Count, Q
+
+        return (
+            Group.objects.filter(status=STATUS_AVAILABLE, is_active=True, invite_link__isnull=False)
+            .annotate(
+                active_users=Count(
+                    "user_links",
+                    filter=Q(user_links__status__in=[Status.MEMBER, Status.OWNER]),
+                ),
+            )
+            .filter(active_users=0)
+            .order_by("last_used_at")
+            .first()
+        )
 
     @classmethod
     def find_and_set_group(cls, vacancy: Vacancy) -> Group | None:

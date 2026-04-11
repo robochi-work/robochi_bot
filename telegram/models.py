@@ -54,6 +54,7 @@ class Group(Chat):
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AVAILABLE, verbose_name=_("Status"))
     invite_link = models.URLField(_("Invite link"), null=True, blank=True)
+    last_used_at = models.DateTimeField(_("Last used at"), null=True, blank=True)
 
     class Meta:
         verbose_name = _("Група вакансії")

@@ -97,10 +97,13 @@ class VacancyGroupFeeStatusObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
+        from django.utils import timezone as tz
+
         vacancy = data["vacancy"]
         if vacancy.group:
             vacancy.group.status = STATUS_AVAILABLE
-            vacancy.group.save(update_fields=["status"])
+            vacancy.group.last_used_at = tz.now()
+            vacancy.group.save(update_fields=["status", "last_used_at"])
 
             vacancy.group = None
             vacancy.save(update_fields=["group"])

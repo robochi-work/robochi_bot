@@ -366,6 +366,28 @@ def close_lifecycle_timer_task():
         logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (search_stopped_at timer)")
         vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
         processed += 1
+    # Case c: paid vacancies — 3h after payment, free group
+    from payment.models import MonobankPayment
+
+    paid_vacancies = Vacancy.objects.filter(
+        extra__is_paid=True,
+        group__isnull=False,
+    ).exclude(status=STATUS_CLOSED)
+
+    for vacancy in paid_vacancies:
+        last_payment = (
+            MonobankPayment.objects.filter(
+                vacancy=vacancy,
+                status=MonobankPayment.Status.SUCCESS,
+            )
+            .order_by("-updated_at")
+            .first()
+        )
+        if last_payment and last_payment.updated_at <= threshold:
+            logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (3h after payment)")
+            vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+            processed += 1
+
     logger.info("task_completed", extra={"task": "close_lifecycle_timer_task", "processed": processed})
 
 
