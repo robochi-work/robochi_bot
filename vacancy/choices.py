@@ -38,6 +38,7 @@ STATUS_REJECTED = "rejected"
 STATUS_CLOSED = "closed"
 STATUS_SEARCH_STOPPED = "stopped"
 STATUS_AWAITING_PAYMENT = "awaiting"
+STATUS_PAID = "paid"
 STATUS_CHOICES = [
     (STATUS_PENDING, _("Очікує модерації")),
     (STATUS_APPROVED, _("Активна")),
@@ -45,4 +46,5 @@ STATUS_CHOICES = [
     (STATUS_CLOSED, _("Закрита")),
     (STATUS_SEARCH_STOPPED, _("Пошук зупинено")),
     (STATUS_AWAITING_PAYMENT, _("Очікує оплати")),
+    (STATUS_PAID, _("Сплачено")),
 ]

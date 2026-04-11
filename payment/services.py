@@ -117,7 +117,8 @@ def process_webhook(*, invoice_id: str, webhook_data: dict) -> MonobankPayment |
         vacancy = payment.vacancy
         if vacancy:
             vacancy.extra["is_paid"] = True
-            vacancy.save(update_fields=["extra"])
+            vacancy.status = "paid"
+            vacancy.save(update_fields=["extra", "status"])
 
         # Remove unpaid block
         from user.models import UserBlock

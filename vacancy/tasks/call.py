@@ -371,9 +371,9 @@ def close_lifecycle_timer_task():
     from payment.models import MonobankPayment
 
     paid_vacancies = Vacancy.objects.filter(
-        extra__is_paid=True,
+        status="paid",
         group__isnull=False,
-    ).exclude(status=STATUS_CLOSED)
+    )
 
     for vacancy in paid_vacancies:
         last_payment = (

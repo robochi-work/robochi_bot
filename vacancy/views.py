@@ -14,6 +14,7 @@ from vacancy.choices import (
     STATUS_APPROVED,
     STATUS_AWAITING_PAYMENT,
     STATUS_CLOSED,
+    STATUS_PAID,
     STATUS_PENDING,
     STATUS_SEARCH_STOPPED,
 )
@@ -353,7 +354,14 @@ def vacancy_my_list(request):
     from django.db.models import Q
     from django.utils import timezone as _tz
 
-    statuses = [STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED, STATUS_AWAITING_PAYMENT]
+    statuses = [
+        STATUS_PENDING,
+        STATUS_APPROVED,
+        STATUS_ACTIVE,
+        STATUS_SEARCH_STOPPED,
+        STATUS_AWAITING_PAYMENT,
+        STATUS_PAID,
+    ]
     threshold_3h = _tz.now() - timedelta(hours=3)
 
     vacancies = (
@@ -374,13 +382,12 @@ def vacancy_my_list(request):
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
         STATUS_AWAITING_PAYMENT: "Очікує оплати",
         STATUS_CLOSED: "Закрита",
+        STATUS_PAID: "Сплачено",
     }
 
     vacancy_list = []
     for v in vacancies:
         label = STATUS_LABELS.get(v.status, v.get_status_display())
-        if v.status == STATUS_CLOSED and v.extra.get("is_paid"):
-            label = "Сплачено"
         vacancy_list.append(
             {
                 "vacancy": v,
@@ -418,6 +425,7 @@ def vacancy_detail(request, pk):
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
         STATUS_AWAITING_PAYMENT: "Очікує оплати",
         STATUS_CLOSED: "Закрита",
+        STATUS_PAID: "Сплачено",
     }
 
     members = vacancy.members.select_related("user")
@@ -461,9 +469,7 @@ def vacancy_detail(request, pk):
         "vacancy/vacancy_detail.html",
         {
             "vacancy": vacancy,
-            "status_label": "Сплачено"
-            if vacancy.status == STATUS_CLOSED and vacancy.extra.get("is_paid")
-            else STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
+            "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
             "members": members,
             "members_count": members.count(),
             "work_profile": getattr(request.user, "work_profile", None),
