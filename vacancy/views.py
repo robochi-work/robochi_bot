@@ -452,9 +452,6 @@ def vacancy_detail(request, pk):
 @login_required
 def vacancy_stop_search(request, pk):
     """Stop search: set STATUS_SEARCH_STOPPED, remove button from channel."""
-    if request.method != "POST":
-        return redirect("vacancy:detail", pk=pk)
-
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)
     else:
@@ -594,7 +591,7 @@ def vacancy_close_lifecycle(request, pk):
 
         # Update channel message to remove button
         if vacancy.channel:
-            text = VacancyTelegramTextFormatter(vacancy).for_channel(status="closed")
+            text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
                 ChannelMessage.objects.filter(
                     channel_id=vacancy.channel.id,
@@ -612,9 +609,10 @@ def vacancy_close_lifecycle(request, pk):
 
                     logging.warning(f"Failed to update channel message on close: {e}")
 
+        vacancy.status = STATUS_CLOSED
         vacancy.closed_at = timezone.now()
         vacancy.search_active = False
-        vacancy.save(update_fields=["closed_at", "search_active"])
+        vacancy.save(update_fields=["status", "closed_at", "search_active"])
 
         # Notify admins about manual close
         try:

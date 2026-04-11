@@ -80,14 +80,6 @@
                     </span>
                 </button>
             </form>
-            {% elif vacancy.closed_at and not is_closed_lifecycle %}
-            <div class="worker-btn worker-btn--disabled">
-                <span class="worker-btn__icon">🔴</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Вакансія закривається</span>
-                    <span class="worker-btn__sub">Групу буде розпущено через 3 години</span>
-                </span>
-            </div>
             {% endif %}
 
             {# Channel link #}
