@@ -44,6 +44,6 @@ STATUS_CHOICES = [
     (STATUS_REJECTED, _("Rejected")),
     (STATUS_ACTIVE, _("Active")),
     (STATUS_CLOSED, _("Closed")),
-    (STATUS_SEARCH_STOPPED, _("Search stopped")),
-    (STATUS_AWAITING_PAYMENT, _("Awaiting payment")),
+    (STATUS_SEARCH_STOPPED, _("Пошук зупинено")),
+    (STATUS_AWAITING_PAYMENT, _("Очікує оплати")),
 ]
