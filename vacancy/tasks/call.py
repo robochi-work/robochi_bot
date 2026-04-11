@@ -347,12 +347,13 @@ def close_lifecycle_timer_task():
     connection.close()
     threshold = timezone.now() - timedelta(hours=3)
 
-    # Case a: employer pressed "Закрити вакансію" — closed_at timer
+    # Case a: employer pressed "Закрити вакансію" — closed_at timer, group still attached
     for vacancy in Vacancy.objects.filter(
         closed_at__isnull=False,
         closed_at__lte=threshold,
-    ).exclude(status=STATUS_CLOSED):
-        logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (closed_at timer)")
+        group__isnull=False,
+    ):
+        logger.info(f"close_lifecycle_timer_task: freeing group for vacancy {vacancy.pk} (closed_at timer)")
         vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
 
     # Case b: employer stopped search — 3h passed with no manual close

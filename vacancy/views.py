@@ -430,9 +430,7 @@ def vacancy_detail(request, pk):
         "vacancy/vacancy_detail.html",
         {
             "vacancy": vacancy,
-            "status_label": "Вакансію закрито"
-            if vacancy.closed_at
-            else STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
+            "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
             "members": members,
             "members_count": members.count(),
             "work_profile": getattr(request.user, "work_profile", None),
@@ -613,9 +611,11 @@ def vacancy_close_lifecycle(request, pk):
 
                     logging.warning(f"Failed to update channel message on close: {e}")
 
+        vacancy.status = STATUS_CLOSED
         vacancy.closed_at = timezone.now()
         vacancy.search_active = False
-        vacancy.save(update_fields=["closed_at", "search_active"])
+        vacancy.extra["cancel_requested"] = True
+        vacancy.save(update_fields=["status", "closed_at", "search_active", "extra"])
 
         # Notify admins about manual close
         try:
