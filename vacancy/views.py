@@ -412,12 +412,14 @@ def vacancy_detail(request, pk):
     can_close = (
         vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT] and vacancy.closed_at is None
     )
-    show_start_rollcall = not vacancy.first_rollcall_passed and vacancy.status in [
-        STATUS_APPROVED,
-        STATUS_ACTIVE,
-        STATUS_SEARCH_STOPPED,
-    ]
-    show_end_rollcall = vacancy.first_rollcall_passed and not vacancy.second_rollcall_passed
+    show_start_rollcall = (
+        not vacancy.first_rollcall_passed
+        and vacancy.closed_at is None
+        and vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED]
+    )
+    show_end_rollcall = (
+        vacancy.first_rollcall_passed and not vacancy.second_rollcall_passed and vacancy.closed_at is None
+    )
     rollcall_type = "start" if show_start_rollcall else ("after_start" if show_end_rollcall else None)
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)
