@@ -111,4 +111,53 @@ def process_webhook(*, invoice_id: str, webhook_data: dict) -> MonobankPayment |
     payment.raw_webhook_data = webhook_data
     payment.save()
 
+    # Post-payment success actions
+    if payment.status == MonobankPayment.Status.SUCCESS:
+        # Mark vacancy as paid
+        vacancy = payment.vacancy
+        if vacancy:
+            vacancy.extra["is_paid"] = True
+            vacancy.save(update_fields=["extra"])
+
+        # Remove unpaid block
+        from user.models import UserBlock
+        from user.services import BlockService
+
+        unpaid_block = UserBlock.objects.filter(
+            user=payment.user,
+            is_active=True,
+            reason="unpaid",
+        ).first()
+        if unpaid_block:
+            BlockService.unblock_user(unpaid_block.pk)
+
+        # Delete payment message from bot
+        if vacancy and vacancy.extra.get("payment_message_id"):
+            try:
+                from telegram.handlers.bot_instance import get_bot
+
+                get_bot().delete_message(
+                    chat_id=payment.user.id,
+                    message_id=vacancy.extra["payment_message_id"],
+                )
+                del vacancy.extra["payment_message_id"]
+                vacancy.save(update_fields=["extra"])
+            except Exception:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
+
+        # Notify employer
+        try:
+            from telegram.handlers.bot_instance import get_bot
+
+            get_bot().send_message(
+                payment.user.id,
+                f"Оплату за вакансію {vacancy.address} прийнято. Дякуємо!",
+            )
+        except Exception:
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
+
     return payment

@@ -1,13 +1,10 @@
-from types import SimpleNamespace
 from typing import TypedDict
 
+import telebot
 from django.conf import settings
 from telebot.types import LabeledPrice
 
-from service.notifications import NotificationMethod
-from service.notifications_impl import TelegramNotifier
 from telegram.choices import CallType
-from telegram.handlers.common import CallbackStorage
 from vacancy.models import Vacancy
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
@@ -29,6 +26,8 @@ def get_vacancy_invoice_amount(vacancy: Vacancy, price_per_worker: UAH = 100) ->
 
 
 def get_vacancy_invoice_data(vacancy: Vacancy) -> InvoiceData:
+    from telegram.handlers.common import CallbackStorage
+
     workers_count = len(vacancy.extra.get("calls", {}).get(CallType.AFTER_START.value, []))
     amount = get_vacancy_invoice_amount(vacancy=vacancy)
     title = CallVacancyTelegramTextFormatter(vacancy=vacancy).invoice_final_call_success()
@@ -43,10 +42,45 @@ def get_vacancy_invoice_data(vacancy: Vacancy) -> InvoiceData:
     )
 
 
-def send_vacancy_invoice(notifier: TelegramNotifier, vacancy: Vacancy) -> None:
-    notifier.notify(
-        recipient=SimpleNamespace(chat_id=vacancy.owner.id),
-        method=NotificationMethod.INVOICE,
-        vacancy=vacancy,
-        **get_vacancy_invoice_data(vacancy=vacancy),
-    )
+def send_vacancy_invoice(notifier, vacancy: Vacancy) -> None:
+    import sentry_sdk
+    from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    from telegram.handlers.bot_instance import get_bot
+    from user.services import BlockService
+
+    amount = get_vacancy_invoice_amount(vacancy)
+    workers_count = len(vacancy.extra.get("calls", {}).get(CallType.AFTER_START.value, []))
+
+    if amount <= 0:
+        return
+
+    # Block employer for non-payment
+    BlockService.auto_block_employer_unpaid(vacancy.owner)
+
+    # Send message with payment WebApp button
+    try:
+        bot = get_bot()
+        text = (
+            f"За вакансією {vacancy.address} відпрацювало: {workers_count} працівників.\n"
+            f"До сплати: {amount} грн.\n\n"
+            f"Оплатіть рахунок щоб створювати нові вакансії."
+        )
+        markup = InlineKeyboardMarkup()
+        payment_url = f"{settings.BASE_URL}/vacancy/{vacancy.pk}/payment/"
+        markup.row(
+            InlineKeyboardButton(
+                "💳 Сплатити рахунок",
+                web_app=telebot.types.WebAppInfo(url=payment_url),
+            )
+        )
+        msg = bot.send_message(
+            chat_id=vacancy.owner.id,
+            text=text,
+            reply_markup=markup,
+        )
+        # Save message_id for deletion after payment
+        vacancy.extra["payment_message_id"] = msg.message_id
+        vacancy.save(update_fields=["extra"])
+    except Exception:
+        sentry_sdk.capture_exception()
