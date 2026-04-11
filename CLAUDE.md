@@ -428,3 +428,38 @@ sudo systemctl restart gunicorn.service
 - send_vacancy_invoice: Telegram Payments → сообщение с WebApp-кнопкой Monobank
 - process_webhook: авто-разблокировка unpaid, удаление сообщения, уведомление
 - UserAdmin: защита staff от других staff
+
+## Статусы вакансии — финальная схема (11.04.2026)
+
+### Статусы в БД (vacancy/choices.py)
+- pending (Очікує модерації) — создана, ждёт админа
+- approved (Активна) — опубликована, поиск/работа
+- rejected (Скасована модератором) — отклонена на модерации
+- stopped (Пошук зупинено) — заказчик временно остановил
+- closed (Закрита) — ЖЦВ завершён
+- awaiting (Очікує оплати) — выставлен счёт
+- paid (Сплачено) — оплата пройдена
+
+### STATUS_ACTIVE — мёртвый код
+Определён но убран из STATUS_CHOICES. Нигде не устанавливается.
+Оставлен для совместимости. Проверки используют status__in=[approved, active].
+
+### Переходы: pending→approved→stopped/closed→paid
+
+### Кнопки ЛК Заказчика
+- Закрити вакансію (POST): status=closed + cancel_requested + closed_at
+- Зупинити пошук (GET): status=stopped + cancel_requested + search_stopped_at
+- Перекличка: только если has_workers>0 AND start_time наступило
+
+### Celery таймеры (close_lifecycle_timer_task, каждые 30с)
+- Case a: closed_at + group + 3h → VACANCY_CLOSE (kick + free group)
+- Case b: stopped + search_stopped_at + 3h → VACANCY_CLOSE
+- Case c: paid + group + 3h after payment → VACANCY_CLOSE
+
+### Группы: last_used_at ASC + active_users=0
+
+### ЛК Админа фильтры
+- Активна: approved/active
+- Пошук зупинено / Закрита: stopped OR (closed within 3h)
+- До сплати: sent_final_call + !is_paid
+- Сплачено: closed + is_paid
