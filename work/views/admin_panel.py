@@ -130,7 +130,15 @@ def admin_search_vacancies(request):
         has_status_filter = True
 
     if request.GET.get("cancelled"):
-        status_filters |= Q(vacancies__status__in=[STATUS_SEARCH_STOPPED, STATUS_CLOSED])
+        from datetime import timedelta
+
+        from django.utils import timezone as _tz
+
+        threshold_3h = _tz.now() - timedelta(hours=3)
+        status_filters |= Q(vacancies__status=STATUS_SEARCH_STOPPED) | Q(
+            vacancies__status=STATUS_CLOSED,
+            vacancies__closed_at__gte=threshold_3h,
+        )
         has_status_filter = True
 
     if request.GET.get("paid"):
