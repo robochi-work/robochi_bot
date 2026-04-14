@@ -248,7 +248,16 @@ def vacancy_call(request: WSGIRequest, pk: int, call_type: CallType) -> HttpResp
             initial={"users": [user_call.vacancy_user for user_call in initial_calls]},
         )
 
-    return render(request, "vacancy/call.html", context={"form": form, "call_type": call_type})
+    return render(
+        request,
+        "vacancy/call.html",
+        context={
+            "form": form,
+            "call_type": call_type,
+            "vacancy": vacancy,
+            "second_rollcall_passed": vacancy.second_rollcall_passed,
+        },
+    )
 
 
 def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpResponse:

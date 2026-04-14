@@ -198,7 +198,7 @@ def after_first_call_check(vacancies: Iterable[Vacancy], delay: Minutes = 20):
 
 
 _REMINDER_INTERVAL = 300  # 5 minutes in seconds
-_MAX_REMINDERS = 6
+_MAX_REMINDERS = 12
 
 
 def start_call_check(vacancies: Iterable[Vacancy]):
