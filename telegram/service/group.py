@@ -114,7 +114,7 @@ class GroupService:
                 chat_id=chat_id,
                 user_id=user_id,
                 can_promote_members=False,
-                can_restrict_members=True,
+                can_restrict_members=False,
                 can_delete_messages=False,
                 can_pin_messages=False,
                 can_invite_users=False,
