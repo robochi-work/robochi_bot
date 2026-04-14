@@ -91,9 +91,9 @@ class CallVacancyTelegramTextFormatter:
     def auto_block_message(reason: str = "неявка на перекличку") -> str:
         with override("uk"):
             return (
-                f"Вас заблоковано в системі robochi_bot.\n"
+                f"Вас заблоковано у сервісі robochi.work !\n"
                 f"Причина: {reason}.\n"
-                f"Для розблокування зв'яжіться з адміністратором."
+                f"Для розблокування зверніться до Адміністратора- @robochi_work_admin"
             )
 
     # ─── Static: vacancy lifecycle notifications ──────────────────────────────

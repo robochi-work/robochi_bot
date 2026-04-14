@@ -417,7 +417,7 @@ def admin_block_user(request, user_id):
             if block_type == "temporary" and duration_days:
                 blocked_until = timezone.now() + timedelta(days=int(duration_days))
 
-            block = BlockService.block_user(
+            BlockService.block_user(
                 user=target_user,
                 block_type=block_type,
                 reason=reason,
@@ -439,10 +439,9 @@ def admin_block_user(request, user_id):
                 from telegram.handlers.bot_instance import get_bot
 
                 if block_type == "permanent":
-                    text = "Вас заблоковано в системі robochi_bot.\nДля розблокування зверніться до адміністратора."
+                    text = "Вас заблоковано у сервісі robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin"
                 else:
-                    days_text = f" на {duration_days} днів" if duration_days else ""
-                    text = f"Вас тимчасово заблоковано{days_text}.\nПричина: {block.get_reason_display()}\nДля розблокування зверніться до адміністратора."
+                    text = "Увага! Вас обмежено у користуванні сервісом robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin"
                 get_bot().send_message(target_user.id, text)
             except Exception:
                 sentry_sdk.capture_exception()

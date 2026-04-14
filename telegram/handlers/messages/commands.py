@@ -152,7 +152,7 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
     if BlockService.is_permanently_blocked(user):
         get_bot().send_message(
             message.chat.id,
-            "Вас заблоковано в системі robochi_bot.\nДля розблокування зверніться до адміністратора.",
+            "Вас заблоковано у сервісі robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin",
         )
         return
 
