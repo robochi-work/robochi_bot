@@ -1,19 +1,26 @@
 {% extends 'base.html' %}
-
 {% block header %}{% endblock %}
-
 {% block body %}
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const tg = window.Telegram && window.Telegram.WebApp;
-  const initData = tg ? tg.initData : "";
-  const params = new URLSearchParams(window.location.search);
-  const next = params.get("next") || "/";
+document.addEventListener('DOMContentLoaded', function() {
+  var tg = window.Telegram && window.Telegram.WebApp;
+  var initData = tg ? tg.initData : "";
+  var params = new URLSearchParams(window.location.search);
+  var next = params.get("next") || "/";
 
-  const url = "{% url 'telegram:telegram_authenticate_web_app' %}"
+  if (!initData) {
+    // No initData — likely opened from bot profile "Open App" button
+    // or direct link without WebApp context. Show a message.
+    document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:80vh;text-align:center;padding:20px;">'
+      + '<p style="font-size:18px;margin-bottom:20px;">Щоб почати, натисніть кнопку <b>ПОЧАТИ</b> в чаті з ботом.</p>'
+      + '<a href="https://t.me/riznorobochi_ua_bot" style="padding:12px 24px;background:var(--main_purple,#7c3aed);color:#fff;border-radius:12px;text-decoration:none;font-size:16px;">Перейти до бота</a>'
+      + '</div>';
+    return;
+  }
+
+  var url = "{% url 'telegram:telegram_authenticate_web_app' %}"
     + "?init_data=" + encodeURIComponent(initData)
     + "&next=" + encodeURIComponent(next);
-
   window.location.replace(url);
 });
 </script>

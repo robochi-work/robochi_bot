@@ -1,9 +1,7 @@
 /**
- * Telegram Mini App Lifecycle Manager v5
- * Fix: deduplicate reload triggers + 350ms delay to avoid ERR_CONNECTION_ABORTED.
- * Multiple events (visibilitychange, activated, touchstart) can fire in rapid
- * succession on resume — without deduplication each one calls reload(), and the
- * second reload aborts the first mid-handshake, producing ERR_CONNECTION_ABORTED.
+ * Telegram Mini App Lifecycle Manager v6
+ * - Single-instance guard via BroadcastChannel
+ * - Reload with retry on resume from background
  */
 (function() {
     'use strict';
@@ -11,29 +9,38 @@
     if (!tg) return;
 
     // ── Single-instance guard ──────────────────────────────────
-    // When a new Mini App window opens, it tells previous ones to close.
     try {
         var channel = new BroadcastChannel('robochi_webapp');
-        // Notify any already-open instance to close
         channel.postMessage({ type: 'new_instance', ts: Date.now() });
-        // If another instance opens after us — we close
         channel.addEventListener('message', function(e) {
             if (e.data && e.data.type === 'new_instance' && e.data.ts > Date.now() - 500) {
                 try { tg.close(); } catch(_) {}
             }
         });
-    } catch(_) {
-        // BroadcastChannel not supported — skip
-    }
+    } catch(_) {}
 
+    // ── Reload with retry ──────────────────────────────────────
     var lastBeat = Date.now();
     var reloadTimer = null;
+    var retryCount = 0;
+    var MAX_RETRIES = 3;
 
     function scheduleReload() {
-        if (reloadTimer !== null) return;  // already scheduled — ignore duplicate
+        if (reloadTimer !== null) return;
+        var delay = 500 + (retryCount * 500); // 500ms, 1000ms, 1500ms
         reloadTimer = setTimeout(function() {
+            reloadTimer = null;
+            retryCount++;
+            if (retryCount > MAX_RETRIES) {
+                // After max retries, show tap-to-reload hint
+                document.body.style.opacity = '0.5';
+                document.body.addEventListener('click', function() {
+                    window.location.reload();
+                }, { once: true });
+                return;
+            }
             window.location.reload();
-        }, 350);  // 350ms: let Telegram network layer stabilise before reload
+        }, delay);
     }
 
     // Heartbeat: detect JS freeze (tab was backgrounded by OS)
@@ -41,7 +48,7 @@
         var now = Date.now();
         var gap = now - lastBeat;
         lastBeat = now;
-        if (gap > 2500) {
+        if (gap > 3000) {
             scheduleReload();
         }
     }, 1000);
@@ -51,7 +58,7 @@
         if (document.visibilityState === 'visible') {
             var gap = Date.now() - lastBeat;
             lastBeat = Date.now();
-            if (gap > 2500) {
+            if (gap > 3000) {
                 scheduleReload();
             }
         }
@@ -62,20 +69,9 @@
         tg.onEvent('activated', function() {
             var gap = Date.now() - lastBeat;
             lastBeat = Date.now();
-            if (gap > 2500) {
+            if (gap > 3000) {
                 scheduleReload();
             }
         });
     }
-
-    // First interaction after freeze
-    function onInteraction() {
-        var gap = Date.now() - lastBeat;
-        if (gap > 2500) {
-            lastBeat = Date.now();
-            scheduleReload();
-        }
-    }
-    document.addEventListener('touchstart', onInteraction, { passive: true, capture: true });
-    document.addEventListener('click', onInteraction, true);
 })();
