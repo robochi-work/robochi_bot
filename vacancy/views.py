@@ -76,8 +76,6 @@ def vacancy_create(request):
                 "has_passport": last_vacancy.has_passport,
                 "address": last_vacancy.address,
                 "map_link": last_vacancy.map_link,
-                "start_time": last_vacancy.start_time,
-                "end_time": last_vacancy.end_time,
                 "payment_amount": last_vacancy.payment_amount,
                 "payment_unit": last_vacancy.payment_unit,
                 "payment_method": last_vacancy.payment_method,
