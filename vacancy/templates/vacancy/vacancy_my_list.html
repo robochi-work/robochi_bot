@@ -8,7 +8,7 @@
 
     <div class="vacancy-list-header">
         {% if is_admin_view %}
-        <a href="javascript:history.back()" class="page-back-btn">← Назад</a>
+        <a href="{% url 'work:admin_dashboard' %}" class="page-back-btn">← Назад</a>
         <h1>Вакансії заказчика</h1>
         {% else %}
         <a href="{% url 'index' %}" class="page-back-btn">← На головну</a>
