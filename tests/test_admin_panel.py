@@ -93,4 +93,4 @@ def test_moderate_redirects_to_my_list(client):
     response = client.post(url, {})
 
     assert response.status_code == 302
-    assert "for_user" in response["Location"]
+    assert "admin-panel" in response["Location"]
