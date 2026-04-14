@@ -5,11 +5,11 @@
     --primary: #6366f1;
     --primary-hover: #4f46e5;
     --primary-foreground: #ffffff;
-    --background: #f8fafc;
+    --background: #f1f5f9;
     --foreground: #1e293b;
     --card: #ffffff;
     --card-foreground: #1e293b;
-    --border: #d1d5db;
+    --border: #cbd5e1;
     --input: #d1d5db;
     --input-bg: #ffffff;
     --muted: #f3f4f6;
@@ -863,7 +863,7 @@ a.info,
     text-overflow: ellipsis;
 }
 .worker-btn--accent {
-    border-left: 3px solid var(--primary);
+    /* accent marker removed */
 }
 
 /* ---------- Modal overlay ---------- */
@@ -1011,4 +1011,44 @@ a.info,
     background: var(--success-bg);
     color: var(--success-text);
     border: 1px solid rgba(34,197,94,0.2);
+}
+
+/* ---------- Dashboard layout (employer + worker) ---------- */
+.employer-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+.employer-top {
+    flex-shrink: 0;
+    padding: 12px 0 0;
+}
+.employer-middle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 16px 0;
+}
+.employer-bottom {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 0 16px;
+}
+.worker-btn--compact {
+    padding: 12px 14px;
+}
+.worker-btn--compact .worker-btn__icon {
+    font-size: 20px;
+}
+.worker-btn--compact .worker-btn__title {
+    font-size: 14px;
+}
+.worker-btn--compact .worker-btn__sub {
+    font-size: 12px;
 }

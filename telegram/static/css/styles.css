@@ -1012,3 +1012,43 @@ a.info,
     color: var(--success-text);
     border: 1px solid rgba(34,197,94,0.2);
 }
+
+/* ---------- Dashboard layout (employer + worker) ---------- */
+.employer-layout {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 0 16px;
+}
+.employer-top {
+    flex-shrink: 0;
+    padding: 12px 0 0;
+}
+.employer-middle {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 16px 0;
+}
+.employer-bottom {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 0 16px;
+}
+.worker-btn--compact {
+    padding: 12px 14px;
+}
+.worker-btn--compact .worker-btn__icon {
+    font-size: 20px;
+}
+.worker-btn--compact .worker-btn__title {
+    font-size: 14px;
+}
+.worker-btn--compact .worker-btn__sub {
+    font-size: 12px;
+}
