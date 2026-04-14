@@ -109,7 +109,7 @@ class CallVacancyTelegramTextFormatter:
     @staticmethod
     def vacancy_approved_user() -> str:
         with override("uk"):
-            return "Вашу заявку схвалено та опубліковано в каналі.\nПерейти до керування заявкою:"
+            return "Вашу вакансію схвалено та опубліковано для пошуку робітників.\nПерейдіть до керування вакансієй- ви зможете спілкуватися з робітниками у групі, контролювати та редагувати вакансію."
 
     def vacancy_closed_admin(self) -> str:
         owner = self.vacancy.owner

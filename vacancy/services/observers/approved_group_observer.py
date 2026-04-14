@@ -39,35 +39,3 @@ class VacancyApprovedGroupObserver(Observer):
 
             vacancy.extra["sent_in_group"] = True
             vacancy.save(update_fields=["extra"])
-            self._add_employer_to_group(vacancy)
-
-    def _add_employer_to_group(self, vacancy) -> None:
-        """Send existing group invite link to the employer."""
-        from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-        from telegram.handlers.bot_instance import bot
-
-        if not vacancy.group or not vacancy.group.invite_link:
-            logging.warning(f"No group or invite_link for vacancy {vacancy.id}")
-            return
-
-        try:
-            markup = InlineKeyboardMarkup()
-            markup.add(
-                InlineKeyboardButton(
-                    text="Перейти в групу вакансії",
-                    url=vacancy.group.invite_link,
-                )
-            )
-
-            msg = bot.send_message(
-                chat_id=vacancy.owner.id,
-                text="Вашу вакансію схвалено! Перейдіть у групу для спілкування з робітниками:",
-                reply_markup=markup,
-            )
-            if msg:
-                vacancy.extra["employer_invite_msg_id"] = msg.message_id
-                vacancy.save(update_fields=["extra"])
-            logging.info(f"Employer {vacancy.owner.id} invite sent for group {vacancy.group.id}")
-        except Exception as e:
-            logging.warning(f"Failed to send employer invite for group {vacancy.group.id}: {e}")
