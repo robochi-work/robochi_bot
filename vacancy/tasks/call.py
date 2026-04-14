@@ -157,6 +157,26 @@ def get_final_vacancies() -> Iterable[Vacancy]:
     return filtered_vacancies
 
 
+def get_final_call_vacancies(before_end: Minutes = 60) -> Iterable[Vacancy]:
+    """Vacancies where end_time is within `before_end` minutes from now (for final rollcall)."""
+    vacancies = Vacancy.objects.filter(
+        status__in=[STATUS_ACTIVE, STATUS_APPROVED],
+        date=date.today(),
+    )
+
+    naive_now = datetime.now()
+    aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
+    filtered_vacancies = []
+    for vacancy in vacancies:
+        end_naive = datetime.combine(vacancy.date, vacancy.end_time)
+        end_aware = timezone.make_aware(end_naive, timezone.get_current_timezone())
+        trigger_time = end_aware - timedelta(minutes=before_end)
+
+        if aware_now > trigger_time and aware_now < end_aware:
+            filtered_vacancies.append(vacancy)
+    return filtered_vacancies
+
+
 def before_start_call(vacancies: Iterable[Vacancy]):
     for vacancy in vacancies:
         vacancy_publisher.notify(VACANCY_BEFORE_CALL, data={"vacancy": vacancy})
@@ -302,8 +322,8 @@ def start_call_check_task():
 def final_call_check_task():
     logger.info("task_started", extra={"task": "final_call_check_task"})
     connection.close()
-    # Initial send: ACTIVE/APPROVED vacancies past end_time
-    final_call_check(vacancies=get_final_vacancies())
+    # Initial send: ACTIVE/APPROVED vacancies 1h before end_time
+    final_call_check(vacancies=get_final_call_vacancies())
     # Reminder window: SEARCH_STOPPED vacancies past end_time (auto-stopped at start)
     aware_now = timezone.make_aware(datetime.now(), timezone.get_current_timezone())
     stopped_candidates = []
@@ -313,7 +333,8 @@ def final_call_check_task():
         second_rollcall_passed=False,
     ):
         end_aware = timezone.make_aware(datetime.combine(v.date, v.end_time), timezone.get_current_timezone())
-        if aware_now > end_aware:
+        trigger_time = end_aware - timedelta(minutes=60)
+        if aware_now > trigger_time:
             stopped_candidates.append(v)
     final_call_check(vacancies=stopped_candidates)
     logger.info("task_completed", extra={"task": "final_call_check_task", "processed": None})
