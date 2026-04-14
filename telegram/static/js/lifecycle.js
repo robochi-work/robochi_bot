@@ -10,6 +10,22 @@
     var tg = window.Telegram && window.Telegram.WebApp;
     if (!tg) return;
 
+    // ── Single-instance guard ──────────────────────────────────
+    // When a new Mini App window opens, it tells previous ones to close.
+    try {
+        var channel = new BroadcastChannel('robochi_webapp');
+        // Notify any already-open instance to close
+        channel.postMessage({ type: 'new_instance', ts: Date.now() });
+        // If another instance opens after us — we close
+        channel.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'new_instance' && e.data.ts > Date.now() - 500) {
+                try { tg.close(); } catch(_) {}
+            }
+        });
+    } catch(_) {
+        // BroadcastChannel not supported — skip
+    }
+
     var lastBeat = Date.now();
     var reloadTimer = null;
 
