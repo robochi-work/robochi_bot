@@ -254,15 +254,14 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
 
 .detail-card {
     padding: 20px 16px;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow);
     margin-bottom: 16px;
 }
 .detail-address {
     font-size: 17px;
     font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
     margin-bottom: 16px;
     line-height: 1.4;
 }
@@ -289,7 +288,7 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
 .detail-skills {
     margin-top: 14px;
     padding-top: 14px;
-    border-top: 1px solid rgba(0,0,0,0.1);
+    border-top: 1px solid var(--border);
 }
 .detail-skills p {
     font-size: 14px;
@@ -305,19 +304,18 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
 
 .detail-members {
     padding: 16px;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow);
 }
 .detail-members h3 {
     font-size: 15px;
     font-weight: 700;
     margin-bottom: 12px;
-    text-shadow: var(--btn-text-shadow);
 }
 .member-row {
     padding: 10px 0;
-    border-bottom: 1px solid rgba(0,0,0,0.08);
+    border-bottom: 1px solid var(--border);
     font-size: 14px;
 }
 .member-row:last-child {
@@ -334,28 +332,21 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
 
 /* Payment button variant */
 .worker-btn--pay {
-    border-color: rgba(27,94,32,0.35) !important;
-    box-shadow: var(--btn-shadow), inset 0 0 0 1px rgba(27,94,32,0.2) !important;
+    border-color: rgba(34,197,94,0.3) !important;
 }
-.worker-btn--pay .worker-btn__title { color: #2e7d32; }
+.worker-btn--pay .worker-btn__title { color: var(--success-text); }
 .worker-btn--paid { opacity: 0.75; pointer-events: none; }
-.worker-btn--paid .worker-btn__title { color: #2e7d32; }
-@media (prefers-color-scheme: dark) {
-    .worker-btn--pay .worker-btn__title  { color: #a5d6a7; }
-    .worker-btn--paid .worker-btn__title { color: #a5d6a7; }
-}
+.worker-btn--paid .worker-btn__title { color: var(--success-text); }
+/* dark mode handled by CSS vars */
 
 /* Danger button variant */
 .worker-btn--danger {
-    border-color: rgba(211,47,47,0.35) !important;
-    box-shadow: var(--btn-shadow), inset 0 0 0 1px rgba(211,47,47,0.2) !important;
+    border-color: rgba(239,68,68,0.3) !important;
 }
 .worker-btn--danger .worker-btn__title {
-    color: #c62828;
+    color: var(--destructive);
 }
-@media (prefers-color-scheme: dark) {
-    .worker-btn--danger .worker-btn__title { color: #ef9a9a; }
-}
+/* dark mode handled by CSS vars */
 
 /* Disabled button variant */
 .worker-btn--disabled {

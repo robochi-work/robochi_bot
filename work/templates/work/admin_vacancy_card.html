@@ -214,9 +214,9 @@ function onBlockTypeChange(radio) {
         margin: 0 auto;
     }
     .user-header-card {
-        background: var(--btn-bg);
-        border-radius: var(--card-radius);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
         padding: 14px 16px;
         display: flex;
         flex-direction: column;
@@ -237,14 +237,13 @@ function onBlockTypeChange(radio) {
         word-break: break-all;
     }
     .user-link {
-        color: var(--accent-dark);
+        color: var(--foreground);
         font-weight: 600;
         text-decoration: underline;
     }
     .section-title {
         font-size: 19px;
         font-weight: 700;
-        text-shadow: var(--btn-text-shadow);
         margin: 4px 0 0;
     }
     .vacancies-empty {
@@ -254,9 +253,9 @@ function onBlockTypeChange(radio) {
         padding: 24px 0;
     }
     .city-block {
-        background: var(--btn-bg);
-        border-radius: var(--card-radius);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
         overflow: hidden;
     }
     .city-header {
@@ -270,11 +269,10 @@ function onBlockTypeChange(radio) {
         font-size: 15px;
     }
     .city-header:active {
-        box-shadow: var(--btn-shadow-active);
+        background: var(--muted);
     }
     .city-name {
         flex: 1;
-        text-shadow: var(--btn-text-shadow);
     }
     .city-count {
         background: rgba(0,0,0,0.12);
@@ -341,9 +339,9 @@ function onBlockTypeChange(radio) {
     }
     /* Block status card */
     .block-status-card {
-        background: var(--btn-bg);
-        border-radius: var(--card-radius);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
         padding: 14px 16px;
         display: flex;
         flex-direction: column;
@@ -375,19 +373,19 @@ function onBlockTypeChange(radio) {
     .modal-overlay {
         position: fixed;
         inset: 0;
-        background: rgba(0,0,0,0.55);
+        background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
         z-index: 1000;
         display: flex;
         align-items: flex-end;
         justify-content: center;
     }
     .modal-sheet {
-        background: var(--btn-bg);
-        border-radius: 18px 18px 0 0;
+        background: var(--card);
+        border-radius: var(--radius) var(--radius) 0 0;
         padding: 20px 16px 32px;
         width: 100%;
         max-width: 520px;
-        box-shadow: 0 -4px 24px rgba(0,0,0,0.25);
+        box-shadow: var(--shadow-lg); border: 1px solid var(--border);
         display: flex;
         flex-direction: column;
         gap: 14px;
@@ -405,7 +403,6 @@ function onBlockTypeChange(radio) {
         font-size: 15px;
         font-weight: 700;
         text-align: center;
-        text-shadow: var(--btn-text-shadow);
     }
     .modal-field {
         display: flex;
@@ -418,8 +415,8 @@ function onBlockTypeChange(radio) {
         opacity: 0.75;
     }
     .modal-select, .modal-textarea {
-        background: rgba(0,0,0,0.08);
-        border: 1px solid rgba(0,0,0,0.12);
+        background: var(--muted);
+        border: 1px solid var(--border);
         border-radius: 8px;
         padding: 10px 12px;
         font-size: 14px;
@@ -453,6 +450,6 @@ function onBlockTypeChange(radio) {
         border: none;
         cursor: pointer;
     }
-    .modal-btn-submit { background: #dc3545; color: #fff; }
+    .modal-btn-submit { background: var(--destructive); color: var(--destructive-foreground); }
 </style>
 {% endblock %}

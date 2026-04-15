@@ -167,7 +167,7 @@ function onBlockTypeChange(radio) {
 .vacancy-list-header h1 {
     font-size: 20px;
     font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
+
 }
 .vacancy-cards {
     width: 100%;
@@ -182,17 +182,17 @@ function onBlockTypeChange(radio) {
     display: block;
     width: 100%;
     padding: 16px;
-    border: none;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow);
     cursor: pointer;
     text-decoration: none !important;
-    color: var(--accent-dark) !important;
+    color: var(--foreground) !important;
     transition: all 0.2s ease-in-out;
 }
 .vacancy-card:active {
-    box-shadow: var(--btn-shadow-active);
+    background: var(--muted);
 }
 
 .vacancy-card__top {
@@ -205,7 +205,7 @@ function onBlockTypeChange(radio) {
 .vacancy-card__address {
     font-size: 15px;
     font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
+
     flex: 1;
     min-width: 0;
 }
@@ -240,7 +240,7 @@ function onBlockTypeChange(radio) {
     padding: 40px 16px;
     font-size: 16px;
     font-weight: 600;
-    text-shadow: var(--btn-text-shadow);
+
 }
 
 /* Admin view: user header + block status */
@@ -249,9 +249,9 @@ function onBlockTypeChange(radio) {
     width: 100%;
     max-width: 520px;
     margin: 0 auto 12px;
-    background: var(--btn-bg);
-    border-radius: var(--card-radius);
-    box-shadow: var(--btn-shadow);
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
     padding: 14px 16px;
     display: flex;
     flex-direction: column;
@@ -273,7 +273,7 @@ function onBlockTypeChange(radio) {
     word-break: break-all;
 }
 .user-link {
-    color: var(--accent-dark);
+    color: var(--foreground);
     font-weight: 600;
     text-decoration: underline;
 }
@@ -316,19 +316,19 @@ function onBlockTypeChange(radio) {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.55);
+    background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
     z-index: 1000;
     display: flex;
     align-items: flex-end;
     justify-content: center;
 }
 .modal-sheet {
-    background: var(--btn-bg);
-    border-radius: 18px 18px 0 0;
+    background: var(--card);
+    border-radius: var(--radius) var(--radius) 0 0;
     padding: 20px 16px 32px;
     width: 100%;
     max-width: 520px;
-    box-shadow: 0 -4px 24px rgba(0,0,0,0.25);
+    box-shadow: var(--shadow-lg); border: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -346,7 +346,7 @@ function onBlockTypeChange(radio) {
     font-size: 15px;
     font-weight: 700;
     text-align: center;
-    text-shadow: var(--btn-text-shadow);
+
 }
 .modal-field {
     display: flex;
@@ -359,8 +359,8 @@ function onBlockTypeChange(radio) {
     opacity: 0.75;
 }
 .modal-select, .modal-textarea {
-    background: rgba(0,0,0,0.08);
-    border: 1px solid rgba(0,0,0,0.12);
+    background: var(--muted);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px 12px;
     font-size: 14px;
@@ -394,7 +394,7 @@ function onBlockTypeChange(radio) {
     border: none;
     cursor: pointer;
 }
-.modal-btn-submit { background: #dc3545; color: #fff; }
+.modal-btn-submit { background: var(--destructive); color: var(--destructive-foreground); }
 
 @media (max-width: 420px) {
     .vacancy-card {
