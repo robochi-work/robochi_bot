@@ -1052,3 +1052,128 @@ a.info,
 .worker-btn--compact .worker-btn__sub {
     font-size: 12px;
 }
+
+/* ---------- Modal sheet (bottom sheet style) ---------- */
+.modal-sheet {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 20px 16px 32px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+.modal-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.modal-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+}
+.modal-select, .modal-textarea {
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 14px;
+    color: var(--foreground);
+    width: 100%;
+    box-sizing: border-box;
+}
+.modal-textarea { resize: vertical; }
+.radio-group {
+    display: flex;
+    gap: 20px;
+}
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+}
+.modal-btn-submit, .modal-btn-cancel {
+    flex: 1;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+}
+.modal-btn-submit {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+}
+.modal-btn-cancel {
+    background: var(--muted);
+    color: var(--foreground);
+    border: 1px solid var(--border);
+}
+.btn-danger {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ---------- Modal close button ---------- */
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--muted-foreground);
+    padding: 4px 8px;
+}
+
+/* ---------- Modal overlay (centered alert) ---------- */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+.modal-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px 20px;
+    margin: 0 20px;
+    max-width: 320px;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+}
+.modal-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--foreground);
+    margin: 0 0 20px;
+}

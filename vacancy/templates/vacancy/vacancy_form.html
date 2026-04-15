@@ -109,31 +109,31 @@ document.querySelector('form').addEventListener('submit', function(e) {
 });
 </script>
 
-<div id="time-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
-  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Оберіть час початку роботи не раніше ніж через годину.</p>
-    <button type="button" onclick="document.getElementById('time-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+<div id="time-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Оберіть час початку роботи не раніше ніж через годину.</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('time-modal').style.display='none'">ЗРОЗУМІЛО</button>
   </div>
 </div>
 
-<div id="phone-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
-  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Введіть коректний номер телефону!</p>
-    <button type="button" onclick="document.getElementById('phone-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+<div id="phone-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Введіть коректний номер телефону!</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('phone-modal').style.display='none'">ЗРОЗУМІЛО</button>
   </div>
 </div>
 
-<div id="time-min-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
-  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Мінімальний робочий час — 3 години.</p>
-    <button type="button" onclick="document.getElementById('time-min-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+<div id="time-min-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Мінімальний робочий час — 3 години.</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('time-min-modal').style.display='none'">ЗРОЗУМІЛО</button>
   </div>
 </div>
 
-<div id="time-max-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;justify-content:center;align-items:center;">
-  <div style="background:var(--bg-color,#fff);border-radius:12px;padding:24px 20px;margin:0 20px;max-width:320px;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-    <p style="font-size:16px;font-weight:600;color:var(--text-color,#000);margin:0 0 20px;">Максимальний робочий час — 12 годин.</p>
-    <button type="button" onclick="document.getElementById('time-max-modal').style.display='none'" style="background:#cc0000;color:#fff;border:none;border-radius:8px;padding:12px 32px;font-size:15px;font-weight:700;cursor:pointer;">ЗРОЗУМІЛО</button>
+<div id="time-max-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Максимальний робочий час — 12 годин.</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('time-max-modal').style.display='none'">ЗРОЗУМІЛО</button>
   </div>
 </div>
 
