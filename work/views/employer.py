@@ -4,6 +4,7 @@ from django.shortcuts import render
 from telegram.models import Channel
 from user.models import UserFeedback
 from vacancy.models import Vacancy
+from work.models import FaqItem
 
 
 @login_required
@@ -47,11 +48,13 @@ def employer_reviews(request):
 @login_required
 def employer_faq(request):
     """FAQ page for employers."""
+    faq_items = FaqItem.objects.filter(role=FaqItem.ROLE_EMPLOYER, is_active=True)
     return render(
         request,
         "work/employer_faq.html",
         {
             "work_profile": getattr(request.user, "work_profile", None),
+            "faq_items": faq_items,
         },
     )
 

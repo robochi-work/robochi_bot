@@ -1021,3 +1021,67 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - Валидация формы вакансии: сообщение о start_time переведено на укр
 - После модерации redirect на vacancy:my_list?for_user= вместо admin_vacancy_card
 - Регрессионные тесты: tests/test_admin_panel.py
+
+### Сессія 15.04.2026 — FAQ система (FaqItem) + переименування
+
+**Виконано:**
+
+1. **Модель FaqItem** (`work/models.py`) — динамічні FAQ-записи з адмінки:
+   - Поля: `role` (employer/worker), `question`, `answer`, `image` (ImageField, upload_to="faq/"), `video_url` (URLField), `order`, `is_active`, timestamps
+   - Property `video_embed_url` — автоконвертація YouTube URL у embed формат
+   - Meta: ordering=["role", "order"], verbose_name="FAQ запис"
+   - Міграція: work/migrations/0007_faqitem.py
+
+2. **FaqItemAdmin** (`work/admin.py`):
+   - list_display: role, question_short, order, is_active, has_image, has_video, updated_at
+   - list_filter: role, is_active
+   - list_editable: order, is_active
+   - Кастомні display-методи: question_short, has_image (boolean), has_video (boolean)
+
+3. **MEDIA налаштування**:
+   - `MEDIA_URL = "/media/"`, `MEDIA_ROOT = BASE_DIR / "media"` додано в `config/django/base.py`
+   - Директорія `media/faq/` створена
+   - Nginx вже обслуговує `/media/` → `/home/webuser/robochi_bot/media/`
+
+4. **Views оновлені** — `employer_faq` та `worker_faq`:
+   - Імпорт FaqItem, фільтрація по role та is_active
+   - Передача `faq_items` у контекст шаблону
+
+5. **Шаблони переписані** — `employer_faq.html`, `worker_faq.html`:
+   - Динамічний контент з БД замість hardcoded
+   - `<details>` accordion з опціональним зображенням та відео
+   - Fullscreen overlay для зображень (клік → розгортання)
+   - YouTube iframe embed для відео
+   - Empty state: «Інформація поки що не додана.»
+
+6. **Перейменування** — «Що робити якщо?» → «Як це працює?»:
+   - employer_dashboard.html — кнопка
+   - worker_dashboard.html — кнопка
+   - employer_faq.html — заголовок сторінки
+   - worker_faq.html — заголовок сторінки
+
+7. **Початкові дані** — 11 FAQ записів створено (5 employer + 6 worker)
+
+8. **Регресійні тести** — `tests/test_session_20260415_faq.py` — 17 тестів:
+   - TestFaqModel (5): import, role choices, video_embed_url property, ordering
+   - TestFaqTemplates (6): exist, dynamic items, media support
+   - TestDashboardRename (2): employer/worker dashboards renamed
+   - TestFaqViews (2): views pass faq_items
+   - TestFaqAdmin (1): admin registration
+   - TestMediaSettings (2): config + directory
+
+**Нові файли:**
+- work/migrations/0007_faqitem.py
+- tests/test_session_20260415_faq.py
+
+**Оновлені файли:**
+- work/models.py — +FaqItem
+- work/admin.py — +FaqItemAdmin
+- work/views/employer.py — employer_faq з FaqItem
+- work/views/worker.py — worker_faq з FaqItem
+- work/templates/work/employer_faq.html — динамічний шаблон
+- work/templates/work/worker_faq.html — динамічний шаблон
+- work/templates/work/employer_dashboard.html — «Як це працює?»
+- work/templates/work/worker_dashboard.html — «Як це працює?»
+- config/django/base.py — +MEDIA_URL, +MEDIA_ROOT
+- CLAUDE.md — +FAQ System секція

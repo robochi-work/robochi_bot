@@ -99,3 +99,28 @@ vacancy_payment.html             — Payment page
 - Exclude from commits: `celerybeat-schedule.bak/.dat/.dir`
 - Pre-commit hooks: ruff check/format, django-upgrade, trailing-whitespace
 - After pre-commit auto-fixes: `git add -u && git commit`
+
+## FAQ System (FaqItem — April 2026)
+
+### Model
+- `work.models.FaqItem` — dynamic FAQ entries managed from Django admin
+- Fields: `role` (employer/worker), `question`, `answer`, `image` (ImageField), `video_url` (YouTube URL), `order`, `is_active`
+- `video_embed_url` property — auto-converts YouTube watch/youtu.be URLs to embed format
+- Separate FAQ entries for Employer and Worker roles
+- Admin: `/taya-panel/` → FAQ записи (filterable by role, sortable by order)
+
+### Pages
+- Employer: `/work/employer/faq/` → `work:employer_faq` → `employer_faq.html`
+- Worker: `/work/faq/` → `work:worker_faq` → `worker_faq.html`
+- Button label: **«Як це працює?»** (renamed from «Що робити якщо?»)
+
+### Templates
+- Dynamic content from DB via `faq_items` context
+- `<details>` accordion with optional image (fullscreen on click) and video (YouTube iframe embed)
+- Empty state: «Інформація поки що не додана.»
+
+### Media
+- MEDIA_URL = `/media/`, MEDIA_ROOT = `BASE_DIR / "media"`
+- Nginx serves `/media/` → `/home/webuser/robochi_bot/media/`
+- Images uploaded to `media/faq/`
+- Video: YouTube URL only (no file upload) — embed iframe in template

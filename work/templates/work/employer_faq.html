@@ -8,40 +8,43 @@
     <div class="faq-container">
         <div class="vacancy-list-header">
             <a href="{% url 'index' %}" class="page-back-btn">← Назад</a>
-            <h1>Що робити якщо?</h1>
+            <h1>Як це працює?</h1>
         </div>
 
-        <div class="faq-card">
-            <h3>Як створити заявку?</h3>
-            <p>Натисніть кнопку «Створити вакансію» на головній сторінці, заповніть форму та натисніть «Створити вакансію». Заявка буде відправлена на модерацію.</p>
-        </div>
-
-        <div class="faq-card">
-            <h3>Скільки часу займає модерація?</h3>
-            <p>Зазвичай модерація займає від 5 до 30 хвилин. Ви отримаєте повідомлення в бот після затвердження.</p>
-        </div>
-
-        <div class="faq-card">
-            <h3>Як провести перекличку?</h3>
-            <p>Перейдіть в «Поточні вакансії», оберіть заявку та натисніть «Управління вакансією». Там доступні переклички на початок та кінець роботи.</p>
-        </div>
-
-        <div class="faq-card">
-            <h3>Що робити якщо робітник не з'явився?</h3>
-            <p>Під час переклички зніміть галочку напроти робітника який не з'явився. Він буде заблокований, а система запустить пошук заміни.</p>
-        </div>
-
-        <div class="faq-card">
-            <h3>Як зв'язатися з адміністратором?</h3>
-            <p>Натисніть кнопку «Допомога адміністратора» на головній сторінці або напишіть <a href="https://t.me/robochi_work_admin">@robochi_work_admin</a>.</p>
-        </div>
+        {% if faq_items %}
+            {% for item in faq_items %}
+            <details class="faq-item">
+                <summary>{{ item.question }}</summary>
+                <div class="faq-item__body">
+                    <p>{{ item.answer }}</p>
+                    {% if item.image %}
+                    <div class="faq-media">
+                        <img src="{{ item.image.url }}" alt="{{ item.question }}" class="faq-media__img" loading="lazy">
+                    </div>
+                    {% endif %}
+                    {% if item.video_url %}
+                    <div class="faq-media">
+                        <div class="faq-media__video-wrap">
+                            <iframe src="{{ item.video_embed_url }}" frameborder="0" allowfullscreen class="faq-media__video"></iframe>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </details>
+            {% endfor %}
+        {% else %}
+            <div class="faq-empty">
+                <p>Інформація поки що не додана.</p>
+            </div>
+        {% endif %}
     </div>
 </main>
 
 <style>
 .page--faq {
-    padding: 20px 14px;
+    padding: 16px 14px;
     justify-content: flex-start;
+    align-items: stretch;
     min-height: 100vh;
 }
 .faq-container {
@@ -49,26 +52,101 @@
     max-width: 520px;
     margin: 0 auto;
 }
-.faq-card {
-    padding: 16px;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
-    margin-bottom: 12px;
-}
-.faq-card h3 {
-    font-size: 15px;
-    font-weight: 700;
+.faq-item {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--card-radius);
+    overflow: hidden;
     margin-bottom: 8px;
-    text-shadow: var(--btn-text-shadow);
 }
-.faq-card p {
-    font-size: 14px;
-    line-height: 1.5;
-}
-.faq-card a {
-    color: var(--accent-dark);
+.faq-item summary {
+    padding: 14px 16px;
+    font-size: 15px;
     font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.faq-item summary::after {
+    content: '▸';
+    font-size: 14px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.faq-item[open] summary::after {
+    transform: rotate(90deg);
+}
+.faq-item summary::-webkit-details-marker {
+    display: none;
+}
+.faq-item__body {
+    padding: 0 16px 14px;
+}
+.faq-item__body p {
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0 0 12px 0;
+}
+.faq-media {
+    margin-top: 8px;
+}
+.faq-media__img {
+    width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.faq-media__video-wrap {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 8px;
+}
+.faq-media__video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.faq-empty {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--muted-foreground);
+}
+.faq-fullscreen-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+.faq-fullscreen-overlay.active {
+    display: flex;
+}
+.faq-fullscreen-overlay img {
+    max-width: 95%;
+    max-height: 95%;
+    object-fit: contain;
 }
 </style>
+
+<div class="faq-fullscreen-overlay" id="faqOverlay" onclick="this.classList.remove('active')">
+    <img id="faqFullImg" src="" alt="">
+</div>
+
+<script>
+document.querySelectorAll('.faq-media__img').forEach(function(img) {
+    img.addEventListener('click', function() {
+        document.getElementById('faqFullImg').src = this.src;
+        document.getElementById('faqOverlay').classList.add('active');
+    });
+});
+</script>
 {% endblock %}
