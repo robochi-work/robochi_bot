@@ -75,7 +75,7 @@ def admin_search_users(request):
         qs = qs.filter(work_profile__role__in=roles)
 
     if request.GET.get("blocked"):
-        qs = qs.filter(is_active=False)
+        qs = qs.filter(blocks__is_active=True).distinct()
     qs = qs.order_by("-date_joined")[:100]
 
     from user.models import UserBlock

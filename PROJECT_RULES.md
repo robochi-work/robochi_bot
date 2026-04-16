@@ -88,3 +88,53 @@ explain tasks generate ready commands request output analyze logs
 AI must not:
 
 guess server state invent file paths invent secrets
+
+## Invariants (architectural rules — do not break)
+
+Each invariant has stable ID (INV-NNN), reasoning, and where enforced.
+
+### INV-001: One role per telegram_id
+User registers as Worker OR Employer, never both. Enforced in wizard registration flow.
+
+### INV-002: User.id == Telegram user_id
+Django PK equals Telegram user_id. No separate telegram_id field.
+
+### INV-003: Group.id == Telegram chat_id (negative int)
+Group PK equals Telegram chat_id (e.g. -100123...).
+Enforced: telegram/models.py → Group(Chat).
+
+### INV-004: Bot does NOT create invite_links automatically
+Reason: Bot API limitations (can_invite_users=True auto-generates primary link; export_chat_invite_link revokes existing).
+Enforced: service/group.py — no create_chat_invite_link / export_chat_invite_link in business logic.
+Exception: admin manually creates links in Telegram UI and pastes into Django admin.
+Decided: sessions 31.03.2026, 11.04.2026.
+
+### INV-005: All invite_links for vacancy groups MUST have creates_join_request=True
+Reason: without this flag, users bypass chat_join_request_handler (12 filter checks)
+and only chat_member_handler fires — which has NO role/block checks.
+Responsibility: admin when creating link in Telegram UI ticks "Request Admin Approval".
+TODO: add enforcement check to work/management/commands/check_system.py.
+Decided: session 16.04.2026.
+
+### INV-006: Channel invite_links use creates_join_request=False
+Reason: channels are for browsing — filtering happens at "Apply for vacancy" button click (leads to group where INV-005 applies).
+Enforced: telegram/handlers/member/bot/channel.py:22.
+
+### INV-007: chat_member_handler has NO role/block filters
+Reason: it fires AFTER user is already in group. All filters belong in chat_join_request_handler (auto_approve).
+Protection relies on INV-005. If INV-005 is broken, INV-007 becomes a security hole.
+Enforced: telegram/handlers/member/user/group.py:197 — handle_user_status_change.
+
+### INV-008: supergroup guard in both group handlers
+Reason: Telegram sends chat_member/chat_join_request events with linked channel IDs — without guard, channels get inserted into Group table.
+Enforced: group.py:26 (auto_approve), group.py:~206 (handle_user_status_change) — both `if chat.type != "supergroup": return`.
+Regression test: tests/test_bugfix_channel_in_groups.py.
+Decided: 09.04.2026.
+
+### INV-009: User.is_active=False ONLY for BlockType.PERMANENT
+Reason: BlockService.block_user sets is_active=False only for PERMANENT blocks.
+TEMPORARY blocks leave is_active=True; active block status determined by UserBlock.is_active=True.
+Consequence: admin filters must use blocks__is_active=True, NOT is_active=False (user/models.py → UserBlock with related_name="blocks").
+Enforced: user/services.py → BlockService.block_user.
+Bug history: work/views/admin_panel.py:78 used is_active=False until 16.04.2026 — fixed to blocks__is_active=True.
+Regression test: TODO.

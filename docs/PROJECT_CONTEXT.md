@@ -1085,3 +1085,19 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - work/templates/work/worker_dashboard.html — «Як це працює?»
 - config/django/base.py — +MEDIA_URL, +MEDIA_ROOT
 - CLAUDE.md — +FAQ System секція
+
+### Сессия 16.04.2026 — bugfix admin filter "Заблоковані" + Invariants registry
+
+**Fix:**
+- work/views/admin_panel.py:78 — фильтр "Заблоковані" изменён с is_active=False на blocks__is_active=True (distinct)
+- Причина (см. INV-009): только PERMANENT блокировки ставят User.is_active=False; TEMPORARY оставляют is_active=True
+- Verification: recrutcorpltd (temporary rollcall_reject) теперь корректно возвращается в поиске
+
+**Doc changes:**
+- PROJECT_RULES.md — добавлена секция "Invariants" (INV-001..INV-009)
+- CLAUDE.md — добавлен блок "Before doing anything" с порядком загрузки контекста
+
+**Investigated (требует отдельной сессии):**
+- Employer @recrutcorpltd попал в чужую vacancy 38 через "Я ГОТОВИЙ ПРАЦЮВАТИ"
+- Диагноз: invite_link группы без creates_join_request=True → handler chat_join_request не сработал → сработал chat_member_handler (INV-007 — без проверки роли)
+- План на след. сессию: согласно INV-005, добавить проверку в check_system.py; дублировать проверку role в chat_member_handler как fallback

@@ -1,3 +1,10 @@
+## ⚠️ Before doing anything — load context in this order:
+1. Read AGENTS.md → AI_QUICK_START.md → docs/PROJECT_CONTEXT.md (tail for recent sessions)
+2. Check PROJECT_RULES.md → section "Invariants" for hard rules
+3. Use conversation_search tool to find prior discussions
+
+---
+
 # Claude Code Instructions for robochi_bot
 
 ## Project
