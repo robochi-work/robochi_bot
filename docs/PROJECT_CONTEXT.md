@@ -1022,6 +1022,35 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - После модерации redirect на vacancy:my_list?for_user= вместо admin_vacancy_card
 - Регрессионные тесты: tests/test_admin_panel.py
 
+### Сессія 14.04.2026 — Тексти блокування, перекличка, права заказчика, WebApp
+
+**Виконано:**
+
+1. **Тексти блокування** (`telegram/handlers/messages/commands.py`, `work/views/admin_panel.py`, `vacancy/services/call_formatter.py`):
+   - Постійна: "Вас заблоковано у сервісі robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin"
+   - Тимчасова: "Увага! Вас обмежено у користуванні сервісом robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin"
+   - `days_text` і `block =` прибрані як unused (ruff F841)
+
+2. **Дубль сповіщення при схваленні вакансії** — метод `_add_employer_to_group` видалено з `approved_group_observer.py`; текст повідомлення 2 оновлено; `employer_invite_msg_id` більше не встановлюється
+
+3. **Перекличка «Кінець роботи»** — `get_final_call_vacancies(before_end=60)` ловить вакансії за 1 годину до `end_time`; `final_call_check_task` використовує нову функцію
+
+4. **Перекличка «Початок роботи»** — `_MAX_REMINDERS = 12` (було 6) → 60 хвилин очікування замість 30
+
+5. **Кнопка переклички в ЛК** — після 1-ї переклички одразу показується кнопка 2-ї; заголовки "Початок роботи" / "Кінець роботи"; посилання "Повернутися до першої переклички"
+
+6. **Права замовника в групі** — `can_restrict_members=False` в `set_default_owner_permissions()`; видалення робітників тільки через ЛК (сторінка members)
+
+7. **Single-instance guard для WebApp** — `lifecycle.js` v6: BroadcastChannel закриває попереднє вікно; reload з retry (500ms/1000ms/1500ms); поріг freeze 3000ms
+
+8. **Fallback у check.html** — при порожньому `initData` інформативне повідомлення з кнопкою "Перейти до бота"
+
+9. **Favicon** — `favicon.ico`, `favicon-32x32.png`, `apple-touch-icon.png` у `telegram/static/`; підключено в `templates/base.html`
+
+10. **Форма створення вакансії** — `start_time` і `end_time` прибрані з initial шаблону; час завжди перераховується від поточного моменту (now+1h rounded to 15min)
+
+11. **Навігація адміна після модерації** — редирект після approve → `admin_dashboard`; кнопки «Назад» в `admin_vacancy_card.html` і `vacancy_my_list.html` → `admin_dashboard`
+
 ### Сессія 15.04.2026 — FAQ система (FaqItem) + переименування
 
 **Виконано:**
