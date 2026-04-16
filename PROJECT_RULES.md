@@ -79,6 +79,28 @@ Celery logs:
 
 sudo journalctl -u celery-worker --since "10 min ago" --no-pager
 
+## Debugging
+
+Check service status:
+```bash
+sudo systemctl status gunicorn.service
+sudo systemctl status celery-worker.service
+sudo systemctl status celery-beat.service
+```
+
+Check service logs:
+```bash
+sudo journalctl -u gunicorn.service --since "10 min ago"
+sudo journalctl -u celery-worker.service --since "10 min ago"
+```
+
+Application logs:
+```bash
+tail -f logs/django.log
+tail -f logs/bot.log
+tail -f logs/errors.log
+```
+
 ## AI Behavior Rules
 
 AI must:

@@ -172,3 +172,86 @@ User.language_code → UserLanguageMiddleware → translation.activate(lang)
                                           Django renders translated text
                                           (templates: {% trans %}, Python: _())
 ```
+
+## System Diagram (Mermaid)
+
+```mermaid
+flowchart TD
+    U[Пользователь в Telegram] --> TG[Telegram Client]
+    TG --> BOT[Telegram Bot]
+    TG --> WA[Telegram Mini App / WebApp]
+    MOB[Mobile / SPA клиент] --> NGINX
+
+    BOT --> NGINX[Nginx]
+    WA --> NGINX
+
+    NGINX --> GUNICORN[Gunicorn]
+    GUNICORN --> DJANGO[Django Backend]
+
+    DJANGO --> SESSION[Session Auth<br/>template views]
+    DJANGO --> JWT[JWT Auth<br/>REST API /api/v1/]
+    DJANGO --> PG[(PostgreSQL)]
+    DJANGO --> REDIS[(Redis)]
+    DJANGO --> CELERY[Celery Worker]
+    DJANGO --> MONO[Monobank Acquiring]
+    CELERY --> REDIS
+    CELERY --> PG
+```
+
+## Critical User Path (Mermaid)
+
+```mermaid
+sequenceDiagram
+    participant User as Пользователь
+    participant TG as Telegram
+    participant Bot as Bot
+    participant Web as Mini App
+    participant Django as Django
+    participant DB as PostgreSQL
+
+    User->>Bot: /start
+    Bot-->>User: сообщение + кнопка WebApp
+    User->>TG: нажимает кнопку
+    TG->>Web: открывает Mini App
+    Web->>TG: получает initData
+    Web->>Django: отправляет initData
+    Django->>Django: валидирует hash/auth_date
+    Django->>DB: находит/создает пользователя
+    Django-->>Web: создает сессию
+    Web-->>User: открывает кабинет/мастер
+```
+
+## Risk Zones
+
+### initData — security critical
+- ❌ Do NOT trust initDataUnsafe
+- ❌ Do NOT accept Telegram identity only on client
+- ❌ Do NOT skip server signature verification
+- ✅ Validate hash (HMAC-SHA256)
+- ✅ Check auth_date (7200s expiry)
+- ✅ Use bot token server-side only
+
+### Production config — change carefully
+- .env
+- systemd unit files
+- Nginx settings
+- cookie/security settings
+
+### Celery — change carefully
+- periodic tasks
+- heavy background operations
+- code that may duplicate on retry
+
+## What AI Must Check Before Changes
+
+1. Which zone is affected: Telegram / Django / DB / Celery / Infra
+2. Restart needed? gunicorn / celery-worker / celery-beat
+3. Migration needed? yes / no
+4. Production risk level? high / medium / low
+
+## Rule for AI
+
+- Python backend change → almost always gunicorn restart
+- Celery tasks change → restart worker/beat
+- models change → migrations required
+- Telegram auth / WebApp change → manual test of user path
