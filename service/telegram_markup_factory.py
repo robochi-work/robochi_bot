@@ -19,8 +19,12 @@ def admin_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
 
 def channel_vacancy_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup()
-    if vacancy.group and vacancy.group.invite_link:
-        markup.add(InlineKeyboardButton(text=_("Apply for vacancy"), url=vacancy.group.invite_link, style="danger"))
+    markup.add(
+        InlineKeyboardButton(
+            text=_("Apply for vacancy"),
+            callback_data=f"apply:{vacancy.id}",
+        )
+    )
     return markup
 
 
