@@ -4,7 +4,7 @@ from telegram.handlers.bot_instance import bot
 from telegram.models import Channel
 
 
-@bot.my_chat_member_handler(func=lambda event: event.chat.type in ["channel"])
+@bot.my_chat_member_handler(func=lambda event: event.chat.type in ["channel", "supergroup"])
 def channel_handle_bot_added(event: ChatMemberUpdated):
     channel, created = Channel.objects.update_or_create(
         id=event.chat.id,

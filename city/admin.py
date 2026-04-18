@@ -35,4 +35,4 @@ class ChannelInCityAdmin(admin.ModelAdmin):
     actions = [update_channel_invite_link]
 
     def has_add_permission(self, request):
-        return False
+        return True

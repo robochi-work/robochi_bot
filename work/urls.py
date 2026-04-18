@@ -11,6 +11,7 @@ from work.views.admin_panel import (
     admin_search_vacancies,
     admin_vacancy_card,
 )
+from work.views.apply_vacancy import apply_vacancy_view
 from work.views.employer import employer_cities, employer_faq, employer_reviews
 from work.views.legal import legal_offer_view
 from work.views.phone_required import phone_required_view, resend_phone_request
@@ -43,4 +44,6 @@ urlpatterns = [
     path("admin-panel/vacancy/<int:vacancy_id>/moderate/", admin_moderate_vacancy, name="admin_moderate_vacancy"),
     path("admin-panel/vacancy/<int:vacancy_id>/close/", admin_close_vacancy, name="admin_close_vacancy"),
     path("admin-panel/vacancy/<int:vacancy_id>/delete/", admin_delete_vacancy, name="admin_delete_vacancy"),
+    # Apply vacancy (WebApp entry point for channel button)
+    path("apply/<int:vacancy_id>/", apply_vacancy_view, name="apply_vacancy"),
 ]
