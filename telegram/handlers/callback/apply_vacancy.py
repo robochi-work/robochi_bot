@@ -60,22 +60,11 @@ def handle_apply_vacancy(call: CallbackQuery):
 
         # 5. Не зарегистрирован
         if not work_profile or not work_profile.role:
-            bot.answer_callback_query(call.id, text="Потрібна реєстрація.", show_alert=True)
-            try:
-                reg_markup = InlineKeyboardMarkup()
-                reg_markup.add(
-                    InlineKeyboardButton(
-                        text="ЗАРЕЄСТРУВАТИСЬ",
-                        url="https://t.me/riznorobochi_ua_bot",
-                    )
-                )
-                bot.send_message(
-                    call.from_user.id,
-                    "Спочатку зареєструйтеся у нашому сервісі.",
-                    reply_markup=reg_markup,
-                )
-            except Exception:
-                sentry_sdk.capture_exception()
+            bot.answer_callback_query(
+                call.id,
+                text="Спочатку зареєструйтеся у нашому сервісі:\nhttps://t.me/riznorobochi_ua_bot",
+                show_alert=True,
+            )
             return
 
         # 6. Получаем вакансию
