@@ -71,7 +71,7 @@ def handle_apply_vacancy(call: CallbackQuery):
                 )
                 bot.send_message(
                     call.from_user.id,
-                    "Щоб приєднатися до вакансії спочатку зареєструйтеся у нашому сервісі.",
+                    "Спочатку зареєструйтеся у нашому сервісі.",
                     reply_markup=reg_markup,
                 )
             except Exception:
