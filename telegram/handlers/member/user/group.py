@@ -252,15 +252,33 @@ def handle_user_status_change(event: ChatMemberUpdated):
 
         # Check: not registered (no work_profile or no role)
         elif not work_profile or not work_profile.role:
-            decline_reason = "not_registered"
-            decline_message = (
-                "Щоб приєднатися до вакансії, спочатку зареєструйтесь у боті.\nНатисніть /start для початку реєстрації."
+            logger.warning(
+                "member_kicked_after_join",
+                extra={"user_id": user.id, "group_id": event.chat.id, "reason": "not_registered"},
             )
+            try:
+                from telebot.types import InlineKeyboardButton as IKB
+                from telebot.types import InlineKeyboardMarkup as IKM
+
+                reg_markup = IKM()
+                reg_markup.add(IKB(text="ЗАРЕЄСТРУВАТИСЬ", url="https://t.me/riznorobochi_ua_bot"))
+                bot.send_message(
+                    user.id,
+                    "Щоб приєднатися до вакансії спочатку зареєструйтеся у нашому сервісі.",
+                    reply_markup=reg_markup,
+                )
+            except Exception:
+                sentry_sdk.capture_exception()
+            try:
+                GroupService.kick_user(chat_id=event.chat.id, user_id=user.id)
+            except Exception:
+                sentry_sdk.capture_exception()
+            return
 
         # Check: employer trying to join another employer's vacancy
         elif work_profile.role == "employer":
             decline_reason = "employer_not_owner"
-            decline_message = "Ви роботодавець. Ви не можете приєднатися до чужої вакансії."
+            decline_message = "Ви не можете приєднатися до чужої вакансії."
 
         # Check: already in another active vacancy
         elif (
@@ -304,6 +322,24 @@ def handle_user_status_change(event: ChatMemberUpdated):
                 sentry_sdk.capture_exception()
             return
     # ===== END INV-005 FIX =====
+
+    # Admin enters group — set permissions, don't create VacancyUser
+    if status not in ["kicked", "left"] and user.is_staff and vacancy.owner != user:
+        try:
+            GroupService.set_default_admin_permissions(
+                chat_id=event.chat.id,
+                user_id=user.id,
+            )
+            GroupService.set_admin_custom_title(
+                chat_id=event.chat.id,
+                user_id=user.id,
+                custom_title="Адміністратор",
+            )
+        except Exception:
+            sentry_sdk.capture_exception()
+        UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": Status.ADMINISTRATOR.value})
+        logger.info("admin_joined_group", extra={"user_id": user.id, "group_id": event.chat.id})
+        return
 
     if status not in ["kicked", "left"]:
         if status not in Status.values:
