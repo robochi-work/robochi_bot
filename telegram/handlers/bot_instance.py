@@ -27,7 +27,6 @@ def load_handlers_once():
         from telegram.handlers.member.user import group as user_group  # noqa
         from telegram.handlers.callback import call  # noqa
         from telegram.handlers.callback import work_role  # noqa
-        from telegram.handlers.callback import apply_vacancy  # noqa
         from telegram.handlers.messages import group as msg_group  # noqa
         from telegram.handlers.messages import worker_phone as worker_phone_handler  # noqa
 

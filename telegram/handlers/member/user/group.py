@@ -219,91 +219,12 @@ def handle_user_status_change(event: ChatMemberUpdated):
             "username": user_data.username,
         },
     )
-    work_profile = getattr(user, "work_profile", None)
-
     vacancy = Vacancy.objects.get(
         status__in=[STATUS_APPROVED, STATUS_ACTIVE],
         group=group,
     )
 
     status = event.new_chat_member.status
-
-    # ===== INV-005 FIX: All entry checks (moved from auto_approve) =====
-    # auto_approve (chat_join_request_handler) does not trigger for direct invite links.
-    # All filtering MUST happen here in chat_member_handler.
-    if status not in ["kicked", "left"] and not user.is_staff and vacancy.owner != user:
-        decline_reason = None
-        decline_message = None
-
-        # Check: permanent block
-        if BlockService.is_permanently_blocked(user):
-            decline_reason = "permanently_blocked"
-            decline_message = CallVacancyTelegramTextFormatter.auto_block_message(reason="постійне блокування")
-
-        # Check: temporary block
-        elif BlockService.is_temporarily_blocked(user):
-            decline_reason = "temporarily_blocked"
-            decline_message = "Ви не можете брати участь у вакансіях. Ви заблоковані."
-
-        # Check: legacy is_active=False
-        elif not user.is_active:
-            decline_reason = "not_active"
-            decline_message = "Ви не можете брати участь у вакансіях. Ви заблоковані."
-
-        # Check: not registered (no work_profile or no role)
-        elif not work_profile or not work_profile.role:
-            decline_reason = "not_registered"
-            decline_message = (
-                "Щоб приєднатися до вакансії, спочатку зареєструйтесь у боті.\nНатисніть /start для початку реєстрації."
-            )
-
-        # Check: employer trying to join another employer's vacancy
-        elif work_profile.role == "employer":
-            decline_reason = "employer_not_owner"
-            decline_message = "Ви роботодавець. Ви не можете приєднатися до чужої вакансії."
-
-        # Check: already in another active vacancy
-        elif (
-            VacancyUser.objects.filter(
-                user=user,
-                status=Status.MEMBER,
-                vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-            )
-            .exclude(vacancy=vacancy)
-            .exists()
-        ):
-            decline_reason = "already_in_vacancy"
-            decline_message = "Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну."
-
-        # Check: group is full
-        elif vacancy.members.count() >= vacancy.people_count:
-            decline_reason = "group_full"
-            decline_message = "На жаль, всі місця за цією вакансією вже зайняті."
-
-        # Check: gender filter
-        elif vacancy.gender != GENDER_ANY:
-            if not user.gender:
-                decline_reason = "gender_not_set"
-                decline_message = "Ваша стать не вказана в профілі. Зверніться до адміністратора."
-            elif vacancy.gender != user.gender:
-                decline_reason = "gender_mismatch"
-                decline_message = "Ця вакансія призначена для іншої статі."
-
-        if decline_reason:
-            logger.warning(
-                "member_kicked_after_join",
-                extra={"user_id": user.id, "group_id": event.chat.id, "reason": decline_reason},
-            )
-            try:
-                bot.send_message(user.id, decline_message)
-            except Exception:
-                sentry_sdk.capture_exception()
-            try:
-                GroupService.kick_user(chat_id=event.chat.id, user_id=user.id)
-            except Exception:
-                sentry_sdk.capture_exception()
-            return
-    # ===== END INV-005 FIX =====
 
     if status not in ["kicked", "left"]:
         if status not in Status.values:
