@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from typing import Any
 
 from django.utils.translation import gettext as _
@@ -19,6 +18,8 @@ class VacancyCreatedUserObserver(Observer):
         from django.conf import settings
         from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
+        from telegram.handlers.bot_instance import bot
+
         faq_url = f"{settings.BASE_URL}/work/employer/faq/"
         markup = InlineKeyboardMarkup()
         markup.add(
@@ -28,14 +29,19 @@ class VacancyCreatedUserObserver(Observer):
             )
         )
 
-        self.notifier.notify(
-            recipient=SimpleNamespace(
+        try:
+            sent = bot.send_message(
                 chat_id=vacancy.owner.id,
-            ),
-            method=NotificationMethod.TEXT,
-            text=CallVacancyTelegramTextFormatter.vacancy_created_user(),
-            reply_markup=markup,
-        )
+                text=CallVacancyTelegramTextFormatter.vacancy_created_user(),
+                reply_markup=markup,
+            )
+            vacancy.extra = vacancy.extra or {}
+            vacancy.extra["created_msg_id"] = sent.message_id
+            vacancy.save(update_fields=["extra"])
+        except Exception:
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
 
 
 class VacancyCreatedUserDjangoObserver(Observer):

@@ -153,6 +153,15 @@ class BlockService:
             blocked_until=None,
         )
 
+    @staticmethod
+    def auto_block_employer_no_group(user) -> UserBlock:
+        return BlockService.block_user(
+            user=user,
+            block_type=BlockType.TEMPORARY,
+            reason=BlockReason.EMPLOYER_NO_GROUP,
+            blocked_until=None,
+        )
+
 
 def find_user_by_phone(*, phone_number: str):
     """Поиск пользователя по номеру телефона через AuthIdentity."""

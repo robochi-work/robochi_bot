@@ -84,11 +84,59 @@ def send_employer_group_invite_task(self, vacancy_id: int):
     if self.request.retries < _MAX_RETRIES:
         raise self.retry()
     else:
+        # 10 спроб вичерпано — заказчик не зайшов у групу
         logger.warning(
             "employer_invite_max_retries",
             extra={"vacancy_id": vacancy_id},
         )
+
+        # 1. Видалити повідомлення-запрошення
         _delete_invite_message(vacancy)
+
+        # 2. Видалити всі сервісні повідомлення цієї вакансії з бота заказчика
+        _delete_all_vacancy_messages(vacancy)
+
+        # 3. Надіслати повідомлення в групу і кікнути рабочих
+        if vacancy.group:
+            try:
+                bot.send_message(
+                    chat_id=vacancy.group.id,
+                    text="⚠️ Увага!\nДана вакансія відмінена!\nВийдіть з даної групи щоб знаходити інші вакансії!",
+                )
+            except Exception:
+                sentry_sdk.capture_exception()
+
+        # 4. Закрити вакансію через publisher (стандартний алгоритм)
+        from vacancy.services.observers import events
+        from vacancy.services.observers.subscriber_setup import vacancy_publisher
+
+        vacancy.extra = vacancy.extra or {}
+        vacancy.extra["cancel_requested"] = True
+        vacancy.extra["closed_reason"] = "employer_no_group"
+        vacancy.save(update_fields=["extra"])
+
+        vacancy_publisher.notify(events.VACANCY_CLOSE, data={"vacancy": vacancy})
+
+        # 5. Заблокувати заказчика
+        from user.services import BlockService
+
+        BlockService.auto_block_employer_no_group(vacancy.owner)
+
+        # 6. Надіслати повідомлення про блокировку заказчику
+        from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+        try:
+            bot.send_message(
+                vacancy.owner.id,
+                CallVacancyTelegramTextFormatter.auto_block_message(reason="ви не зайшли у групу вакансії"),
+            )
+        except Exception:
+            sentry_sdk.capture_exception()
+
+        logger.info(
+            "employer_blocked_no_group",
+            extra={"vacancy_id": vacancy_id, "user_id": vacancy.owner.id},
+        )
 
 
 def _delete_invite_message(vacancy):
@@ -101,3 +149,34 @@ def _delete_invite_message(vacancy):
             pass
         vacancy.extra.pop("employer_invite_msg_id", None)
         vacancy.save(update_fields=["extra"])
+
+
+def _delete_all_vacancy_messages(vacancy):
+    """Видалити всі сервісні повідомлення цієї вакансії з бота заказчика."""
+    if not vacancy.extra:
+        return
+
+    owner_id = vacancy.owner.id
+    keys_to_delete = []
+
+    for key in ["employer_invite_msg_id", "created_msg_id", "approved_msg_id"]:
+        msg_id = vacancy.extra.get(key)
+        if msg_id:
+            try:
+                bot.delete_message(chat_id=owner_id, message_id=msg_id)
+            except Exception:
+                pass
+            keys_to_delete.append(key)
+
+    invites = vacancy.extra.get("apply_invite_msg_ids", {})
+    for user_id_str, msg_id in invites.items():
+        try:
+            bot.delete_message(chat_id=int(user_id_str), message_id=msg_id)
+        except Exception:
+            pass
+    if invites:
+        keys_to_delete.append("apply_invite_msg_ids")
+
+    for key in keys_to_delete:
+        vacancy.extra.pop(key, None)
+    vacancy.save(update_fields=["extra"])

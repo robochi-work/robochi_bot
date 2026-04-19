@@ -1,8 +1,6 @@
 import logging
-from types import SimpleNamespace
 from typing import Any
 
-from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
 
 from ..call_formatter import CallVacancyTelegramTextFormatter
@@ -19,15 +17,22 @@ class VacancyApprovedUserObserver(Observer):
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data["vacancy"]
 
-        # Повідомлення 2.2 — "Вашу вакансію схвалено" (залишаємо як є)
-        self.notifier.notify(
-            recipient=SimpleNamespace(
+        from telegram.handlers.bot_instance import bot
+
+        # Повідомлення 2.2 — "Вашу вакансію схвалено"
+        try:
+            sent = bot.send_message(
                 chat_id=vacancy.owner.id,
-            ),
-            method=NotificationMethod.TEXT,
-            text=CallVacancyTelegramTextFormatter.vacancy_approved_user(),
-            reply_markup=get_vacancy_my_list_markup(),
-        )
+                text=CallVacancyTelegramTextFormatter.vacancy_approved_user(),
+                reply_markup=get_vacancy_my_list_markup(),
+            )
+            vacancy.extra = vacancy.extra or {}
+            vacancy.extra["approved_msg_id"] = sent.message_id
+            vacancy.save(update_fields=["extra"])
+        except Exception:
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
 
         # Повідомлення 2.3 — через 5 секунд надсилаємо посилання на групу з повторами
         from vacancy.tasks.employer_group_invite import send_employer_group_invite_task
