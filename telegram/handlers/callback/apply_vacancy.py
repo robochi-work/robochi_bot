@@ -85,13 +85,14 @@ def handle_apply_vacancy(call: CallbackQuery):
             bot.answer_callback_query(call.id, show_alert=True, text="Вакансію не знайдено або вона вже закрита.")
             return
 
-        # 7. Owner вакансии — popup с инструкцией (ссылка на группу уже в боте после approve)
+        # 7. Owner вакансии — автоперехід в бот через deep link
         if vacancy.owner == user:
-            bot.answer_callback_query(
-                call.id,
-                text="Перейдіть у групу Вашої вакансії через повідомлення у боті:\n@riznorobochi_ua_bot",
-                show_alert=True,
-            )
+            payload = _encode_apply_payload(vacancy_id)
+            deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
+            try:
+                bot.answer_callback_query(call.id, url=deep_link)
+            except Exception:
+                _send_invite(call, vacancy_id, user, role_text="Роботодавець")
             return
 
         # 8. Чужой employer
