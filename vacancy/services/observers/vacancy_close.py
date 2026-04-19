@@ -179,17 +179,44 @@ class VacancyPaymentDoesNotExistObserver(Observer):
 
 
 class VacancyDeleteEmployerInviteObserver(Observer):
+    """Delete ALL bot service messages related to this vacancy (employer + workers)."""
+
     def __init__(self, notifier: TelegramNotifier):
         self.notifier = notifier
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data["vacancy"]
-        msg_id = vacancy.extra.get("employer_invite_msg_id")
-        if not msg_id:
+        if not vacancy.extra:
             return
-        try:
-            bot.delete_message(chat_id=vacancy.owner.id, message_id=msg_id)
-            logging.info(f"Deleted employer invite message {msg_id} for vacancy {vacancy.id}")
-        except Exception as e:
-            logging.warning(f"Failed to delete employer invite msg {msg_id}: {e}")
+
+        owner_id = vacancy.owner.id
+        keys_to_delete = []
+
+        # Видалити повідомлення заказчика: invite, created, approved
+        for key in ["employer_invite_msg_id", "created_msg_id", "approved_msg_id"]:
+            msg_id = vacancy.extra.get(key)
+            if msg_id:
+                try:
+                    bot.delete_message(chat_id=owner_id, message_id=msg_id)
+                    logging.info(f"Deleted {key}={msg_id} for vacancy {vacancy.id}")
+                except Exception as e:
+                    logging.warning(f"Failed to delete {key}={msg_id}: {e}")
+                keys_to_delete.append(key)
+
+        # Видалити повідомлення рабочих (apply_invite_msg_ids)
+        invites = vacancy.extra.get("apply_invite_msg_ids", {})
+        for user_id_str, msg_id in invites.items():
+            try:
+                bot.delete_message(chat_id=int(user_id_str), message_id=msg_id)
+                logging.info(f"Deleted apply invite msg {msg_id} for user {user_id_str}")
+            except Exception:
+                pass
+        if invites:
+            keys_to_delete.append("apply_invite_msg_ids")
+
+        # Очистити extra
+        for key in keys_to_delete:
+            vacancy.extra.pop(key, None)
+        if keys_to_delete:
+            vacancy.save(update_fields=["extra"])
