@@ -1130,3 +1130,81 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - Employer @recrutcorpltd попал в чужую vacancy 38 через "Я ГОТОВИЙ ПРАЦЮВАТИ"
 - Диагноз: invite_link группы без creates_join_request=True → handler chat_join_request не сработал → сработал chat_member_handler (INV-007 — без проверки роли)
 - План на след. сессию: согласно INV-005, добавить проверку в check_system.py; дублировать проверку role в chat_member_handler как fallback
+
+---
+
+**Сесія 18-19.04.2026 — Фільтри кнопки «Я ГОТОВИЙ ПРАЦЮВАТИ», повідомлення заказчику, Celery-таск запрошення в групу**
+
+### Callback-архітектура кнопки «Я ГОТОВИЙ ПРАЦЮВАТИ»
+
+Кнопка в каналі міста = `callback_data=f"apply:{vacancy.id}"`. При натисканні бот прогоняє 12 перевірок в `telegram/handlers/callback/apply_vacancy.py`:
+
+1. Admin → deep link в бот (без перевірок)
+2. Постійна блокировка → popup
+3. Тимчасова блокировка → popup
+4. `is_active=False` → popup
+5. Не зареєстрований → popup з `@riznorobochi_ua_bot` + `@robochi_work_admin`
+6. Вакансія не знайдена → popup
+7. Owner вакансії → deep link в бот (`answer_callback_query(url=deep_link)`)
+8. Чужий employer → popup «Ви не можете приєднатися до чужої вакансії.»
+9. Вже в іншій вакансії → popup
+10. Група заповнена → popup
+11. Стать не вказана → popup
+12. Стать не відповідає → popup «Ця вакансія призначена для іншої статі.»
+
+Пройшов перевірки (worker) → deep link в бот → `process_start_payload` (type="apply") → silent return (повідомлення не надсилається, Celery-таск handles it).
+
+INV-005 FIX блок в `chat_member_handler` залишено як safety net.
+Admin bypass в `chat_member_handler` — не створює VacancyUser, тег «Адміністратор».
+
+### Повідомлення заказчику
+
+**2.1. Після створення вакансії (на модерацію):**
+- Текст: «Ваша вакансія для пошуку працівників відправлена на модерацію...»
+- Кнопка: «Як це працює?» → WebApp URL `/work/employer/faq/`
+- `msg_id` зберігається в `vacancy.extra["created_msg_id"]`
+- Файл: `vacancy/services/observers/created_user_observer.py`
+
+**2.2. Після approve модерації:** Залишено як є + `msg_id` зберігається в `vacancy.extra["approved_msg_id"]`
+- Файл: `vacancy/services/observers/approved_user_observer.py`
+
+**2.3. Запрошення в групу (Celery-таск):**
+- Файл: `vacancy/tasks/employer_group_invite.py`
+- Зареєстровано в `vacancy/tasks/__init__.py`
+- Через 5 сек після approve → повідомлення «Перейдіть у групу Вашої вакансії...» + кнопка
+- Повтор кожну 1 хвилину, макс 10 разів
+- Перевірка: якщо owner вже в групі (VacancyUser зі статусом OWNER/MEMBER) → зупинка
+- Після 10 спроб без входу:
+  1. Видалити всі сервісні повідомлення вакансії
+  2. Надіслати попередження в групу
+  3. Закрити вакансію через `vacancy_publisher.notify(VACANCY_CLOSE)`
+  4. Заблокувати заказчика (BlockReason.EMPLOYER_NO_GROUP)
+  5. Надіслати повідомлення про блокування
+
+**Новий BlockReason:** `EMPLOYER_NO_GROUP = "employer_no_group"` + метод `BlockService.auto_block_employer_no_group()`
+- Міграція: `user/0017`
+
+### Видалення сервісних повідомлень при закритті вакансії
+
+`VacancyDeleteEmployerInviteObserver` розширено — тепер видаляє: `employer_invite_msg_id`, `created_msg_id`, `approved_msg_id`, `apply_invite_msg_ids` (для всіх рабочих).
+Спрацьовує при будь-якому `VACANCY_CLOSE` (через 3 години, вручну, через неприхід заказчика).
+
+### Deep link автоперехід в бот
+
+`telegram/handlers/messages/commands.py`: додано `encode_start_param()`, обробка `type="apply"` в `process_start_payload` — silent return без повідомлення.
+`telegram/handlers/callback/apply_vacancy.py`: owner та worker після перевірок → `answer_callback_query(url=deep_link)` → автоматичне відкриття бота.
+
+### Ключові файли змінені
+
+- `service/telegram_markup_factory.py` — callback_data замість url
+- `telegram/handlers/callback/apply_vacancy.py` — 12 перевірок + deep link
+- `telegram/handlers/member/user/group.py` — INV-005 FIX блок (safety net) + admin bypass
+- `vacancy/tasks/employer_group_invite.py` — Celery-таск з повторами
+- `vacancy/tasks/__init__.py` — реєстрація таска
+- `vacancy/services/observers/created_user_observer.py` — збереження msg_id + кнопка FAQ
+- `vacancy/services/observers/approved_user_observer.py` — збереження msg_id + запуск таска
+- `vacancy/services/observers/vacancy_close.py` — розширене видалення повідомлень
+- `vacancy/services/call_formatter.py` — новий текст повідомлення 2.1
+- `telegram/handlers/messages/commands.py` — encode_start_param + обробка type="apply"
+- `user/choices.py` — BlockReason.EMPLOYER_NO_GROUP
+- `user/services.py` — auto_block_employer_no_group()
