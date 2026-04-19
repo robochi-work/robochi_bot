@@ -62,7 +62,7 @@ def handle_apply_vacancy(call: CallbackQuery):
         if not work_profile or not work_profile.role:
             bot.answer_callback_query(
                 call.id,
-                text="Спочатку зареєструйтеся у нашому сервісі: @riznorobochi_ua_bot",
+                text="Спочатку зареєструйтеся у нашому сервісі:\n@riznorobochi_ua_bot\n\nАбо зверніться до Адміністратора:\n@robochi_work_admin",
                 show_alert=True,
             )
             return
