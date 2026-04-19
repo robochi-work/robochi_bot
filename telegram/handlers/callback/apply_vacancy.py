@@ -1,3 +1,5 @@
+import base64
+import json
 import logging
 
 import sentry_sdk
@@ -12,6 +14,12 @@ from vacancy.models import Vacancy, VacancyUser
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
 logger = logging.getLogger(__name__)
+
+
+def _encode_apply_payload(vacancy_id: int) -> str:
+    data = {"type": "apply", "vacancy_id": vacancy_id}
+    json_str = json.dumps(data, separators=(",", ":"))
+    return base64.urlsafe_b64encode(json_str.encode()).decode().rstrip("=")
 
 
 @bot.callback_query_handler(func=lambda call: call.data and call.data.startswith("apply:"))
@@ -127,8 +135,13 @@ def handle_apply_vacancy(call: CallbackQuery):
                 bot.answer_callback_query(call.id, show_alert=True, text="Ця вакансія призначена для іншої статі.")
                 return
 
-        # Все проверки пройдены
-        _send_invite(call, vacancy_id, user, role_text="Робітник")
+        # Все проверки пройдены — автоперехід в бот через deep link
+        payload = _encode_apply_payload(vacancy_id)
+        deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
+        try:
+            bot.answer_callback_query(call.id, url=deep_link)
+        except Exception:
+            _send_invite(call, vacancy_id, user, role_text="Робітник")
         logger.info("apply_approved", extra={"user_id": user.id, "vacancy_id": vacancy_id})
 
     except Exception:
