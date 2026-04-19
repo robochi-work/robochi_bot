@@ -1,4 +1,4 @@
-from .work_role import bot
-from .call import bot
+from .call import bot  # noqa: F401
+from .work_role import bot  # noqa: F811
 
-__all__ = ['bot']
+__all__ = ["bot"]

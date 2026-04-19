@@ -5,41 +5,40 @@
 
 {% block body %}
 <main class="page page--faq">
-    <div class="faq-header">
-        <a href="/" class="back-link">← Назад</a>
-        <h2>Що робити якщо?</h2>
-    </div>
+    <div class="faq-container">
+        <div class="faq-header">
+            <a href="/" class="page-back-btn">← Назад</a>
+            <h2>Як це працює?</h2>
+        </div>
 
-    <div class="faq-list">
-        <details class="faq-item">
-            <summary>Як обрати вакансію?</summary>
-            <p>Перейдіть до каналу вашого міста через кнопку «Мої вакансії» в особистому кабінеті. Знайдіть підходящу вакансію та натисніть кнопку «Я ГОТОВИЙ ПРАЦЮВАТИ».</p>
-        </details>
-
-        <details class="faq-item">
-            <summary>Я вже обрав вакансію, що далі?</summary>
-            <p>Після натискання кнопки вам прийде повідомлення в бот з деталями вакансії. Підтвердіть участь натиснувши «Підтвердити». Після цього вас додадуть до групи вакансії.</p>
-        </details>
-
-        <details class="faq-item">
-            <summary>Чи можу я обрати кілька вакансій одночасно?</summary>
-            <p>Ні, ви можете бути учасником лише однієї активної вакансії одночасно.</p>
-        </details>
-
-        <details class="faq-item">
-            <summary>Що таке перекличка?</summary>
-            <p>Перед початком роботи бот надішле вам повідомлення з проханням підтвердити свою участь. У вас є 5 хвилин на відповідь. Якщо не підтвердите — вас буде видалено з групи вакансії.</p>
-        </details>
-
-        <details class="faq-item">
-            <summary>Мене заблоковано. Що робити?</summary>
-            <p>Зверніться до адміністратора через кнопку «Допомога адміністратора» в особистому кабінеті або напишіть напряму: <a href="https://t.me/robochi_work_admin">@robochi_work_admin</a>.</p>
-        </details>
-
-        <details class="faq-item">
-            <summary>Як подивитися відгуки про мене?</summary>
-            <p>Натисніть кнопку «Мої відгуки» в особистому кабінеті. Там відображаються всі відгуки, залишені роботодавцями.</p>
-        </details>
+        <div class="faq-list">
+            {% if faq_items %}
+                {% for item in faq_items %}
+                <details class="faq-item">
+                    <summary>{{ item.question }}</summary>
+                    <div class="faq-item__body">
+                        <p>{{ item.answer }}</p>
+                        {% if item.image %}
+                        <div class="faq-media">
+                            <img src="{{ item.image.url }}" alt="{{ item.question }}" class="faq-media__img" loading="lazy">
+                        </div>
+                        {% endif %}
+                        {% if item.video_url %}
+                        <div class="faq-media">
+                            <div class="faq-media__video-wrap">
+                                <iframe src="{{ item.video_embed_url }}" frameborder="0" allowfullscreen class="faq-media__video"></iframe>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </details>
+                {% endfor %}
+            {% else %}
+                <div class="faq-empty">
+                    <p>Інформація поки що не додана.</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </main>
 
@@ -50,6 +49,11 @@
     align-items: stretch;
     min-height: 100vh;
 }
+.faq-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
 .faq-header {
     display: flex;
     align-items: center;
@@ -59,13 +63,9 @@
 .faq-header h2 {
     font-size: 18px;
     font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
     margin: 0;
 }
 .faq-list {
-    max-width: 520px;
-    width: 100%;
-    margin: 0 auto;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -81,7 +81,6 @@
     font-size: 15px;
     font-weight: 600;
     cursor: pointer;
-    text-shadow: var(--btn-text-shadow);
     list-style: none;
     display: flex;
     align-items: center;
@@ -100,14 +99,71 @@
 .faq-item summary::-webkit-details-marker {
     display: none;
 }
-.faq-item p {
+.faq-item__body {
     padding: 0 16px 14px;
+}
+.faq-item__body p {
     font-size: 14px;
     line-height: 1.6;
-    margin: 0;
+    margin: 0 0 12px 0;
 }
-.faq-item a {
-    color: var(--accent-dark);
+.faq-media {
+    margin-top: 8px;
+}
+.faq-media__img {
+    width: 100%;
+    border-radius: 8px;
+    cursor: pointer;
+}
+.faq-media__video-wrap {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    border-radius: 8px;
+}
+.faq-media__video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.faq-empty {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--muted-foreground);
+}
+.faq-fullscreen-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+}
+.faq-fullscreen-overlay.active {
+    display: flex;
+}
+.faq-fullscreen-overlay img {
+    max-width: 95%;
+    max-height: 95%;
+    object-fit: contain;
 }
 </style>
+
+<div class="faq-fullscreen-overlay" id="faqOverlay" onclick="this.classList.remove('active')">
+    <img id="faqFullImg" src="" alt="">
+</div>
+
+<script>
+document.querySelectorAll('.faq-media__img').forEach(function(img) {
+    img.addEventListener('click', function() {
+        document.getElementById('faqFullImg').src = this.src;
+        document.getElementById('faqOverlay').classList.add('active');
+    });
+});
+</script>
 {% endblock %}

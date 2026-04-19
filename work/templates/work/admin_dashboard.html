@@ -4,121 +4,139 @@
 {% block header %}{% endblock %}
 
 {% block body %}
-<main class="page page--admin-dashboard">
+<div class="admin-layout">
 
-    <h2 class="admin-title">Панель керування</h2>
-
-    <a href="/admin/" class="worker-btn">
-        <span class="worker-btn__icon">⚙️</span>
-        <span class="worker-btn__text">
-            <span class="worker-btn__title">Адмін-панель Django</span>
-            <span class="worker-btn__sub">Відкрити</span>
-        </span>
-    </a>
-
-    <div class="admin-tabs">
-        <button class="admin-tab active" onclick="switchTab('users')">Користувачі</button>
-        <button class="admin-tab" onclick="switchTab('vacancies')">Вакансії</button>
+    {# Fixed top button #}
+    <div class="admin-top-bar">
+        <a href="/taya-panel/" class="admin-action-btn">⚙️ Адмін-панель Django</a>
     </div>
 
-    {# ===== TAB: Користувачі ===== #}
-    <div id="tab-users" class="admin-tab-content active">
-        <form method="GET" action="{% url 'work:admin_search_users' %}">
+    {# Scrollable content #}
+    <div class="admin-content">
 
-            <input type="text" name="q" placeholder="Ім'я, ID, Username або телефон" class="search-input">
+        {# Tabs #}
+        <div class="admin-tabs">
+            <button class="admin-tab active" data-tab="users" onclick="switchTab('users', this)">Користувачі</button>
+            <button class="admin-tab" data-tab="vacancies" onclick="switchTab('vacancies', this)">Вакансії</button>
+            <div class="admin-tab-indicator"></div>
+        </div>
 
-            <div class="filter-section">
-                <label class="filter-toggle">
-                    <input type="checkbox" onchange="toggleFilter('users-cities', this)"> По містах
-                </label>
-                <div id="users-cities" class="filter-options" style="display:none;">
-                    {% for city in cities %}
-                    <label class="filter-option">
-                        <input type="checkbox" name="city" value="{{ city.pk }}">
-                        {{ city.name }}
+        {# ===== TAB: Користувачі ===== #}
+        <div id="tab-users" class="admin-tab-content active">
+            <form method="GET" action="{% url 'work:admin_search_users' %}">
+
+                <input type="text" name="q" placeholder="Ім'я, ID, Username або телефон" class="search-input">
+
+                <div class="filter-section">
+                    <label class="filter-toggle">
+                        <input type="checkbox" onchange="toggleFilter('users-cities', this)"> По містах
                     </label>
-                    {% endfor %}
+                    <div id="users-cities" class="filter-options" style="display:none;">
+                        {% for city in cities %}
+                        <label class="filter-option">
+                            <input type="checkbox" name="city" value="{{ city.pk }}">
+                            {{ city.name }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
 
-            <div class="filter-section">
-                <label class="filter-toggle">
-                    <input type="checkbox" onchange="toggleFilter('users-roles', this)"> По ролі
-                </label>
-                <div id="users-roles" class="filter-options" style="display:none;">
-                    {% for value, label in roles %}
-                    <label class="filter-option">
-                        <input type="checkbox" name="role" value="{{ value }}"> {{ label }}
+                <div class="filter-section">
+                    <label class="filter-toggle">
+                        <input type="checkbox" onchange="toggleFilter('users-roles', this)"> По ролі
                     </label>
-                    {% endfor %}
+                    <div id="users-roles" class="filter-options" style="display:none;">
+                        {% for value, label in roles %}
+                        <label class="filter-option">
+                            <input type="checkbox" name="role" value="{{ value }}"> {{ label }}
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
 
-            <div class="filter-section">
-                <label class="filter-toggle">
-                    <input type="checkbox" name="blocked" value="1"> Заблоковані
-                </label>
-            </div>
+                <div class="filter-section">
+                    <label class="filter-toggle">
+                        <input type="checkbox" name="blocked" value="1"> Заблоковані
+                    </label>
+                </div>
 
-            <button type="submit" class="btn-primary">ПОШУК</button>
-        </form>
+                <button type="submit" class="admin-action-btn admin-submit-btn">ПОШУК</button>
+            </form>
+        </div>
+
+        {# ===== TAB: Вакансії ===== #}
+        <div id="tab-vacancies" class="admin-tab-content">
+            <form method="GET" action="{% url 'work:admin_search_vacancies' %}">
+
+                <div class="filter-section">
+                    <label class="filter-toggle">
+                        <input type="checkbox" onchange="toggleFilter('vac-cities', this)"> По містах
+                    </label>
+                    <div id="vac-cities" class="filter-options" style="display:none;">
+                        {% for city in cities %}
+                        <label class="filter-option">
+                            <input type="checkbox" name="city" value="{{ city.pk }}">
+                            {{ city.name }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="filter-section">
+                    <label class="filter-option">
+                        <input type="checkbox" name="pending" value="1"> На модерації
+                    </label>
+                </div>
+                <div class="filter-section">
+                    <label class="filter-option">
+                        <input type="checkbox" name="in_work" value="1"> Активна
+                    </label>
+                </div>
+                <div class="filter-section">
+                    <label class="filter-option">
+                        <input type="checkbox" name="cancelled" value="1"> Пошук зупинено / Закрита
+                    </label>
+                </div>
+                <div class="filter-section">
+                    <label class="filter-option">
+                        <input type="checkbox" name="to_pay" value="1"> До сплати
+                    </label>
+                </div>
+                <div class="filter-section">
+                    <label class="filter-option">
+                        <input type="checkbox" name="paid" value="1"> Сплачено
+                    </label>
+                </div>
+
+                <button type="submit" class="admin-action-btn admin-submit-btn">ПОШУК</button>
+            </form>
+        </div>
+
     </div>
-
-    {# ===== TAB: Вакансії ===== #}
-    <div id="tab-vacancies" class="admin-tab-content" style="display:none;">
-        <form method="GET" action="{% url 'work:admin_search_vacancies' %}">
-
-            <div class="filter-section">
-                <label class="filter-toggle">
-                    <input type="checkbox" onchange="toggleFilter('vac-cities', this)"> По містах
-                </label>
-                <div id="vac-cities" class="filter-options" style="display:none;">
-                    {% for city in cities %}
-                    <label class="filter-option">
-                        <input type="checkbox" name="city" value="{{ city.pk }}">
-                        {{ city.name }}
-                    </label>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <div class="filter-section">
-                <label class="filter-option">
-                    <input type="checkbox" name="pending" value="1"> На модерації
-                </label>
-            </div>
-            <div class="filter-section">
-                <label class="filter-option">
-                    <input type="checkbox" name="in_work" value="1"> В роботі
-                </label>
-            </div>
-            <div class="filter-section">
-                <label class="filter-option">
-                    <input type="checkbox" name="to_pay" value="1"> До оплати
-                </label>
-            </div>
-            <div class="filter-section">
-                <label class="filter-option">
-                    <input type="checkbox" name="cancelled" value="1"> Відміна вакансії
-                </label>
-            </div>
-
-            <button type="submit" class="btn-primary">ПОШУК</button>
-        </form>
-    </div>
-
-</main>
+</div>
 
 <script>
-function switchTab(tabName) {
+function switchTab(tabName, btn) {
+    // Hide all tabs
     document.querySelectorAll('.admin-tab-content').forEach(function(el) {
-        el.style.display = 'none';
+        el.classList.remove('active');
     });
+    // Deactivate all tab buttons
     document.querySelectorAll('.admin-tab').forEach(function(el) {
         el.classList.remove('active');
     });
-    document.getElementById('tab-' + tabName).style.display = 'block';
-    event.currentTarget.classList.add('active');
+    // Show selected tab
+    document.getElementById('tab-' + tabName).classList.add('active');
+    btn.classList.add('active');
+    // Move indicator
+    updateIndicator(btn);
+}
+
+function updateIndicator(activeBtn) {
+    var indicator = document.querySelector('.admin-tab-indicator');
+    if (!indicator || !activeBtn) return;
+    indicator.style.width = activeBtn.offsetWidth + 'px';
+    indicator.style.left = activeBtn.offsetLeft + 'px';
 }
 
 function toggleFilter(id, checkbox) {
@@ -130,71 +148,158 @@ function toggleFilter(id, checkbox) {
         });
     }
 }
+
+// Init indicator position on load
+document.addEventListener('DOMContentLoaded', function() {
+    var activeTab = document.querySelector('.admin-tab.active');
+    if (activeTab) updateIndicator(activeTab);
+});
 </script>
 
 <style>
-    .page--admin-dashboard {
-        padding: 20px 16px;
+    /* Full-height layout */
+    .admin-layout {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        min-height: 100vh;
         max-width: 520px;
         margin: 0 auto;
+        padding: 0 16px;
     }
-    .admin-title {
-        font-size: 22px;
-        font-weight: 700;
-        text-shadow: var(--btn-text-shadow);
-        margin: 0 0 4px;
+
+    /* Fixed top bar */
+    .admin-top-bar {
+        flex-shrink: 0;
+        padding: 16px 0 8px;
     }
-    .admin-tabs {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 4px;
-    }
-    .admin-tab {
-        flex: 1;
-        padding: 12px 8px;
+
+    /* Unified action button (top + bottom) */
+    .admin-action-btn {
+        display: block;
+        width: 100%;
+        padding: 14px 24px;
         border: none;
-        border-radius: var(--btn-radius);
-        background: var(--btn-bg);
-        color: var(--accent-dark);
+        border-radius: var(--radius);
+        background: var(--primary);
+        color: var(--primary-foreground) !important;
         font-size: 15px;
         font-weight: 600;
-        text-shadow: var(--btn-text-shadow);
-        box-shadow: var(--btn-shadow);
+        text-align: center;
+        text-decoration: none !important;
         cursor: pointer;
-        transition: all 0.2s ease-in-out;
+        box-shadow: var(--shadow);
+        transition: background 0.15s;
+        -webkit-tap-highlight-color: transparent;
+    }
+    .admin-action-btn:active {
+        background: var(--primary-hover);
+    }
+
+    /* Scrollable content area */
+    .admin-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding-top: 12px;
+        overflow-y: auto;
+    }
+
+    /* ---- Tabs (reui-style) ---- */
+    .admin-tabs {
+        position: relative;
+        display: flex;
+        width: 100%;
+        background: var(--muted);
+        border-radius: var(--radius);
+        padding: 4px;
+        margin-bottom: 20px;
+        gap: 0;
+    }
+    .admin-tab {
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        padding: 10px 24px;
+        border: none;
+        border-radius: calc(var(--radius) - 2px);
+        background: transparent;
+        color: var(--muted-foreground);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: color 0.2s;
+        white-space: nowrap;
+        -webkit-tap-highlight-color: transparent;
     }
     .admin-tab.active {
-        box-shadow: var(--btn-shadow-active);
-        font-weight: 700;
+        color: var(--foreground);
+        font-weight: 600;
     }
+    /* Sliding indicator */
+    .admin-tab-indicator {
+        position: absolute;
+        top: 4px;
+        bottom: 4px;
+        left: 0;
+        background: var(--card);
+        border-radius: calc(var(--radius) - 2px);
+        box-shadow: var(--shadow);
+        transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 0;
+    }
+
+    /* Tab content */
     .admin-tab-content {
-        display: block;
+        display: none;
+        flex: 1;
     }
+    .admin-tab-content.active {
+        display: flex;
+        flex-direction: column;
+    }
+    .admin-tab-content form {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+    }
+
+    /* Submit button pinned to bottom */
+    .admin-submit-btn {
+        margin-top: auto;
+        margin-bottom: 24px;
+    }
+
+    /* Search input */
     .search-input {
         width: 100%;
-        padding: 13px 16px;
-        border: 1px solid var(--input-border);
-        border-radius: var(--input-radius);
+        padding: 12px 16px;
+        border: 1px solid var(--input);
+        border-radius: var(--radius);
         background: var(--input-bg);
         font-size: 15px;
-        color: var(--accent-dark);
-        margin-bottom: 12px;
+        color: var(--foreground);
+        margin-bottom: 16px;
         box-sizing: border-box;
+        outline: none;
+        transition: border-color 0.15s, box-shadow 0.15s;
     }
+    .search-input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+
+    /* Filters */
     .filter-section {
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
     .filter-toggle {
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-weight: 700;
+        gap: 10px;
+        font-weight: 600;
         font-size: 15px;
         cursor: pointer;
-        text-shadow: var(--btn-text-shadow);
+        color: var(--foreground);
     }
     .filter-toggle input[type=checkbox] {
         width: 18px;
@@ -203,17 +308,18 @@ function toggleFilter(id, checkbox) {
     }
     .filter-options {
         margin-top: 8px;
-        margin-left: 26px;
+        margin-left: 28px;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
     }
     .filter-option {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
         font-size: 14px;
         cursor: pointer;
+        color: var(--foreground);
     }
     .filter-option input[type=checkbox] {
         width: 16px;

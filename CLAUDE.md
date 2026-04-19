@@ -1,229 +1,133 @@
-# Инструкция для работы с Claude по проекту robochi_bot
+## ⚠️ Before doing anything — load context in this order:
+1. Read AGENTS.md → AI_QUICK_START.md → docs/PROJECT_CONTEXT.md (tail for recent sessions)
+2. Check PROJECT_RULES.md → section "Invariants" for hard rules
+3. Use conversation_search tool to find prior discussions
 
-## Схема работы
+---
 
-Артем работает над проектом robochi_bot. Claude помогает с разработкой, давая команды для выполнения на сервере. Артем копирует команды в терминал SSH и возвращает вывод в Claude.
+# Claude Code Instructions for robochi_bot
 
-## Важно: используй ClaudeCode везде где возможно
+## Project
+Django + Telegram Bot + Telegram Mini App (WebApp) for short-term job matching in Ukrainian cities.
+Server: `/home/webuser/robochi_bot/` on Fornex VPS, domain `robochi.pp.ua`.
 
-Под "ClaudeCode" подразумевается следующий рабочий цикл:
-1. Claude формулирует задачу
-2. Claude даёт готовые bash-команды для выполнения на сервере
-3. Артем копирует команды в SSH-терминал и выполняет
-4. Артем копирует вывод терминала обратно в Claude
-5. Claude анализирует результат и даёт следующие команды
+## Critical Rules
 
-Claude НЕ имеет прямого доступа к серверу. Все команды выполняются Артемом вручную.
-
-## Проект
-
-- **Что это**: Django + Telegram Bot + Telegram Mini App (WebApp) для поиска подработки
-- **Репозиторий**: github.com/robochi-work/robochi_bot (приватный)
-- **Сервер**: `/home/webuser/robochi_bot/`
-- **Домен**: robochi.pp.ua
-- **Рабочая ветка**: `develop` (main синхронизируется вручную)
-
-## Стек
-
-Python 3.11, Django, pyTelegramBotAPI, PostgreSQL, Celery+Redis, Gunicorn (unix socket)+Nginx+systemd, WhiteNoise, django-formtools, django-parler, Sentry.
-
-## Ключевые пути
-
-- Код проекта: `/home/webuser/robochi_bot/`
-- Контекст проекта: `docs/PROJECT_CONTEXT.md` — загружать в начале каждого диалога
-- Env production: `/etc/robochi_bot.env` (нужен sudo для чтения)
-- Env проект: `/home/webuser/robochi_bot/.env` (доступен без sudo)
-- Gunicorn socket: `/home/webuser/robochi_bot/gunicorn.sock`
-- Systemd unit: `/etc/systemd/system/gunicorn.service`
-- Venv: `/home/webuser/robochi_bot/venv/`
-
-## Как запускать manage.py на сервере
-
-```bash
-cd /home/webuser/robochi_bot
-source venv/bin/activate
-set -a; source .env; set +a
-python3 manage.py shell -c "..."
-```
-
-## Как применять изменения
-
-После редактирования Python-файлов:
-```bash
-sudo systemctl restart gunicorn.service
-sudo systemctl status gunicorn.service --no-pager
-```
-
-## Как смотреть логи
-
-```bash
-sudo journalctl -u gunicorn.service --since "5 min ago" --no-pager
-```
-
-## Как коммитить
-
-Все изменения — в ветку develop:
-```bash
-cd /home/webuser/robochi_bot
-git add <файлы>
-git commit -m "описание"
-git push origin develop
-```
-
-## Рабочий цикл диалога
-
-1. В начале диалога Артем загружает `docs/PROJECT_CONTEXT.md`
-2. Claude читает контекст и понимает текущее состояние проекта
-3. Работаем над задачами через ClaudeCode (команды → вывод → анализ → команды)
-4. В конце сессии Claude готовит обновлённый PROJECT_CONTEXT.md
-5. Артем заменяет файл через WinSCP и коммитит
-
-## Обновление PROJECT_CONTEXT.md
-
-Способ 1 — через WinSCP:
-1. Claude генерирует файл для скачивания
-2. Артем загружает через WinSCP в `/home/webuser/robochi_bot/docs/PROJECT_CONTEXT.md`
-3. `git add docs/PROJECT_CONTEXT.md && git commit -m "docs: update" && git push origin develop`
-
-Способ 2 — через скрипт:
-```bash
-cd /home/webuser/robochi_bot
-./update_context.sh
-```
-(открывает nano, после сохранения автоматически делает commit и push в develop)
-
-## Общие правила
-
-- Перед каждым шагом формулируй задачу, чтоб мы правильно понимали друг друга
-- Давай команды на русском языке (комментарии в коде — на английском)
-- Все команды давай готовыми для копирования в терминал
-- Если нужно отредактировать файл — используй `cat >`, `sed`, или `python3 /tmp/patch.py`
-- Не забывай рестартовать gunicorn после изменений Python-файлов
-- Для просмотра файлов используй `cat`, для проверки результата — `grep` или `head/tail`
-
-## Новые приложения (добавлены 16.03.2026)
-
-### api/ — REST API
-- DRF приложение, БЕЗ моделей (без миграций). Только views, serializers, urls, permissions.
-- Все endpoints под /api/v1/. JWT аутентификация через SimpleJWT.
-- Для добавления нового endpoint: создай serializer в api/serializers/, view в api/views/, зарегистрируй в api/urls.py в v1_urlpatterns.
-- Бизнес-логику НЕ писать в api/views — вызывай сервисы из соответствующих apps (vacancy/services/, user/services.py, payment/services.py).
-
-### payment/ — Monobank платежи
-- MonobankPayment модель. Суммы в копейках (4200 = 42.00 UAH).
-- payment/services.py: create_invoice(), process_webhook(), verify_monobank_signature().
-- Webhook Monobank не гарантирует порядок доставки — process_webhook() использует modifiedDate для идемпотентности.
-- MONOBANK_API_TOKEN в .env (пока пустой).
-
-### user/models.py — AuthIdentity
-- При создании нового пользователя ОБЯЗАТЕЛЬНО создавать AuthIdentity запись.
-- user/services.py: get_or_create_user_from_telegram() уже делает это автоматически.
-- Для будущих провайдеров (email, google): добавить значение в AuthIdentity.Provider и реализовать auth flow.
-
-### Принципы архитектуры
-- Django views + templates = для Telegram Mini App (существующий функционал)
-- DRF views + serializers = для REST API (новые клиенты: мобильные, SPA)
-- Бизнес-логика живёт в services.py КАЖДОГО app, НЕ в views
-- Оба механизма аутентификации (Session + JWT) работают параллельно
-
-## Frontend стиль (обновлено 18.03.2026)
-
-### CSS архитектура
-- **Основной CSS**: `telegram/static/css/styles.css` — это ЕДИНСТВЕННЫЙ источник стилей. Копия в `static/css/styles.css` синхронизируется вручную.
-- **WhiteNoise** собирает статику из `telegram/static/` (app static dir) — он имеет приоритет над `static/` (project static dir). При изменении CSS нужно обновить ОБА файла.
-- Стиль проекта: neumorphism (стальной градиент `#a6a9ab → #6d7074`, выпуклые кнопки с тенями).
-- Dark theme: `@media (prefers-color-scheme: dark)` — переключает переменные на тёмные значения.
-- НЕ используем: glass-morphism карточки, цветные рамки вокруг контента, `backdrop-filter`.
-
-### Обновление CSS — обязательный порядок
-1. Редактируем `telegram/static/css/styles.css`
-2. Копируем: `cp telegram/static/css/styles.css static/css/styles.css`
-3. `python3 manage.py collectstatic --clear --noinput`
-4. `sudo systemctl restart gunicorn.service`
-
-### Обновлённые шаблоны (18.03.2026)
-- `vacancy/templates/vacancy/pre_call.html` — добавлены классы `btn-primary`, `btn-secondary`
-- `vacancy/templates/vacancy/vacancy_form.html` — убран inline `style="background-color: blue"`
-- `vacancy/templates/vacancy/vacancy_feedback.html` — обёрнут в `.vacancy-feedback`
-- `vacancy/templates/vacancy/call.html`, `call_confirm.html`, `refind_start.html` — обёрнуты в `.call`
-
-## Локализация / i18n (добавлено 19.03.2026)
-
-### Как добавлять новые тексты
-- Python код: `from django.utils.translation import gettext as _` → `_('English key text')`
-- Шаблоны: `{% load i18n %}` → `{% trans "English key text" %}`
-- НЕ писать hardcoded кириллические строки — всегда через `_()`
-
-### Обновление переводов
+### Before any manage.py command:
 ```bash
 set -a; source .env; set +a
-python manage.py makemessages -l uk -l ru --no-wrap
-# Заполнить переводы в locale/uk/ и locale/ru/ .po файлов
-python manage.py compilemessages -l uk -l ru
+```
+
+### Deploy after every change:
+```bash
+python3 manage.py collectstatic --clear --noinput
 sudo systemctl restart gunicorn.service
 ```
 
-### Команды бота
-При изменении описаний команд — вызвать из shell:
+### CSS file requires force-add:
 ```bash
-python manage.py shell -c "from telegram.handlers.set_commands import setup_bot_commands; setup_bot_commands()"
+git add -f telegram/static/css/styles.css
 ```
 
-### Где хранятся переводы
-- `locale/uk/LC_MESSAGES/django.po` — украинский
-- `locale/ru/LC_MESSAGES/django.po` — русский
-- User.language_code — поле в модели пользователя ('uk' по умолчанию)
-- UserLanguageMiddleware активирует перевод по user.language_code
+### PostgreSQL:
+Always use `-h localhost -p 5432` (not default 5433).
 
-### Особенности
-- vacancy_formatter.py: `with override('uk')` — тексты вакансий в каналах всегда на украинском
-- Кнопка "Открыть приложение" в Telegram — системная, НЕ контролируется разработчиком
+### Tests:
+```bash
+DJANGO_SETTINGS_MODULE=config.django.local pytest tests/ -v
+```
 
-### Новые страницы и views (добавлено 20.03.2026)
-- `work/views/legal.py` — legal_offer_view, отображает AgreementText type=offer
-- `work/views/phone_required.py` — phone_required_view + resend_phone_request (API для повторной отправки кнопки телефона)
-- `work/templates/work/legal_offer.html` — страница договора оферти
-- `work/templates/work/phone_required.html` — страница "подтвердите телефон" с JS close WebApp + resend
+## CSS Architecture (Clean Slate Theme — April 2026)
 
-### Проверка phone_number (добавлено 20.03.2026)
-- `work/views/index.py` — редирект на phone_required если нет phone_number
-- `work/views/work_profile.py` — questionnaire_redirect: редирект на phone_required если нет phone_number
-- `telegram/views.py` — authenticate_web_app: редирект на /work/phone-required/ если нет phone_number
+### Theme System
+- File: `telegram/static/css/styles.css`
+- Light: `--background: #f1f5f9`, `--card: #ffffff`, `--primary: #6366f1`, `--border: #cbd5e1`
+- Dark (via `prefers-color-scheme: dark`): `--background: #0f172a`, `--card: #1e293b`, `--primary: #818cf8`
+- **Never hardcode colors** — always use `var(--variable-name)`
+- Legacy aliases (`--btn-bg`, `--btn-shadow`, `--accent-dark`, `--steel-bottom`) mapped to new vars for backward compatibility with inline `<style>` blocks
 
-## ЛК Администратора и ЛК Employer (добавлено 25.03.2026)
+### Key CSS Classes
+- `.btn-primary` — indigo filled button (primary actions)
+- `.btn-secondary` — white/bordered button (secondary actions)
+- `.btn-danger` — red destructive button
+- `.worker-btn` — dashboard card-button with icon + title + subtitle
+- `.worker-btn--compact` — smaller variant for top/bottom pinned buttons
+- `.modal-overlay` + `.modal-card` — centered alert modal
+- `.modal-overlay` + `.modal-sheet` — bottom sheet modal (admin forms)
+- `.modal-field`, `.modal-label`, `.modal-select`, `.modal-textarea` — form fields inside modals
+- `.employer-layout` — 3-zone dashboard layout (top/middle/bottom)
+- `.admin-tabs` + `.admin-tab` — reui-style tabs with sliding indicator
 
-### work/views/admin_panel.py — 6 views ЛК Администратора
-- `admin_dashboard` — главный дашборд с табами Користувачі / Вакансії, карта вакансий
-- `admin_search_users` — поиск пользователей (AJAX, по имени/username/phone)
-- `admin_search_vacancies` — поиск вакансий (AJAX, по заголовку/работодателю)
-- `admin_vacancy_card` — детальная карточка вакансии для администратора
-- `admin_block_user` — блокировка/разблокировка пользователя (POST)
-- `admin_moderate_vacancy` — форма модерации вакансии (approve/reject)
+### Dashboard Layout Pattern
+```html
+<div class="employer-layout">
+    <div class="employer-top"><!-- pinned top --></div>
+    <div class="employer-middle"><!-- centered content --></div>
+    <div class="employer-bottom"><!-- pinned bottom --></div>
+</div>
+```
 
-Доступ: только `user.is_staff == True`. Все views проверяют это условие.
+### Adding New Modals
+Use CSS classes, NOT inline styles:
+```html
+<div id="my-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-card">
+        <p class="modal-text">Message text</p>
+        <button class="btn-primary" onclick="...">OK</button>
+    </div>
+</div>
+```
 
-### work/views/employer.py — views ЛК Employer
-- `employer_reviews` — страница отзывов работодателя
-- `employer_faq` — страница FAQ для работодателя
+### Android Telegram WebApp Constraints
+- Native `<select>` picker cannot be styled via CSS (system UI)
+- `<select>` option filtering via JS breaks on Android — use server-side rendering
+- Always test on mobile Telegram (not just desktop)
 
-### Маршрутизация index.py (обновлено 25.03.2026)
-`work/views/index.py` — логика редиректа в зависимости от роли:
-- `user.is_staff` → redirect `work:admin_dashboard`
-- Employer + 0 вакансий → redirect `vacancy:create`
-- Employer + есть вакансии → render `employer_dashboard.html`
-- Worker → render `worker_dashboard.html`
+## File Structure (key files)
+telegram/static/css/styles.css     — ALL styles (Clean Slate theme)
+templates/base.html                — base template
+work/templates/work/
+worker_dashboard.html            — Worker ЛК
+employer_dashboard.html          — Employer ЛК
+admin_dashboard.html             — Admin ЛК
+admin_search_results.html        — Admin user/vacancy search
+admin_vacancy_card.html          — Admin vacancy card
+admin_moderate_vacancy.html      — Admin moderation page
+vacancy/templates/vacancy/
+vacancy_form.html                — Vacancy creation form
+vacancy_detail.html              — Vacancy detail page
+vacancy_my_list.html             — My vacancies list
+vacancy_members.html             — Members management
+vacancy_user_list.html           — User list with modal
+vacancy_payment.html             — Payment page
 
-### Шаблоны ЛК Администратора
-- `work/templates/work/admin_dashboard.html` — дашборд с табами, поиск, карта вакансий
-- `work/templates/work/admin_search_results.html` — результаты поиска (partial для AJAX)
-- `work/templates/work/admin_vacancy_card.html` — карточка вакансии
-- `work/templates/work/admin_moderate_vacancy.html` — форма модерации
+## Git Workflow
+- Working branch: `develop`
+- Exclude from commits: `celerybeat-schedule.bak/.dat/.dir`
+- Pre-commit hooks: ruff check/format, django-upgrade, trailing-whitespace
+- After pre-commit auto-fixes: `git add -u && git commit`
 
-### Шаблоны ЛК Employer
-- `work/templates/work/employer_dashboard.html` — главный дашборд работодателя
-- `work/templates/work/employer_reviews.html` — отзывы
-- `work/templates/work/employer_faq.html` — FAQ
+## FAQ System (FaqItem — April 2026)
 
-### service/telegram_markup_factory.py (обновлено 25.03.2026)
-- `admin_vacancy_reply_markup` — кнопка "Модерувати" теперь ведёт на ЛК Администратора
-  (`/work/admin-panel/vacancy/<id>/moderate/`), а НЕ на `/admin/vacancy/vacancy/<id>/change/`
+### Model
+- `work.models.FaqItem` — dynamic FAQ entries managed from Django admin
+- Fields: `role` (employer/worker), `question`, `answer`, `image` (ImageField), `video_url` (YouTube URL), `order`, `is_active`
+- `video_embed_url` property — auto-converts YouTube watch/youtu.be URLs to embed format
+- Separate FAQ entries for Employer and Worker roles
+- Admin: `/taya-panel/` → FAQ записи (filterable by role, sortable by order)
+
+### Pages
+- Employer: `/work/employer/faq/` → `work:employer_faq` → `employer_faq.html`
+- Worker: `/work/faq/` → `work:worker_faq` → `worker_faq.html`
+- Button label: **«Як це працює?»** (renamed from «Що робити якщо?»)
+
+### Templates
+- Dynamic content from DB via `faq_items` context
+- `<details>` accordion with optional image (fullscreen on click) and video (YouTube iframe embed)
+- Empty state: «Інформація поки що не додана.»
+
+### Media
+- MEDIA_URL = `/media/`, MEDIA_ROOT = `BASE_DIR / "media"`
+- Nginx serves `/media/` → `/home/webuser/robochi_bot/media/`
+- Images uploaded to `media/faq/`
+- Video: YouTube URL only (no file upload) — embed iframe in template

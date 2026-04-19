@@ -7,13 +7,21 @@
 <main class="page page--vacancy-form">
     <div class="form-container">
 
-        {% if not is_first_visit %}
+        {% if resume_mode %}
         <div class="vacancy-list-header">
-            <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+        </div>
+        {% elif not is_first_visit %}
+        <div class="vacancy-list-header">
+            <a href="{% url 'index' %}" class="page-back-btn">← Назад</a>
         </div>
         {% endif %}
 
+        {% if resume_mode %}
+        <h2 class="form-title">Поновити пошук</h2>
+        {% else %}
         <h2 class="form-title">{% trans "Create a Vacancy" %}</h2>
+        {% endif %}
         {% include 'vacancy/vacancy_form.html' %}
     </div>
 </main>
@@ -36,5 +44,18 @@
     margin-bottom: 20px;
     text-align: center;
 }
+.readonly-field {
+    background: rgba(128, 128, 128, 0.15) !important;
+    pointer-events: none;
+    cursor: default;
+    color: var(--text-secondary, #888);
+}
 </style>
+
+<script>
+document.querySelectorAll('.readonly-field').forEach(function(el) {
+    el.addEventListener('focus', function(e) { e.target.blur(); });
+    el.addEventListener('keydown', function(e) { e.preventDefault(); });
+});
+</script>
 {% endblock %}

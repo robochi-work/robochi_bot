@@ -13,6 +13,8 @@
         <p style="text-align:center;padding:20px;">{% trans "Text is not configured in admin yet." %}</p>
     {% endif %}
 
-    <a href="javascript:history.back()" class="btn-secondary" style="display:block;margin:24px auto;max-width:200px;text-align:center;">{% trans "Back" %}</a>
+    <div class="page-back-wrapper">
+        <a href="javascript:history.back()" class="page-back-btn">{% trans "Back" %}</a>
+    </div>
 </div>
 {% endblock %}

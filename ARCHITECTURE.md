@@ -172,3 +172,128 @@ User.language_code → UserLanguageMiddleware → translation.activate(lang)
                                           Django renders translated text
                                           (templates: {% trans %}, Python: _())
 ```
+
+## System Diagram (Mermaid)
+
+```mermaid
+flowchart TD
+    U[Пользователь в Telegram] --> TG[Telegram Client]
+    TG --> BOT[Telegram Bot]
+    TG --> WA[Telegram Mini App / WebApp]
+    MOB[Mobile / SPA клиент] --> NGINX
+
+    BOT --> NGINX[Nginx]
+    WA --> NGINX
+
+    NGINX --> GUNICORN[Gunicorn]
+    GUNICORN --> DJANGO[Django Backend]
+
+    DJANGO --> SESSION[Session Auth<br/>template views]
+    DJANGO --> JWT[JWT Auth<br/>REST API /api/v1/]
+    DJANGO --> PG[(PostgreSQL)]
+    DJANGO --> REDIS[(Redis)]
+    DJANGO --> CELERY[Celery Worker]
+    DJANGO --> MONO[Monobank Acquiring]
+    CELERY --> REDIS
+    CELERY --> PG
+```
+
+## Critical User Path (Mermaid)
+
+```mermaid
+sequenceDiagram
+    participant User as Пользователь
+    participant TG as Telegram
+    participant Bot as Bot
+    participant Web as Mini App
+    participant Django as Django
+    participant DB as PostgreSQL
+
+    User->>Bot: /start
+    Bot-->>User: сообщение + кнопка WebApp
+    User->>TG: нажимает кнопку
+    TG->>Web: открывает Mini App
+    Web->>TG: получает initData
+    Web->>Django: отправляет initData
+    Django->>Django: валидирует hash/auth_date
+    Django->>DB: находит/создает пользователя
+    Django-->>Web: создает сессию
+    Web-->>User: открывает кабинет/мастер
+```
+
+## Risk Zones
+
+### initData — security critical
+- ❌ Do NOT trust initDataUnsafe
+- ❌ Do NOT accept Telegram identity only on client
+- ❌ Do NOT skip server signature verification
+- ✅ Validate hash (HMAC-SHA256)
+- ✅ Check auth_date (7200s expiry)
+- ✅ Use bot token server-side only
+
+### Production config — change carefully
+- .env
+- systemd unit files
+- Nginx settings
+- cookie/security settings
+
+### Celery — change carefully
+- periodic tasks
+- heavy background operations
+- code that may duplicate on retry
+
+## What AI Must Check Before Changes
+
+1. Which zone is affected: Telegram / Django / DB / Celery / Infra
+2. Restart needed? gunicorn / celery-worker / celery-beat
+3. Migration needed? yes / no
+4. Production risk level? high / medium / low
+
+## Rule for AI
+
+- Python backend change → almost always gunicorn restart
+- Celery tasks change → restart worker/beat
+- models change → migrations required
+- Telegram auth / WebApp change → manual test of user path
+
+## Apply Button Architecture (updated 2026-04-19)
+Channel post with vacancy
+|
+v
+[Я ГОТОВИЙ ПРАЦЮВАТИ] (callback_data="apply:{vacancy_id}")
+|
+v
+apply_vacancy.py — 12 checks
+|
+├── FAIL → popup with error text
+│
+└── PASS → answer_callback_query(url=deep_link)
+|
+v
+Bot receives /start with payload
+|
+v
+process_start_payload(type="apply") → silent return
+(Celery task already sends group invite for owner)
+(Worker receives invite via _send_invite fallback)
+
+### Employer Group Invite Flow
+Vacancy approved → approved_user_observer
+|
+v
+Celery task: send_employer_group_invite_task (countdown=5s)
+|
+├── Owner in group? → STOP (delete invite msg)
+├── Vacancy closed? → STOP
+├── Retry < 10 → send msg + retry after 60s
+└── Retry == 10 → close vacancy + block employer + kick workers
+
+### Message Lifecycle
+
+All bot messages store their `message_id` in `vacancy.extra`:
+- `created_msg_id` — message 2.1 (sent to moderation)
+- `approved_msg_id` — message 2.2 (approved)
+- `employer_invite_msg_id` — message 2.3 (group invite)
+- `apply_invite_msg_ids` — dict {user_id: msg_id} for workers
+
+On `VACANCY_CLOSE`, `VacancyDeleteEmployerInviteObserver` deletes all stored messages.

@@ -3,16 +3,17 @@ import hmac
 import json
 import logging
 import time
-from typing import Optional, Any
+from typing import Any
 from urllib.parse import parse_qsl
+
 from django.conf import settings
 
 from user.models import User
 
-
 logger = logging.getLogger(__name__)
 
-def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
+
+def check_webapp_signature(init_data: str) -> tuple[bool, int | None]:
     """
     Check incoming WebApp init data signature
     Source: https://core.telegram.org/bots/webapps#validating-data-received-via-the-web-app
@@ -28,9 +29,7 @@ def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
         return False, user_id
 
     hash_ = parsed_data.pop("hash")
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(parsed_data.items())
-    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed_data.items()))
 
     secret_key = hmac.new(
         key=b"WebAppData",
@@ -44,35 +43,37 @@ def check_webapp_signature(init_data: str) -> tuple[bool, Optional[int]]:
     ).hexdigest()
 
     if calculated_hash != hash_:
+        logger.warning("webapp_auth_failed", extra={"reason": "invalid_signature"})
         return False, user_id
 
     # Проверка auth_date — защита от replay-атак
     auth_date = parsed_data.get("auth_date")
     if not auth_date:
         return False, user_id
-    if time.time() - int(auth_date) > 86400:
+    if time.time() - int(auth_date) > 7200:
         logger.warning("WEBAPP AUTH initData expired, auth_date=%s", auth_date)
         return False, user_id
 
     if "user" in parsed_data:
         user_id = json.loads(parsed_data["user"])["id"]
 
+    logger.info("webapp_auth_success", extra={"user_id": user_id})
     return True, user_id
 
 
-def _build_full_name(first_name: str = '', last_name: str = '') -> str:
+def _build_full_name(first_name: str = "", last_name: str = "") -> str:
     """Combine first_name and last_name from Telegram into a single full_name string."""
-    parts = [p for p in (first_name or '', last_name or '') if p.strip()]
-    return ' '.join(parts) or None
-
+    parts = [p for p in (first_name or "", last_name or "") if p.strip()]
+    return " ".join(parts) or None
 
 
 def notify_admins_new_user(user: User) -> None:
     """Send notification to all admins about a new user registration."""
-    from telegram.handlers.bot_instance import get_bot
     from django.conf import settings
 
-    admin_ids = getattr(settings, 'ADMIN_TELEGRAM_IDS', [])
+    from telegram.handlers.bot_instance import get_bot
+
+    admin_ids = getattr(settings, "ADMIN_TELEGRAM_IDS", [])
     if not admin_ids:
         logger.warning("ADMIN_TELEGRAM_IDS not configured, skipping new user notification")
         return
@@ -81,8 +82,9 @@ def notify_admins_new_user(user: User) -> None:
         "🆕 <b>Новий користувач</b>\n\n"
         f"<b>ID:</b> <code>{user.pk}</code>\n"
         f"<b>Ім'я:</b> {user.full_name or '—'}\n"
-        f"<b>Username:</b> @{user.username}\n" if user.username else
-        "🆕 <b>Новий користувач</b>\n\n"
+        f"<b>Username:</b> @{user.username}\n"
+        if user.username
+        else "🆕 <b>Новий користувач</b>\n\n"
         f"<b>ID:</b> <code>{user.pk}</code>\n"
         f"<b>Ім'я:</b> {user.full_name or '—'}\n"
         f"<b>Username:</b> —\n"
@@ -93,54 +95,55 @@ def notify_admins_new_user(user: User) -> None:
     bot = get_bot()
     for admin_id in admin_ids:
         try:
-            bot.send_message(chat_id=admin_id, text=text, parse_mode='HTML')
+            bot.send_message(chat_id=admin_id, text=text, parse_mode="HTML")
             logger.info(f"New user notification sent to admin {admin_id}")
         except Exception as e:
             logger.error(f"Failed to notify admin {admin_id}: {e}")
 
+
 def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bool]:
     created = False
     full_name = _build_full_name(
-        kwargs.get('first_name', ''),
-        kwargs.get('last_name', ''),
+        kwargs.get("first_name", ""),
+        kwargs.get("last_name", ""),
     )
 
     try:
-        logger.debug(f'get user {user_id}')
+        logger.debug(f"get user {user_id}")
         user = User.objects.get(id=user_id)
 
         # Update user data from Telegram profile on every /start
         # so that changes in username or name are always reflected
         update_fields = []
-        new_username = kwargs.get('username')
+        new_username = kwargs.get("username")
         if new_username and user.username != new_username:
             user.username = new_username
-            update_fields.append('username')
+            update_fields.append("username")
         if full_name and user.full_name != full_name:
             user.full_name = full_name
-            update_fields.append('full_name')
+            update_fields.append("full_name")
         if not user.telegram_id:
             user.telegram_id = user_id
-            update_fields.append('telegram_id')
+            update_fields.append("telegram_id")
         if update_fields:
             user.save(update_fields=update_fields)
-            logger.info(f'Updated user {user_id} fields: {update_fields}')
+            logger.info(f"Updated user {user_id} fields: {update_fields}")
 
     except User.DoesNotExist:
         try:
-            logger.debug(f'user {user_id} does not exist')
+            logger.debug(f"user {user_id} does not exist")
             user = User(
                 id=user_id,
                 telegram_id=user_id,
-                username=kwargs.get('username'),
+                username=kwargs.get("username"),
                 full_name=full_name,
             )
             user.save()
             created = True
-            logger.info(f'Create new user {user}')
+            logger.info(f"Create new user {user}")
             # notification moved to contact handler (after phone is saved)
         except Exception as ex:
-            logger.error(f'failed to create new user {user_id} {ex=}')
+            logger.error(f"failed to create new user {user_id} {ex=}")
             user = User(id=user_id)
             user.save()
 

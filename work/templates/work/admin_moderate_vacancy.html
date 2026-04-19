@@ -6,7 +6,7 @@
 {% block body %}
 <main class="page page--admin-moderate">
 
-    <a href="javascript:history.back()" class="btn-secondary back-btn">← Назад</a>
+    <a href="javascript:history.back()" class="page-back-btn">← Назад</a>
 
     <h2 class="moderate-title">Модерація вакансії</h2>
 
@@ -41,6 +41,19 @@
         {{ form.as_p }}
         <button type="submit" class="btn-primary submit-btn">ЗАТВЕРДИТИ ВАКАНСІЮ</button>
     </form>
+
+    <button type="button" class="btn-delete" onclick="document.getElementById('delete-modal').style.display='flex'">ВИДАЛИТИ</button>
+
+    <div id="delete-modal" class="modal-overlay">
+      <div class="modal-card">
+        <p class="modal-text">Ви впевнені що хочете видалити цю вакансію? Цю дію неможливо скасувати.</p>
+        <form method="post" action="{% url 'work:admin_delete_vacancy' vacancy_id=vacancy.pk %}">
+          {% csrf_token %}
+          <button type="submit" class="btn-danger" style="width:100%;margin-bottom:10px;">ТАК, ВИДАЛИТИ</button>
+        </form>
+        <button type="button" class="btn-secondary" style="width:100%;" onclick="document.getElementById('delete-modal').style.display='none'">СКАСУВАТИ</button>
+      </div>
+    </div>
     {% endif %}
 
 </main>
@@ -53,14 +66,6 @@
         gap: 14px;
         max-width: 520px;
         margin: 0 auto;
-    }
-    .back-btn {
-        display: inline-block;
-        width: auto;
-        margin: 0;
-        padding: 10px 20px;
-        font-size: 14px;
-        align-self: flex-start;
     }
     .moderate-title {
         font-size: 19px;
@@ -141,6 +146,18 @@
     .submit-btn {
         margin-top: 8px;
         width: 100%;
+    }
+    .btn-delete {
+        margin-top: 8px;
+        width: 100%;
+        padding: 14px 0;
+        background: #cc0000;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
     }
 </style>
 {% endblock %}

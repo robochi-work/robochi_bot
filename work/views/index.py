@@ -1,18 +1,19 @@
 from django.core.handlers.wsgi import WSGIRequest
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
+from django.shortcuts import redirect, render
 
 from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
-from vacancy.choices import STATUS_APPROVED, STATUS_ACTIVE
+from user.services import BlockService
+from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
 from work.choices import WorkProfileRole
 
 
-@login_required
 def index(request: WSGIRequest):
+    if not request.user.is_authenticated:
+        return redirect("https://robochi.work")
     user = request.user
 
     # If phone not confirmed, redirect to phone-required page
@@ -40,8 +41,7 @@ def index(request: WSGIRequest):
         # Current active vacancy (worker is member of)
         current_vacancy = None
         vacancy_user = (
-            VacancyUser.objects
-            .filter(user=user, status=Status.MEMBER)
+            VacancyUser.objects.filter(user=user, status=Status.MEMBER)
             .select_related("vacancy", "vacancy__group")
             .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
             .first()
@@ -52,11 +52,14 @@ def index(request: WSGIRequest):
         # Reviews count
         reviews_count = UserFeedback.objects.filter(user=user).count()
 
+        is_blocked = BlockService.is_blocked(user)
         context = {
             "work_profile": profile,
             "channel": channel,
             "current_vacancy": current_vacancy,
             "reviews_count": reviews_count,
+            "is_blocked": is_blocked,
+            "active_block": BlockService.get_active_block(user) if is_blocked else None,
         }
         return render(request, "work/worker_dashboard.html", context)
 
@@ -88,7 +91,7 @@ def index(request: WSGIRequest):
         # Multi-city: collect all city channels
         city_channels = None
         if profile.multi_city_enabled:
-            allowed_ids = list(profile.allowed_cities.values_list('id', flat=True))
+            allowed_ids = list(profile.allowed_cities.values_list("id", flat=True))
             if profile.city_id:
                 allowed_ids.append(profile.city_id)
             city_channels = list(
@@ -97,15 +100,18 @@ def index(request: WSGIRequest):
                     is_active=True,
                     has_bot_administrator=True,
                     invite_link__isnull=False,
-                ).select_related('city')
+                ).select_related("city")
             )
 
+        is_blocked = BlockService.is_blocked(user)
         context = {
             "work_profile": profile,
             "active_vacancies_count": active_vacancies_count,
             "reviews_count": reviews_count,
             "channel": channel,
             "city_channels": city_channels,
+            "is_blocked": is_blocked,
+            "active_block": BlockService.get_active_block(user) if is_blocked else None,
         }
         return render(request, "work/employer_dashboard.html", context)
 

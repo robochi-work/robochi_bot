@@ -1,15 +1,19 @@
 import functools
 import logging
 from typing import Any
+
 from service.broadcast_service import TelegramBroadcastService
 from service.notifications_impl import TelegramNotifier
 from telegram.choices import STATUS_AVAILABLE
 from telegram.handlers.bot_instance import bot
 from telegram.service.group import GroupService
 from telegram.service.message_delete import MessageDeleter, MessageDeleteService
+from vacancy.choices import STATUS_CLOSED
+from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.observers.publisher import Observer
 
-from vacancy.choices import STATUS_CLOSED
+logger = logging.getLogger(__name__)
+
 
 def log_warn_on_exception(func):
     @functools.wraps(func)
@@ -19,7 +23,9 @@ def log_warn_on_exception(func):
         except Exception as e:
             logging.warning(f"Exception occurred in {func.__name__}: {e}", exc_info=True)
             raise
+
     return wrapper
+
 
 class VacancyDeleteMessagesObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -27,11 +33,12 @@ class VacancyDeleteMessagesObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
         deleter = MessageDeleter(bot)
         service = MessageDeleteService(deleter)
-        stats_group = service.delete_in_group_by_vacancy(vacancy)
-        logging.info(f'Message deleted')
+        service.delete_in_group_by_vacancy(vacancy)
+        logging.info("Message deleted")
+
 
 class VacancyDeleteMessagesChannelObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -39,11 +46,36 @@ class VacancyDeleteMessagesChannelObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
-        deleter = MessageDeleter(bot)
-        service = MessageDeleteService(deleter)
-        stats_channel = service.delete_in_channel_by_vacancy(vacancy)
-        logging.info(f'Message deleted')
+        vacancy = data["vacancy"]
+        # Edit channel message to "Вакансію закрито" instead of deleting
+        if vacancy.channel:
+            try:
+                from service.notifications import NotificationMethod
+                from service.telegram_strategy_factory import TelegramStrategyFactory
+                from telegram.models import ChannelMessage
+                from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+                channel_message = (
+                    ChannelMessage.objects.filter(
+                        channel_id=vacancy.channel.id,
+                        extra__vacancy_id=vacancy.id,
+                    )
+                    .order_by("-id")
+                    .first()
+                )
+
+                if channel_message:
+                    text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
+                    strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                    logging.info(f"Channel message edited to closed for vacancy {vacancy.id}")
+                else:
+                    logging.info(f"No channel message found for vacancy {vacancy.id}")
+            except Exception as e:
+                logging.warning(f"Failed to edit channel message for vacancy {vacancy.id}: {e}")
+        else:
+            logging.info(f"Vacancy {vacancy.id} has no channel")
+
 
 class VacancyKickGroupUsersObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -51,12 +83,13 @@ class VacancyKickGroupUsersObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
         if vacancy.group:
             GroupService.kick_all_users(group=vacancy.group)
-            logging.info('kick users')
+            logging.info("kick users")
         else:
-            logging.info('kick users fail - vacancy has no group')
+            logging.info("kick users fail - vacancy has no group")
+
 
 class VacancyGroupFeeStatusObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -64,15 +97,19 @@ class VacancyGroupFeeStatusObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        from django.utils import timezone as tz
+
+        vacancy = data["vacancy"]
         if vacancy.group:
             vacancy.group.status = STATUS_AVAILABLE
-            vacancy.group.save(update_fields=['status'])
+            vacancy.group.last_used_at = tz.now()
+            vacancy.group.save(update_fields=["status", "last_used_at"])
 
             vacancy.group = None
-            vacancy.save(update_fields=['group'])
+            vacancy.save(update_fields=["group"])
 
-            logging.info(f'set vacancy group status - {STATUS_AVAILABLE}')
+            logging.info(f"set vacancy group status - {STATUS_AVAILABLE}")
+
 
 class VacancyStatusClosedObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -80,10 +117,37 @@ class VacancyStatusClosedObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
         vacancy.status = STATUS_CLOSED
-        vacancy.save(update_fields=['status'])
-        logging.info(f'set vacancy status - {STATUS_CLOSED}')
+        vacancy.search_active = False
+        vacancy.save(update_fields=["status", "search_active"])
+        logger.info("vacancy_closed", extra={"vacancy_id": vacancy.id, "reason": "status_closed"})
+        logging.info(f"set vacancy status - {STATUS_CLOSED}, search_active=False")
+
+        # Edit channel message: remove button, show "Вакансію закрито"
+        if vacancy.channel:
+            try:
+                from service.notifications import NotificationMethod
+                from service.telegram_strategy_factory import TelegramStrategyFactory
+                from telegram.models import ChannelMessage
+                from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
+
+                channel_message = (
+                    ChannelMessage.objects.filter(
+                        channel_id=vacancy.channel.id,
+                        extra__vacancy_id=vacancy.id,
+                    )
+                    .order_by("-id")
+                    .first()
+                )
+
+                if channel_message:
+                    text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
+                    strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
+                    strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+                    logging.info(f"Channel message updated to closed for vacancy {vacancy.id}")
+            except Exception as e:
+                logging.warning(f"Failed to update channel message for vacancy {vacancy.id}: {e}")
 
 
 class VacancyNotifyAdminsObserver(Observer):
@@ -92,12 +156,13 @@ class VacancyNotifyAdminsObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
-            text='Вакансия закрыта',
+            text=CallVacancyTelegramTextFormatter(vacancy).vacancy_closed_admin(),
         )
-        logging.info('Notify admins - vacancy closed')
+        logging.info("Notify admins - vacancy closed")
+
 
 class VacancyPaymentDoesNotExistObserver(Observer):
     def __init__(self, notifier: TelegramNotifier):
@@ -105,9 +170,53 @@ class VacancyPaymentDoesNotExistObserver(Observer):
 
     @log_warn_on_exception
     def update(self, event: str, data: dict[str, Any]) -> None:
-        vacancy = data['vacancy']
+        vacancy = data["vacancy"]
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
-            text=f'Вакансия не оплачена по истечению времени\n{vacancy.group.invite_link}',
+            text=CallVacancyTelegramTextFormatter(vacancy).vacancy_payment_no_exist_admin(),
         )
-        logging.info('Notify admins - vacancy does not payment exists')
+        logging.info("Notify admins - vacancy does not payment exists")
+
+
+class VacancyDeleteEmployerInviteObserver(Observer):
+    """Delete ALL bot service messages related to this vacancy (employer + workers)."""
+
+    def __init__(self, notifier: TelegramNotifier):
+        self.notifier = notifier
+
+    @log_warn_on_exception
+    def update(self, event: str, data: dict[str, Any]) -> None:
+        vacancy = data["vacancy"]
+        if not vacancy.extra:
+            return
+
+        owner_id = vacancy.owner.id
+        keys_to_delete = []
+
+        # Видалити повідомлення заказчика: invite, created, approved
+        for key in ["employer_invite_msg_id", "created_msg_id", "approved_msg_id"]:
+            msg_id = vacancy.extra.get(key)
+            if msg_id:
+                try:
+                    bot.delete_message(chat_id=owner_id, message_id=msg_id)
+                    logging.info(f"Deleted {key}={msg_id} for vacancy {vacancy.id}")
+                except Exception as e:
+                    logging.warning(f"Failed to delete {key}={msg_id}: {e}")
+                keys_to_delete.append(key)
+
+        # Видалити повідомлення рабочих (apply_invite_msg_ids)
+        invites = vacancy.extra.get("apply_invite_msg_ids", {})
+        for user_id_str, msg_id in invites.items():
+            try:
+                bot.delete_message(chat_id=int(user_id_str), message_id=msg_id)
+                logging.info(f"Deleted apply invite msg {msg_id} for user {user_id_str}")
+            except Exception:
+                pass
+        if invites:
+            keys_to_delete.append("apply_invite_msg_ids")
+
+        # Очистити extra
+        for key in keys_to_delete:
+            vacancy.extra.pop(key, None)
+        if keys_to_delete:
+            vacancy.save(update_fields=["extra"])

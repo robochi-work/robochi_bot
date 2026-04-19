@@ -1,12 +1,17 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
 from .choices import WorkProfileRole
 
 
 class UserWorkProfile(models.Model):
-    user = models.OneToOneField('user.User', on_delete=models.CASCADE, related_name='work_profile', verbose_name=_("User"))
-    city = models.ForeignKey('city.City', on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_("City"))
-    role = models.CharField(max_length=20, choices=WorkProfileRole.choices, null=True, blank=True, verbose_name=_("Role"))
+    user = models.OneToOneField(
+        "user.User", on_delete=models.CASCADE, related_name="work_profile", verbose_name=_("User")
+    )
+    city = models.ForeignKey("city.City", on_delete=models.SET_NULL, null=True, blank=True, verbose_name=_("City"))
+    role = models.CharField(
+        max_length=20, choices=WorkProfileRole.choices, null=True, blank=True, verbose_name=_("Role")
+    )
     phone_number = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Phone number"))
     is_completed = models.BooleanField(default=False, verbose_name=_("Is completed"))
     agreement_accepted = models.BooleanField(default=False)
@@ -20,19 +25,19 @@ class UserWorkProfile(models.Model):
         help_text=_("Allow employer to post vacancies in multiple cities"),
     )
     allowed_cities = models.ManyToManyField(
-        'city.City',
+        "city.City",
         blank=True,
-        related_name='allowed_employers',
+        related_name="allowed_employers",
         verbose_name=_("Allowed cities"),
         help_text=_("Cities where employer can post vacancies (in addition to main city)"),
     )
 
+    class Meta:
+        verbose_name = _("User work profile")
+        verbose_name_plural = _("User work profiles")
+
     def __str__(self):
         return f"{self.user} — {self.get_role_display()}"
-
-    class Meta:
-        verbose_name = _('User work profile')
-        verbose_name_plural = _('User work profiles')
 
 
 class AgreementText(models.Model):
@@ -55,9 +60,50 @@ class AgreementText(models.Model):
     text = models.TextField(verbose_name=_("Text"))
     updated_at = models.DateTimeField(auto_now=True, verbose_name=_("Updated at"))
 
+    class Meta:
+        verbose_name = _("Текст угоди")
+        verbose_name_plural = _("Тексти угод")
+
     def __str__(self):
         return f"{self.get_role_display()}"
 
+
+class FaqItem(models.Model):
+    ROLE_EMPLOYER = "employer"
+    ROLE_WORKER = "worker"
+    ROLE_CHOICES = [
+        (ROLE_EMPLOYER, _("Employer")),
+        (ROLE_WORKER, _("Worker")),
+    ]
+
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, verbose_name=_("Role"))
+    question = models.CharField(max_length=500, verbose_name=_("Question"))
+    answer = models.TextField(verbose_name=_("Answer"))
+    image = models.ImageField(upload_to="faq/", null=True, blank=True, verbose_name=_("Image"))
+    video_url = models.URLField(max_length=500, null=True, blank=True, verbose_name=_("Video URL (YouTube, etc.)"))
+    order = models.PositiveIntegerField(default=0, verbose_name=_("Order"))
+    is_active = models.BooleanField(default=True, verbose_name=_("Is active"))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
+    updated_at = models.DateTimeField(auto_now=True, verbose_name=_("Updated at"))
+
     class Meta:
-        verbose_name = _("Agreement text")
-        verbose_name_plural = _("Agreement texts")
+        verbose_name = _("FAQ запис")
+        verbose_name_plural = _("FAQ записи")
+        ordering = ["role", "order"]
+
+    def __str__(self):
+        return f"[{self.get_role_display()}] {self.question[:60]}"
+
+    @property
+    def video_embed_url(self):
+        """Convert YouTube URL to embed format."""
+        if not self.video_url:
+            return ""
+        url = self.video_url
+        if "youtube.com/watch" in url:
+            video_id = url.split("v=")[1].split("&")[0] if "v=" in url else ""
+            return f"https://www.youtube.com/embed/{video_id}" if video_id else url
+        if "youtu.be/" in url:
+            video_id = url.split("youtu.be/")[1].split("?")[0]
+            return f"https://www.youtube.com/embed/{video_id}" if video_id else url
+        return url

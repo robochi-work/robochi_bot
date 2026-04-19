@@ -4,45 +4,14 @@
 {% block header %}{% endblock %}
 
 {% block body %}
-<main class="page page--worker-dashboard">
+<div class="employer-layout">
 
-    <div class="worker-buttons">
-
-        {# 1. Мої вакансії — link to city channel #}
-        {% if channel %}
-        <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
-            <span class="worker-btn__icon">📋</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Мої вакансії</span>
-                <span class="worker-btn__sub">{{ channel.title }}</span>
-            </span>
-        </a>
-        {% endif %}
-
-        {# 2. Моя робота — link to current vacancy group or modal #}
-        {% if current_vacancy and current_vacancy.group and current_vacancy.group.invite_link %}
-        <a href="{{ current_vacancy.group.invite_link }}" target="_blank" class="worker-btn">
-            <span class="worker-btn__icon">🔨</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Моя робота</span>
-                <span class="worker-btn__sub">{{ current_vacancy.address|truncatechars:40 }}</span>
-            </span>
-        </a>
-        {% else %}
-        <button type="button" class="worker-btn" onclick="showNoVacancyModal()">
-            <span class="worker-btn__icon">🔨</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Моя робота</span>
-                <span class="worker-btn__sub">Немає активної вакансії</span>
-            </span>
-        </button>
-        {% endif %}
-
-        {# 3. Мої відгуки #}
-        <a href="{% url 'work:worker_reviews' %}" class="worker-btn">
+    {# === TOP: Мій рейтинг (fixed) === #}
+    <div class="employer-top">
+        <a href="{% url 'work:worker_reviews' %}" class="worker-btn worker-btn--compact">
             <span class="worker-btn__icon">⭐</span>
             <span class="worker-btn__text">
-                <span class="worker-btn__title">Мої відгуки</span>
+                <span class="worker-btn__title">Мій рейтинг / Мої відгуки</span>
                 <span class="worker-btn__sub">
                     {% if reviews_count %}
                         {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}
@@ -52,27 +21,85 @@
                 </span>
             </span>
         </a>
+    </div>
 
-        {# 4. Що робити якщо? #}
-        <a href="{% url 'work:worker_faq' %}" class="worker-btn">
+    {# === MIDDLE: Main buttons === #}
+    <div class="employer-middle">
+
+        {% if is_blocked and active_block %}
+        <div class="block-alert {% if active_block.block_type == 'permanent' %}block-alert--permanent{% else %}block-alert--temporary{% endif %}">
+            {% if active_block.block_type == 'permanent' %}
+            🔴 Вас заблоковано в системі. Зверніться до адміністратора для розблокування.
+            {% else %}
+            🟡 Вас тимчасово заблоковано{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}. Причина: {{ active_block.get_reason_display }}.
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="worker-buttons">
+
+            {# 1. Мої вакансії — link to city channel #}
+            {% if channel %}
+                {% if active_block and active_block.block_type == 'permanent' %}
+                <a href="#" onclick="return false;" class="worker-btn disabled">
+                    <span class="worker-btn__icon">📋</span>
+                    <span class="worker-btn__text">
+                        <span class="worker-btn__title">Мої вакансії</span>
+                        <span class="worker-btn__sub">{{ channel.title }}</span>
+                    </span>
+                </a>
+                {% else %}
+                <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
+                    <span class="worker-btn__icon">📋</span>
+                    <span class="worker-btn__text">
+                        <span class="worker-btn__title">Мої вакансії</span>
+                        <span class="worker-btn__sub">{{ channel.title }}</span>
+                    </span>
+                </a>
+                {% endif %}
+            {% endif %}
+
+            {# 2. Моя робота — link to current vacancy group or modal #}
+            {% if current_vacancy and current_vacancy.group and current_vacancy.group.invite_link %}
+            <a href="{{ current_vacancy.group.invite_link }}" target="_blank" class="worker-btn">
+                <span class="worker-btn__icon">🔨</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Моя робота</span>
+                    <span class="worker-btn__sub">{{ current_vacancy.address|truncatechars:40 }}</span>
+                </span>
+            </a>
+            {% else %}
+            <button type="button" class="worker-btn" onclick="showNoVacancyModal()">
+                <span class="worker-btn__icon">🔨</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Моя робота</span>
+                    <span class="worker-btn__sub">Немає активної вакансії</span>
+                </span>
+            </button>
+            {% endif %}
+
+        </div>
+    </div>
+
+    {# === BOTTOM: FAQ + Admin help (fixed) === #}
+    <div class="employer-bottom">
+        <a href="{% url 'work:worker_faq' %}" class="worker-btn worker-btn--compact">
             <span class="worker-btn__icon">❓</span>
             <span class="worker-btn__text">
-                <span class="worker-btn__title">Що робити якщо?</span>
+                <span class="worker-btn__title">Як це працює?</span>
                 <span class="worker-btn__sub">Часті питання</span>
             </span>
         </a>
-
-        {# 5. Допомога адміністратора #}
-        <a href="https://t.me/robochi_work_admin" target="_blank" class="worker-btn">
+        <a href="https://t.me/robochi_work_admin" target="_blank" class="worker-btn worker-btn--compact">
             <span class="worker-btn__icon">🛟</span>
             <span class="worker-btn__text">
                 <span class="worker-btn__title">Допомога адміністратора</span>
                 <span class="worker-btn__sub">Зв'язатися</span>
             </span>
         </a>
-
     </div>
-</main>
+
+</div>
 
 {# Modal: no active vacancy #}
 <div id="no-vacancy-modal" class="modal-overlay" style="display:none;">
@@ -93,4 +120,21 @@ document.getElementById('no-vacancy-modal').addEventListener('click', function(e
     if (e.target === this) closeNoVacancyModal();
 });
 </script>
+
+<style>
+.worker-btn.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+}
+.block-alert {
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.5;
+}
+.block-alert--permanent { background: var(--error-bg); color: var(--error-text); }
+.block-alert--temporary { background: var(--warning-bg); color: var(--warning-text); }
+</style>
 {% endblock %}

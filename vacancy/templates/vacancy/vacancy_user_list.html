@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--user-list">
+    <div class="user-list-container">
+
+        <div class="vacancy-list-header">
+            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Заявка</a>
+            <h1>Відгуки / Контакти</h1>
+        </div>
+
+        {% if users %}
+        <div class="user-cards">
+            {% for user in users %}
+            <div class="user-card" onclick="openModal({{ user.pk }}, '{{ user.full_name|default:"Без імені"|escapejs }}')">
+                <div class="user-card__name">{{ user.full_name|default:"Без імені" }}</div>
+                <div class="user-card__arrow">›</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="vacancy-list-empty">
+            <p>Немає інших учасників</p>
+        </div>
+        {% endif %}
+
+    </div>
+</main>
+
+<!-- Modal -->
+<div id="user-modal" class="modal-overlay" onclick="closeModalOutside(event)">
+    <div class="modal-box">
+        <div class="modal-header">
+            <span id="modal-user-name" class="modal-title"></span>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-actions">
+            <a id="btn-feedback" href="#" class="modal-btn modal-btn--primary">Залишити відгук</a>
+            <a id="btn-reviews" href="#" class="modal-btn modal-btn--secondary">Подивитись відгуки</a>
+            {% if user_role == 'employer' %}
+            <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="modal-btn modal-btn--ghost">Подивитися контакти</a>
+            {% elif user_role == 'worker' %}
+            <button class="modal-btn modal-btn--ghost" onclick="sendContact()">Подивитися контакти</button>
+            {% else %}
+            <button class="modal-btn modal-btn--ghost" onclick="alert('Скоро буде доступно')">Подивитися контакти</button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.page--user-list {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.user-list-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.user-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.user-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.user-card:active {
+    box-shadow: var(--shadow);
+    background: var(--muted);
+}
+.user-card__name {
+    font-size: 15px;
+    font-weight: 700;
+}
+.user-card__arrow {
+    font-size: 20px;
+    opacity: 0.5;
+    font-weight: 300;
+}
+
+/* Modal */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: flex-end;
+    justify-content: center;
+}
+.modal-overlay.open {
+    display: flex;
+}
+.modal-box {
+    background: var(--card);
+    border-radius: var(--radius) var(--radius) 0 0;
+    border: 1px solid var(--border);
+    padding: 20px 16px 32px;
+    width: 100%;
+    max-width: 520px;
+    box-shadow: var(--shadow-lg);
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+.modal-title {
+    font-size: 17px;
+    font-weight: 700;
+}
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    opacity: 0.5;
+    cursor: pointer;
+    padding: 4px 8px;
+    color: inherit;
+}
+.modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.modal-btn {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    padding: 14px;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.modal-btn--primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow);
+}
+.modal-btn--secondary {
+    background: var(--card);
+    box-shadow: var(--shadow);
+    color: inherit;
+}
+.modal-btn--ghost {
+    background: transparent;
+    color: inherit;
+    opacity: 0.55;
+    font-size: 14px;
+}
+</style>
+
+<script>
+var vacancyPk = {{ vacancy.pk }};
+
+function openModal(userId, userName) {
+    document.getElementById('modal-user-name').textContent = userName;
+    document.getElementById('btn-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
+    document.getElementById('btn-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
+    document.getElementById('user-modal').classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('user-modal').classList.remove('open');
+}
+
+function closeModalOutside(event) {
+    if (event.target === document.getElementById('user-modal')) {
+        closeModal();
+    }
+}
+
+function sendContact() {
+    fetch('/vacancy/' + vacancyPk + '/send-contact/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'},
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            alert('Номер телефону замовника надіслано вам у бот');
+            closeModal();
+        } else {
+            alert(data.error || 'Помилка. Спробуйте пізніше.');
+        }
+    })
+    .catch(() => alert('Помилка. Спробуйте пізніше.'));
+}
+</script>
+{% endblock %}

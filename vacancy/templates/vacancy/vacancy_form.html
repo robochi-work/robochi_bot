@@ -38,13 +38,11 @@
     <div class="column">
         <label for="{{ form.start_time.id_for_label }}">{% trans "Start Time" %}:</label>
         {{ form.start_time }}
-        {{ form.start_time.errors }}
     </div>
 
     <div class="column">
         <label for="{{ form.end_time.id_for_label }}">{% trans "End Time" %}:</label>
         {{ form.end_time }}
-        {{ form.end_time.errors }}
     </div>
     <div class="column">
         <label for="{{ form.people_count.id_for_label }}">{% trans "Number of People" %}:</label>
@@ -95,7 +93,6 @@
     <div class="column">
         <label for="{{ form.contact_phone.id_for_label }}">{% trans "Contact phone" %}:</label>
         {{ form.contact_phone }}
-        {{ form.contact_phone.errors }}
     </div>
 
     <button type="submit">{% trans "Create vacancy" %}</button>
@@ -110,4 +107,109 @@ document.querySelector('form').addEventListener('submit', function(e) {
     btn.disabled = true;
     btn.textContent = 'Зачекайте...';
 });
+</script>
+
+<div id="time-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Оберіть час початку роботи не раніше ніж через годину.</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('time-modal').style.display='none'">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<div id="phone-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Введіть коректний номер телефону!</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('phone-modal').style.display='none'">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<div id="time-min-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Мінімальний робочий час — 3 години.</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('time-min-modal').style.display='none'">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<div id="time-max-modal" class="modal-overlay">
+  <div class="modal-card">
+    <p class="modal-text">Максимальний робочий час — 12 годин.</p>
+    <button type="button" class="btn-primary" onclick="document.getElementById('time-max-modal').style.display='none'">ЗРОЗУМІЛО</button>
+  </div>
+</div>
+
+<script>
+(function() {
+    var radios = document.querySelectorAll('input[name="date_choice"]');
+    radios.forEach(function(r) {
+        r.addEventListener('change', function() {
+            var url = new URL(window.location.href);
+            url.searchParams.set('date', this.value);
+            window.location.href = url.toString();
+        });
+    });
+
+    // Submit validation: phone + time
+    document.querySelector('form').addEventListener('submit', function(e) {
+        // Phone validation
+        var phoneInput = document.querySelector('input[name="contact_phone"]');
+        if (phoneInput && phoneInput.value.trim() !== '') {
+            var cleaned = phoneInput.value.replace(/[\s\-\(\)]/g, '');
+            var phoneRe = /^(\+380\d{9}|380\d{9}|0\d{9})$/;
+            if (!phoneRe.test(cleaned)) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn = this.querySelector('button[type="submit"]');
+                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
+                document.getElementById('phone-modal').style.display = 'flex';
+                return false;
+            }
+        }
+        // Start time validation for today
+        var dateEl = document.querySelector('input[name="date_choice"]:checked');
+        if (dateEl && dateEl.value === 'now') {
+            var sh = document.querySelector('select[name="start_time_0"]');
+            var sm = document.querySelector('select[name="start_time_1"]');
+            if (sh && sm) {
+                var now = new Date();
+                var minTotal = Math.ceil(((now.getHours() * 60 + now.getMinutes()) + 60) / 15) * 15;
+                var selTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
+                if (isNaN(selTotal) || selTotal < minTotal) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    var btn2 = this.querySelector('button[type="submit"]');
+                    if (btn2) { btn2.disabled = false; btn2.textContent = 'Створити вакансію'; }
+                    document.getElementById('time-modal').style.display = 'flex';
+                    return false;
+                }
+            }
+        }
+        // End time validation (both today and tomorrow): min 3h, max 12h
+        var sh2 = document.querySelector('select[name="start_time_0"]');
+        var sm2 = document.querySelector('select[name="start_time_1"]');
+        var eh = document.querySelector('select[name="end_time_0"]');
+        var em = document.querySelector('select[name="end_time_1"]');
+        if (sh2 && sm2 && eh && em) {
+            var sTotal = parseInt(sh2.value) * 60 + parseInt(sm2.value);
+            var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
+            if (eTotal <= sTotal) eTotal += 1440;
+            var diff = eTotal - sTotal;
+            if (diff < 180) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn3 = this.querySelector('button[type="submit"]');
+                if (btn3) { btn3.disabled = false; btn3.textContent = 'Створити вакансію'; }
+                document.getElementById('time-min-modal').style.display = 'flex';
+                return false;
+            }
+            if (diff > 720) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var btn4 = this.querySelector('button[type="submit"]');
+                if (btn4) { btn4.disabled = false; btn4.textContent = 'Створити вакансію'; }
+                document.getElementById('time-max-modal').style.display = 'flex';
+                return false;
+            }
+        }
+    }, true);
+})();
 </script>

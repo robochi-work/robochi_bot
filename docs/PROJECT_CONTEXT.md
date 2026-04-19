@@ -16,7 +16,7 @@
 
 ## Django-приложения (9 штук)
 - config/ — settings (base, local, production), urls, wsgi, celery config
-- user/ — User (extends AbstractUser, PK=Telegram ID), UserFeedback, AuthIdentity, user/services.py
+- user/ — User (extends AbstractUser, PK=Telegram ID), UserFeedback (rating: like/dislike/none, is_auto: bool), AuthIdentity, user/services.py
 - city/ — City (TranslatableModel, django-parler). Текущие: Київ(1), Одеса(2), Дніпро(3), Харків(4)
 - work/ — UserWorkProfile, AgreementText, wizard (formtools), dashboard blocks (block_registry)
 - telegram/ — Channel, Group, ChannelMessage, GroupMessage, UserInGroup, bot handlers, webhook, WebApp auth
@@ -37,7 +37,11 @@
 - /vacancy/create/ → создание вакансии
 - /vacancy/<pk>/call/<type>/ → переклички
 - /vacancy/<pk>/refind/ → повторный поиск
-- /vacancy/<pk>/feedback/ → отзывы
+- /vacancy/<pk>/feedback/<user_id>/ → форма відгуку (лайк/дизлайк + текст)
+- /vacancy/<pk>/users/ → список учасників з модальним вікном
+- /vacancy/<pk>/user/<user_id>/reviews/ → рейтинг + відгуки конкретного користувача
+- /vacancy/<pk>/send-contact/ → POST, worker отримує телефон замовника в бот
+- /work/employer/cities/ → страница каналов города (Загальна стрічка вакансій)
 
 Новые (DRF REST API):
 - /api/v1/auth/telegram/ → POST, получение JWT по Telegram initData
@@ -97,6 +101,10 @@ AuthIdentity модель (user/models.py) — связывает User с про
 ## Observer/Publisher
 - VacancyEventPublisher — VACANCY_CREATED, APPROVED, REJECTED, NEW_MEMBER, LEFT_MEMBER, CALL events, REFIND, CLOSE, DELETE, FEEDBACK
 - WorkEventPublisher — WORK_PROFILE_COMPLETED
+- AutoRatingObserver (`vacancy/services/observers/auto_rating.py`) — автоматические UserFeedback (is_auto=True):
+  - Worker: +like за успешное завершение вакансии (AFTER_START_CALL_SUCCESS), +dislike за провал переклички
+  - Employer: +like за оплату, +dislike за отмену/непоявление
+- VacancyCreatedAdminObserver (`vacancy/services/observers/created_admin_observer.py`) — отправляет уведомления админам поштучно (не через broadcast), сохраняет message_id в vacancy.extra['admin_moderation_messages'] = {admin_chat_id: msg_id} для последующего удаления при approve/delete
 - Подписки: vacancy/services/observers/subscriber_setup.py, work/service/subscriber_setup.py
 
 ## Celery Tasks (vacancy/tasks/)
@@ -122,6 +130,45 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - & в .env — всегда кавычить
 
 ## История изменений
+
+### 01.04.2026 (вечер) — Аудит 10 функциональных блоков + критический баг-фикс
+
+**Полный аудит кода подтвердил реализацию всех заявленных функций:**
+1. ✅ Відзиви/рейтинг — UserFeedback модель, лайк/дизлайк, модалка зі списком юзерів, ЛК Мій рейтинг
+2. ✅ Заборона телефонів у групах — PHONE_PATTERNS (+380, 380, 0XX), delete + повідомлення юзеру
+3. ✅ ЖЦВ — всі кнопки (ЗАКРИТИ, ПЕРЕКЛИЧКА if/elif, ЗУПИНИТИ/ПОНОВИТИ, ГРУПА), таймер 3г
+4. ✅ Блокування — UserBlock, BlockService, chat_join_request перевірки, UI-банер у ЛК worker
+5. ✅ ЛК Адміністратора — 7 views (dashboard, search_users, search_vacancies, vacancy_card, moderate, close, block)
+6. ✅ Канали/групи в адмінці — ChannelProxy у city/admin, GroupAdmin у telegram/admin (редагувати можна, додавати — тільки ботом)
+7. ✅ Мультиміста для Employer — multi_city_enabled + allowed_cities (M2M) в UserWorkProfile, employer_cities view, форма вакансії враховує allowed_cities
+8. ✅ Ротація — resend_vacancies_to_channel_task, 5 хв, видаляє старе й перепублікує
+9. ✅ Переклички (4 типи) — before_start, start_call, final, after_first + renewal_offer + worker_join_confirm
+10. ✅ Групи вакансій — chat_join_request: is_staff → block → owner → already_in_vacancy → full → gender
+
+**Критичний баг-фікс (коміт d49c40e):**
+- `vacancy/tasks/call.py` — `_escalate_rollcall()` використовувала `bot.delete_message()` без імпорту `bot` → `NameError` при ескалації (6 нагадувань без відповіді заказчика)
+- Фікс: додано `from telegram.handlers.bot_instance import bot` всередині `if msg_id:` блоку
+- Регресійний тест: `tests/test_tasks.py::test_escalate_rollcall_bot_import` (коміт cd36123)
+
+**Інші правки (коміт d49c40e):**
+- `approved_group_observer.py` — `import logging` винесено на рівень модуля (ruff I001)
+- `vacancy_close.py` — `VacancyDeleteEmployerInviteObserver` зареєстровано на VACANCY_CLOSE та VACANCY_DELETE
+- `DJANGO_SECRET_KEY` у `.env` — замінено на production-safe (прибрано `django-insecure-` префікс)
+- `ruff check .` → 0 errors
+
+### 01.04.2026 — check_system: фикс констант + регрессионные тесты
+
+1. **Баг**: `check_system.py` использовал `Group.STATUS_AVAILABLE` и `Vacancy.STATUS_APPROVED` как атрибуты классов моделей — они там не определены. Правильно: импортировать из `telegram/choices.py` и `vacancy/choices.py`.
+2. **Фикс**: `_check_groups()` теперь `from telegram.choices import STATUS_AVAILABLE`, `_check_approved_vacancies()` — `from vacancy.choices import STATUS_APPROVED`.
+3. **Регрессионные тесты**: `work/tests.py` — 5 тестов без `@pytest.mark.django_db`, с мокированием queryset через `unittest.mock.patch`. Запускаются на продакшн сервере без привилегий CREATEDB.
+4. **Каналы**: исправлены 2 канала без `invite_link`/`has_bot_administrator` — добавлены вручную через Django Admin.
+5. **check_system** теперь проходит все 7 проверок зелёным.
+
+**Шаблон регрессионных тестов (для будущих багов):**
+- Тест вызывает функцию с замоканным queryset
+- Проверяет что не падает с AttributeError/ImportError
+- Не требует создания тестовой БД
+- Запускать: `python3 -m pytest work/tests.py -v`
 
 ### 19.03.2026 — Локализация (i18n) — полная настройка
 - Все hardcoded тексты заменены на gettext/_() и {% trans %}: telegram_markup_factory.py (5 строк, 3 были на русском), common.py (кнопка 'Подтвердить'), commands.py (приветствие + MenuButton), user_phone_number.py (приветствие + MenuButton), pre_call.html (текстовый блок)
@@ -180,13 +227,75 @@ AuthIdentity модель (user/models.py) — связывает User с про
 5. **Новые файлы**: work/views/worker.py, work/templates/work/worker_dashboard.html, worker_reviews.html, worker_faq.html
 6. **Обновлены**: work/views/index.py (маршрутизация по role), work/urls.py (+ worker_reviews, worker_faq)
 
+## Система блокировок (UserBlock)
+
+### Модель и сервис
+- **UserBlock** (user/models.py): поля block_type (permanent/temporary), reason (manual/rollcall_reject/employer_uncheck/unpaid/other), blocked_by (FK nullable), blocked_until, comment, is_active, created_at
+- **BlockService** (user/services.py): is_blocked, is_permanently_blocked, is_temporarily_blocked, get_active_block, block_user, unblock_user, auto_block_rollcall_reject, auto_block_employer_unpaid
+- Постоянный блок: user.is_active=False, кик из всех групп и каналов (ban+unban, без ЧС)
+- Временный блок: запрет входа в группу вакансии через auto_approve, запрет создания вакансий. Кнопка «Мої вакансії» остаётся активной — рабочий видит канал.
+
+### Типы блокировок
+1. **Permanent manual** — админ блокирует вручную через ЛК. Модальное окно с выбором типа (Тимчасове/Постійне). Кик из всех групп+каналов. /start отклоняется.
+2. **Temporary manual** — админ блокирует вручную. Запрет создания вакансий (employer), участия в вакансиях (worker).
+3. **Temporary rollcall_reject** — авто, рабочий проигнорировал перекличку за 2ч до старта (VacancyBeforeCallObserver, 20 мин таймаут). Кик + блок + сообщение.
+4. **Temporary employer_uncheck** — заказчик снял галочку на перекличке «Начало работы» (VacancyStartCallFailObserver). Кик из группы + блок, blocked_by=vacancy.owner.
+5. **Temporary employer_uncheck** — заказчик снял галочку на перекличке «Окончание работы» (VacancyAfterStartCallFailObserver). Кик + блок + уведомление админу.
+6. **Temporary unpaid** — авто, после переклички окончания формируется счёт, заказчик блокируется до оплаты. Авто-разблокировка через Monobank webhook.
+
+### Дополнительные проверки в auto_approve (chat_join_request)
+- Незарегистрированный пользователь (нет work_profile/role) → decline + ссылка на /start
+- Заказчик в чужую группу вакансии → decline + сообщение
+- Порядок: is_staff → permanent → temporary → is_active → not_registered → vacancy lookup → owner → employer_not_owner → already_in_vacancy → capacity → gender → approve
+
+### Кнопка «Повернути до групи»
+- Админ может вернуть кикнутого рабочего: view vacancy_reinvite_worker → снять блокировку + отправить invite в бот
+- Страница «Додавання/Видалення працівників» (бывшая «Група з працівниками»)
+
+### Оплата и блокировка unpaid
+- После 2-й переклички VacancyAfterStartCallSuccessObserver → send_vacancy_invoice → сообщение в бот с WebApp-кнопкой оплаты + auto_block_employer_unpaid
+- Monobank webhook (process_webhook) при SUCCESS → is_paid=True, unblock unpaid, удаление сообщения из бота
+- Telegram Payments больше не используется — только Monobank эквайринг
+
+### Защита админов в Django admin
+- Суперюзер: полный доступ
+- Обычный staff: не видит других staff, не может менять is_staff/is_superuser/is_active, не может удалять staff-пользователей
+- Кнопка ЗАБЛОКУВАТИ скрыта для is_staff в admin_search_results
+
+## Реалізовано та підтверджено в роботі
+
+- **Жизненный цикл вакансии (ЖЦВ):** полная реализация по ТЗ
+  - Новые статусы: STATUS_SEARCH_STOPPED, STATUS_AWAITING_PAYMENT
+  - Новые поля: closed_at, search_stopped_at, first_rollcall_passed, second_rollcall_passed
+  - Керування вакансією: единая страница с переключающимися кнопками (ЗУПИНИТИ/ПОНОВИТИ ПОШУК, ПЕРЕКЛИЧКА ПОЧАТОК/КІНЕЦЬ)
+  - ЗАКРИТИ ВАКАНСІЮ: 3ч таймер → обнуление группы (close_lifecycle_timer_task)
+  - Подтверждение рабочего: 5 мин таймер + напоминания + запрос телефона (worker_join_confirm)
+  - Автоостановка поиска при начале рабочего времени
+  - Переклички заказчика: напоминания каждые 5 мин × 6 → эскалация админу
+  - Оплата: vacancy_payment view → create_invoice → Monobank redirect → webhook → is_paid
+  - Продление на завтра: опрос заказчика → форма (дата=завтра) → модерация → опрос рабочих → сравнение количества
+  - Все уведомления на украинском языке (call_formatter.py — централизованные тексты)
+  - Celery tasks: close_lifecycle_timer_task, worker_join_confirm_check_task, renewal_offer_task, renewal_worker_check_task
+- **Invite links management:** Bot NEVER creates invite links — all links managed manually via Django admin. `GroupService.update_invite_link` and `ChannelService.update_invite_link` are no-ops. `group_handle_bot_added` and `channel_handle_bot_added` only set `has_bot_administrator`, do not touch `invite_link`. Employer receives existing `group.invite_link` from DB (not a new one-time link). `employer_invite_msg_id` saved in `vacancy.extra` — message deleted on vacancy close/delete (`VacancyDeleteEmployerInviteObserver`) and on owner kick (`_escalate_rollcall`). Bot must NOT have `can_invite_users` right in groups (removed manually in Telegram group settings) to prevent Telegram from auto-creating admin links.
+
+## Key learnings & principles
+
+- **Invite links:** Bot must never call `create_chat_invite_link` or `export_chat_invite_link`. Links are set manually in Django admin. If bot has `can_invite_users` right, Telegram auto-creates primary links for it — this right must be disabled manually in group settings. `revoke_chat_invite_link` deactivates a link but Telegram creates a replacement — the only way to have zero bot links is to remove `can_invite_users`.
+- **Group cleanup (ЖЦВ):** `kick_all_users` relies on `UserInGroup` records in DB. If users joined outside normal flow (test users), they won't be in DB and won't be kicked. Telegram Bot API cannot delete messages older than 48 hours (except bot's own messages). For full group reset, delete messages within 48h window during normal ЖЦВ closure.
+- **Bot cannot promote/demote itself** — `promote_chat_member` with bot's own ID returns "can't promote self". Admin rights changes for the bot must be done manually by group owner.
+- **chat_member / chat_join_request events can arrive with chat.type="channel"** (linked discussion groups). Handlers `auto_approve` and `handle_user_status_change` in `telegram/handlers/member/user/group.py` MUST check `chat.type == "supergroup"` before any access to the Group model, otherwise channel IDs leak into the Group table. Fix: 09.04.2026.
+
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом
-3. ЛК Employer — Фаза 2: управление заявками из ЛК (зупинити/закрити, повторний пошук, учасники групи, оплата monobank)
+3. ЛК Employer — Фаза 2: управление заявками из ЛК — **DONE** (ЖЦВ)
 4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансії
-5. Ротация вакансий
-6. Monobank інтеграція
+5. Ротация вакансий — **DONE**
+6. Monobank інтеграція — **DONE** (ЖЦВ: vacancy_payment + webhook)
+7. Переклички рабочих — **DONE** (ЖЦВ)
+8. Переклички заказчика — **DONE** (ЖЦВ)
+9. Повторный поиск / продление на завтра — **DONE** (ЖЦВ)
+10. Уведомления по ТЗ — **DONE** (call_formatter.py)
 
 ### Сессия 18.03.2026 (CSS)
 1. Полная переработка CSS — единый стиль с robochi.work (neumorphism, стальной градиент).
@@ -287,6 +396,7 @@ AuthIdentity модель (user/models.py) — связывает User с про
    - Кнопка «Група з робітниками» → invite_link группы
    - Кнопка «Управління вакансією» → модальное окно с: Повторний пошук, Перекличка Початок/Кінець роботи
    - Список робітників (VacancyUser members)
+   - **Скрытие кнопок по статусу (09.04.2026):** для pending и closed статусов ВСЕ кнопки действий скрыты (is_pending, is_closed_lifecycle из view); отображается только карточка и статус-бейдж
 
 4. **Маршрутизация Employer в index.py**:
    - Первый вход (нет ни одной вакансии) → redirect на /vacancy/create/ (без кнопки «Назад»)
@@ -360,6 +470,7 @@ AuthIdentity модель (user/models.py) — связывает User с про
    - `admin-panel/vacancy/<int:vacancy_id>/moderate/` → `admin_moderate_vacancy`
    - `employer/reviews/` → `employer_reviews`
    - `employer/faq/` → `employer_faq`
+   - `employer/cities/` → `employer_cities`
 
 **Новые/обновлённые файлы:**
 - work/views/admin_panel.py — все admin views
@@ -462,6 +573,52 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - telegram/static/css/styles.css — +.time-select-widget стилі
 - 7 шаблонів — додано {% block header %}{% endblock %}
 
+### Сессия 28.03.2026 (ніч, частина 3) — Баг-фікси та доопрацювання
+
+**Виконано:**
+
+1. **Права Employer в групі — фікс promote 400** — set_default_owner_permissions оновлено:
+   - can_promote_members=False (було True → HTTP 400 'not enough rights')
+   - can_restrict_members=True, can_delete_messages=True, can_pin_messages=True (нові права для Employer)
+   - bare except замінено на except Exception as e з logging.warning
+   - **Важливо:** бот повинен мати право 'Додавати нових адміністраторів' (can_promote_members) у кожній групі пулу — налаштовується вручну в Telegram
+
+2. **Фільтр admin_vacancy_card** — додано status__in=[STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]:
+   - Раніше показувались ВСІ вакансії (включаючи closed/deleted)
+   - Тепер адміністратор бачить тільки актуальні вакансії (як заказчик)
+
+3. **Auto-pin вакансії в групі** — approved_group_observer.py:
+   - Замість self.notifier.notify() використовується bot.send_message() напряму
+   - Після відправки — bot.pin_chat_message(disable_notification=True)
+   - Повідомлення з текстом вакансії автоматично закріплюється в групі
+
+4. **Адмін: примусове закриття вакансії** — admin_close_vacancy view:
+   - POST endpoint для закриття вакансії з ЛК адміністратора
+   - Якщо вакансія не closed → VACANCY_CLOSE event (повний lifecycle)
+   - Якщо вже closed але група stuck → звільнення групи (status=available)
+   - Кнопка ЗАКРИТИ на admin_vacancy_card для approved/active вакансій
+   - URL: /work/admin-panel/vacancy/<id>/close/
+
+5. **Звільнення stuck груп** — 10 груп зі статусом process без активної вакансії звільнено вручну через shell. Причина: close_vacancy_task не звільняє групи для неоплачених вакансій (by design per ТЗ)
+
+6. **Кольорові кнопки в групі** — style параметр для InlineKeyboardButton:
+   - style='danger' залишено (pinned bar показує синім, тіло повідомлення — outline)
+   - Обмеження платформи: Telegram ігнорує style для url-кнопок в групах
+   - В каналах style='danger' працює коректно (червона кнопка «Я ГОТОВИЙ ПРАЦЮВАТИ»)
+
+**Відомі обмеження платформи (задокументовано):**
+- Pinned bar в Telegram завжди рендерить inline-кнопки синім кольором незалежно від style
+- url-кнопки в групах завжди відображаються в outline-стилі (прозорі)
+- style працює тільки для кнопок в каналах
+
+**Оновлені файли:**
+- telegram/service/group.py — set_default_owner_permissions з правильними правами
+- work/views/admin_panel.py — +admin_close_vacancy, фільтр admin_vacancy_card
+- work/urls.py — +admin-panel/vacancy/<id>/close/
+- work/templates/work/admin_vacancy_card.html — кнопка ЗАКРИТИ + CSS btn-danger
+- vacancy/services/observers/approved_group_observer.py — bot.send_message + pin_chat_message
+- service/telegram_markup_factory.py — style='danger' для group feedback кнопок
+
 ### Сессия 28.03.2026 (ніч, частина 2) — Мультимісто для Employer
 
 **Реалізовано повну підтримку розміщення вакансій в різних містах:**
@@ -538,11 +695,10 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. Зберегти
 
 **Пріоритети (оновлені 29.03.2026):**
-1. Блокування — модель (тип, термін, причина), автоблокування
-2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
-3. Ротація вакансій (Celery task кожні 5 хв)
-4. Monobank оплата — UI в ЛК
-5. Продовження на завтра — розсилка, очікування, перестворення
+1. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+2. Ротація вакансій (Celery task кожні 5 хв)
+3. Monobank оплата — UI в ЛК
+4. Продовження на завтра — розсилка, очікування, перестворення
 
 ### Сессия 28.03.2026 (ночь) — Кольорові кнопки + баг-фікси + локалізація
 
@@ -657,8 +813,398 @@ AuthIdentity модель (user/models.py) — связывает User с про
 4. Зберегти
 
 **Пріоритети (оновлені 29.03.2026):**
-1. Блокування — модель (тип, термін, причина), автоблокування
-2. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
-3. Ротація вакансій (Celery task кожні 5 хв)
-4. Monobank оплата — UI в ЛК
-5. Продовження на завтра — розсилка, очікування, перестворення
+1. ЛК Worker — доработка: блокировка UI, запрос телефона після підтвердження вакансії
+2. Ротація вакансій (Celery task кожні 5 хв)
+3. Monobank оплата — UI в ЛК
+4. Продовження на завтра — розсилка, очікування, перестворення
+
+### Сессия 29.03.2026 (вечір) — Система відгуків і рейтингу
+
+**Виконано:**
+
+1. **UserFeedback модель оновлена** — нові поля:
+   - `rating` (CharField): `like` / `dislike` / `none`
+   - `is_auto` (BooleanField, default=False) — автоматично створені системою
+   - Міграція: `user/migrations/0016_userfeedback_is_auto_userfeedback_rating_and_more.py`
+
+2. **AutoRatingObserver** (`vacancy/services/observers/auto_rating.py`) — автоматичні відгуки (is_auto=True):
+   - Worker: `+like` при успішному завершенні вакансії (AFTER_START_CALL_SUCCESS)
+   - Worker: `+dislike` за провал переклички
+   - Employer: `+like` за оплату, `+dislike` за відміну/неоплату
+
+3. **vacancy_feedback.html** — перероблена форма відгуку:
+   - Вибір рейтингу: лайк 👍 / дизлайк 👎 / без оцінки (radio-кнопки)
+   - Текстове поле (необов'язкове)
+
+4. **vacancy_user_list.html** — список учасників з модальним вікном:
+   - Список карток: ім'я → клік → модальне вікно
+   - Модальне: «Залишити відгук», «Подивитись відгуки», «Подивитися контакти»
+   - Контакти залежать від ролі:
+     - `employer` → href на `vacancy:members` (сторінка з телефонами)
+     - `worker` → fetch POST на `vacancy:send_contact` → бот надсилає телефон замовника
+
+5. **vacancy_user_reviews.html** — рейтинг і відгуки користувача:
+   - Ім'я, лайки 👍 / дизлайки 👎, список текстових відгуків з датою
+
+6. **vacancy_send_contact view** — новий endpoint:
+   - POST, тільки для worker
+   - Надсилає: `Контактний телефон замовника за вакансією {address}: {phone}`
+   - Телефон: `vacancy.contact_phone` або `vacancy.owner.phone_number`
+   - Повертає `JsonResponse({'ok': True})` або `{'ok': False, 'error': '...'}`
+
+7. **ЛК Worker і Employer** — «Мій рейтинг / Мої відгуки»:
+   - % лайків, прогрес-бар, список відгуків з адресою вакансії (з `extra.vacancy_id`)
+
+8. **Перейменування:**
+   - «Поточні заявки» → «Поточні вакансії» (employer_dashboard.html, vacancy_my_list.html, employer_faq.html)
+   - Кнопка в групі «Відгуки/Контакти» → «Надіслати відгук» (telegram_markup_factory.py)
+
+9. **UserFeedbackAdmin** — новий клас в `user/admin.py`:
+   - `list_display`: id, user, owner, rating, is_auto, short_text, created_at
+   - `list_editable = ('rating',)` — редагування рейтингу прямо зі списку
+   - `readonly_fields`: owner, user, is_auto, extra, created_at
+
+10. **Фікс UserBlockInline** — додано `fk_name = 'user'` (усуває конфлікт FK при двох FK на User в UserBlock)
+
+**Нові файли:**
+- `user/migrations/0016_userfeedback_is_auto_userfeedback_rating_and_more.py`
+- `vacancy/services/observers/auto_rating.py`
+- `vacancy/templates/vacancy/vacancy_user_list.html`
+- `vacancy/templates/vacancy/vacancy_user_reviews.html`
+
+**Оновлені файли:**
+- `user/models.py` — +rating, +is_auto в UserFeedback
+- `user/admin.py` — +UserFeedbackAdmin, +fk_name='user' в UserBlockInline
+- `vacancy/views.py` — +vacancy_send_contact, vacancy_user_list з user_role/contact_phone в контексті
+- `vacancy/urls.py` — +`<pk>/send-contact/` (name='send_contact')
+- `vacancy/forms.py` — VacancyUserFeedbackForm оновлена (rating + text)
+- `vacancy/templates/vacancy/vacancy_feedback.html` — лайк/дизлайк UI
+- `work/templates/work/worker_reviews.html` — рейтинг-бар
+- `work/templates/work/employer_reviews.html` — рейтинг-бар
+- `vacancy/services/observers/subscriber_setup.py` — підписка AutoRatingObserver
+- `work/templates/work/employer_dashboard.html` — Поточні вакансії
+- `vacancy/templates/vacancy/vacancy_my_list.html` — Поточні вакансії
+- `work/templates/work/employer_faq.html` — Поточні вакансії
+- `service/telegram_markup_factory.py` — кнопка «Надіслати відгук»
+
+**Пріоритети (оновлені 29.03.2026, вечір):**
+1. ЛК Worker — блокировка UI при блокуванні
+2. Ротація вакансій (Celery task кожні 5 хв)
+3. Monobank оплата — UI в ЛК
+
+### Сессия 30.03.2026 — ЖЦВ: повна реалізація жизненного цикла вакансии
+
+**Реалізовано:**
+
+1. **Нові статуси вакансії:**
+   - `STATUS_SEARCH_STOPPED` — пошук зупинено заказчиком
+   - `STATUS_AWAITING_PAYMENT` — очікує оплати (після завершення вакансії)
+
+2. **Нові поля Vacancy:**
+   - `closed_at` — час закриття вакансії
+   - `search_stopped_at` — час зупинки пошуку
+   - `first_rollcall_passed` — перша перекличка пройдена (bool)
+   - `second_rollcall_passed` — друга перекличка пройдена (bool)
+
+3. **Керування вакансією (vacancy_detail):** — єдина сторінка з кнопками що перемикаються:
+   - ЗУПИНИТИ ПОШУК / ПОНОВИТИ ПОШУК (залежно від статусу)
+   - ПЕРЕКЛИЧКА ПОЧАТОК / ПЕРЕКЛИЧКА КІНЕЦЬ (залежно від first_rollcall_passed)
+
+4. **ЗАКРИТИ ВАКАНСІЮ** — 3-годинний таймер (`close_lifecycle_timer_task`):
+   - Після спрацювання → обнуление групи (status=available), видалення учасників
+   - Відправка повідомлень всім учасникам про закриття
+
+5. **Підтвердження рабочого (worker_join_confirm):**
+   - 5 хв таймер після вступу в групу
+   - Нагадування Employer якщо не підтверджено
+   - Запит телефону у Worker при підтвердженні вакансії
+   - Celery task: `worker_join_confirm_check_task`
+
+6. **Автозупинка пошуку** — при початку робочого часу (start_call) пошук зупиняється автоматично
+
+7. **Переклички заказчика:**
+   - Нагадування кожні 5 хв × 6 разів
+   - Ескалація адміністратору після 6 спроб без відповіді
+
+8. **Оплата (Monobank UI):**
+   - `vacancy_payment` view → `create_invoice()` → редирект на Monobank
+   - Webhook → `process_webhook()` → `is_paid=True` → розблокування Employer
+
+9. **Продовження на завтра:**
+   - Опитування заказчика після завершення вакансії
+   - Форма з датою=завтра (дублює поточну вакансію)
+   - Модерація нової вакансії
+   - Опитування рабочих — бажають продовжити?
+   - Порівняння кількості підтверджених рабочих
+
+10. **call_formatter.py** — централізовані тексти всіх сповіщень ЖЦВ на українській мові
+
+**Celery tasks (vacancy/tasks/):**
+- `close_lifecycle_timer_task` — закриття вакансії через 3 год
+- `worker_join_confirm_check_task` — підтвердження рабочого (5 хв)
+- `renewal_offer_task` — пропозиція продовження заказчику
+- `renewal_worker_check_task` — опитування рабочих про продовження
+
+**Коміт:** e6a8c06
+
+## Django Admin — реорганизация (31.03.2026)
+
+### Секции админки (в порядке отображения)
+1. **КОРИСТУВАЧІ** (app: user) — Користувачі, Відгуки користувачів
+2. **ВАКАНСІЇ ТА РОБОТА** (app: vacancy) — Вакансії, Учасники вакансій, Переклички
+3. **МІСТА ТА КАНАЛИ** (app: city) — Міста, Канали
+4. **ТЕЛЕГРАМ ГРУПИ** (app: telegram) — Групи вакансій, Учасники груп, Повідомлення в групах, Повідомлення в каналах
+5. **ОПЛАТА** (app: payment) — Платежі Monobank
+6. **ДОКУМЕНТИ** (app: work) — Тексти угод
+
+### Что сделано
+- Удалены из админки: стандартные Django auth Groups, simplejwt Blacklisted/Outstanding tokens (через `user/admin_site.py` → `unregister()` в `UserConfig.ready()`)
+- Все verbose_name моделей переведены на украинский
+- Порядок секций кастомизирован через monkey-patch `AdminSite.get_app_list` в `user/admin_site.py`
+- Заголовки: site_header="Robochi Bot", site_title="Robochi Admin", index_title="Панель керування"
+
+### Ключевые файлы
+- `user/admin_site.py` — unregister ненужных моделей + порядок секций + заголовки
+- `user/apps.py` → `ready()` импортирует `user.admin_site`
+- `vacancy/admin.py` — VacancyAdmin с 14 actions, StatusDefaultFilter, auto-assign group/channel
+- `user/admin.py` — UserAdmin с 4 инлайнами, 5 фильтрами, auto-sync is_staff↔ADMINISTRATOR role
+- `payment/admin.py` — MonobankPaymentAdmin
+- `telegram/admin.py` — GroupAdmin с actions (kick, invite link, delete messages, permissions)
+- `telegram/admin_actions.py` — переиспользуемые admin actions для групп/каналов
+
+### API app (не удалён)
+Приложение `api/` (DRF + simplejwt + corsheaders + drf_spectacular) оставлено в проекте — используется `MonobankWebhookView` (`api/views/payment.py`) для приёма webhook Monobank. Остальные endpoints (auth, user, vacancy) не используются фронтом (WebApp работает через Django views).
+
+## Безопасность (настроено 06.04.2026)
+
+**Серверная безопасность:**
+- **UFW firewall**: включен, открыты только 22/tcp, 80/tcp, 443/tcp
+- **Redis**: пароль установлен (hex, без спецсимволов), Celery broker использует `redis://:PASSWORD@localhost:6379/0`
+- **`.env` права**: `chmod 600` — читаем только владельцем (webuser)
+- **Nginx**: `server_tokens off` (версия скрыта), `client_max_body_size 2m`
+- **Бэкап БД**: cron ежедневно в 03:00, хранение 14 дней, `/home/webuser/backups/`
+
+**Django security:**
+- **Django admin URL**: `/taya-panel/` (не стандартный `/admin/`)
+- **API schema/docs**: закрыты `IsAdminUser` — 403 для неавторизованных
+- **Неавторизованные пользователи**: корневой URL `/` → redirect на `https://robochi.work`
+- **auth_date expiry**: 7200 секунд (2 часа) вместо 86400 (24 часа)
+- **Session hardening** (production.py): `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SESSION_COOKIE_HTTPONLY`, `CSRF_COOKIE_HTTPONLY`, `SESSION_COOKIE_AGE=86400`
+- **SameSite=None**: оставлено — необходимо для Telegram WebApp iframe
+
+**Nginx security headers:**
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Content-Security-Policy`: self + telegram.org + monobank.ua
+- `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+- `X-Robots-Tag: noindex, nofollow`
+
+**Nginx rate limiting:**
+- `/telegram/webhook-*`: 30r/s burst=50
+- `/telegram/authenticate-web-app/`: 5r/s burst=10
+
+**Тесты безопасности:** `tests/test_security.py` — 12 тестов (admin URL, API schema, unauth redirect, auth_date expiry, Redis password, session settings)
+
+**Регресійні тести:** `tests/test_bugfix_channel_in_groups.py` — 2 тести (09.04.2026): `auto_approve` та `handle_user_status_change` не створюють Group для каналів (chat.type="channel")
+
+## Скрытие кнопок vacancy_detail + удаление сообщений модерации (09.04.2026)
+
+- **vacancy_detail:** кнопки действий скрыты для pending и closed статусов. Шаблон: `{% if not is_pending and not is_closed_lifecycle %}`. Переменные из view: `is_pending`, `is_closed_lifecycle`.
+- **VacancyCreatedAdminObserver:** отправляет сообщения каждому админу поштучно, сохраняет `vacancy.extra['admin_moderation_messages'] = {str(admin_chat_id): msg_id}`.
+- **Удаление при approve/delete:** `admin_moderate_vacancy` и `admin_delete_vacancy` (work/views/admin_panel.py) итерируют `admin_moderation_messages`, удаляют сообщения через `bot.delete_message()`, затем очищают ключ из `extra`.
+- **Регресійні тести:** `tests/test_vacancy_detail_buttons.py` — 8 тестів (09.04.2026)
+
+### Обновления 09-10.04.2026
+- Карточки пользователей в ЛК Администратора: uniform width (width:100%, box-sizing)
+- Админ получил доступ к ЛК заказчика: vacancy:my_list?for_user=X, vacancy:detail для staff
+- Все vacancy action views разрешены для is_staff (owner check обходится)
+- Убран блок-статус из vacancy_my_list при admin view
+- Валидация формы вакансии: сообщение о start_time переведено на укр
+- После модерации redirect на vacancy:my_list?for_user= вместо admin_vacancy_card
+- Регрессионные тесты: tests/test_admin_panel.py
+
+### Сессія 14.04.2026 — Тексти блокування, перекличка, права заказчика, WebApp
+
+**Виконано:**
+
+1. **Тексти блокування** (`telegram/handlers/messages/commands.py`, `work/views/admin_panel.py`, `vacancy/services/call_formatter.py`):
+   - Постійна: "Вас заблоковано у сервісі robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin"
+   - Тимчасова: "Увага! Вас обмежено у користуванні сервісом robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin"
+   - `days_text` і `block =` прибрані як unused (ruff F841)
+
+2. **Дубль сповіщення при схваленні вакансії** — метод `_add_employer_to_group` видалено з `approved_group_observer.py`; текст повідомлення 2 оновлено; `employer_invite_msg_id` більше не встановлюється
+
+3. **Перекличка «Кінець роботи»** — `get_final_call_vacancies(before_end=60)` ловить вакансії за 1 годину до `end_time`; `final_call_check_task` використовує нову функцію
+
+4. **Перекличка «Початок роботи»** — `_MAX_REMINDERS = 12` (було 6) → 60 хвилин очікування замість 30
+
+5. **Кнопка переклички в ЛК** — після 1-ї переклички одразу показується кнопка 2-ї; заголовки "Початок роботи" / "Кінець роботи"; посилання "Повернутися до першої переклички"
+
+6. **Права замовника в групі** — `can_restrict_members=False` в `set_default_owner_permissions()`; видалення робітників тільки через ЛК (сторінка members)
+
+7. **Single-instance guard для WebApp** — `lifecycle.js` v6: BroadcastChannel закриває попереднє вікно; reload з retry (500ms/1000ms/1500ms); поріг freeze 3000ms
+
+8. **Fallback у check.html** — при порожньому `initData` інформативне повідомлення з кнопкою "Перейти до бота"
+
+9. **Favicon** — `favicon.ico`, `favicon-32x32.png`, `apple-touch-icon.png` у `telegram/static/`; підключено в `templates/base.html`
+
+10. **Форма створення вакансії** — `start_time` і `end_time` прибрані з initial шаблону; час завжди перераховується від поточного моменту (now+1h rounded to 15min)
+
+11. **Навігація адміна після модерації** — редирект після approve → `admin_dashboard`; кнопки «Назад» в `admin_vacancy_card.html` і `vacancy_my_list.html` → `admin_dashboard`
+
+### Сессія 15.04.2026 — FAQ система (FaqItem) + переименування
+
+**Виконано:**
+
+1. **Модель FaqItem** (`work/models.py`) — динамічні FAQ-записи з адмінки:
+   - Поля: `role` (employer/worker), `question`, `answer`, `image` (ImageField, upload_to="faq/"), `video_url` (URLField), `order`, `is_active`, timestamps
+   - Property `video_embed_url` — автоконвертація YouTube URL у embed формат
+   - Meta: ordering=["role", "order"], verbose_name="FAQ запис"
+   - Міграція: work/migrations/0007_faqitem.py
+
+2. **FaqItemAdmin** (`work/admin.py`):
+   - list_display: role, question_short, order, is_active, has_image, has_video, updated_at
+   - list_filter: role, is_active
+   - list_editable: order, is_active
+   - Кастомні display-методи: question_short, has_image (boolean), has_video (boolean)
+
+3. **MEDIA налаштування**:
+   - `MEDIA_URL = "/media/"`, `MEDIA_ROOT = BASE_DIR / "media"` додано в `config/django/base.py`
+   - Директорія `media/faq/` створена
+   - Nginx вже обслуговує `/media/` → `/home/webuser/robochi_bot/media/`
+
+4. **Views оновлені** — `employer_faq` та `worker_faq`:
+   - Імпорт FaqItem, фільтрація по role та is_active
+   - Передача `faq_items` у контекст шаблону
+
+5. **Шаблони переписані** — `employer_faq.html`, `worker_faq.html`:
+   - Динамічний контент з БД замість hardcoded
+   - `<details>` accordion з опціональним зображенням та відео
+   - Fullscreen overlay для зображень (клік → розгортання)
+   - YouTube iframe embed для відео
+   - Empty state: «Інформація поки що не додана.»
+
+6. **Перейменування** — «Що робити якщо?» → «Як це працює?»:
+   - employer_dashboard.html — кнопка
+   - worker_dashboard.html — кнопка
+   - employer_faq.html — заголовок сторінки
+   - worker_faq.html — заголовок сторінки
+
+7. **Початкові дані** — 11 FAQ записів створено (5 employer + 6 worker)
+
+8. **Регресійні тести** — `tests/test_session_20260415_faq.py` — 17 тестів:
+   - TestFaqModel (5): import, role choices, video_embed_url property, ordering
+   - TestFaqTemplates (6): exist, dynamic items, media support
+   - TestDashboardRename (2): employer/worker dashboards renamed
+   - TestFaqViews (2): views pass faq_items
+   - TestFaqAdmin (1): admin registration
+   - TestMediaSettings (2): config + directory
+
+**Нові файли:**
+- work/migrations/0007_faqitem.py
+- tests/test_session_20260415_faq.py
+
+**Оновлені файли:**
+- work/models.py — +FaqItem
+- work/admin.py — +FaqItemAdmin
+- work/views/employer.py — employer_faq з FaqItem
+- work/views/worker.py — worker_faq з FaqItem
+- work/templates/work/employer_faq.html — динамічний шаблон
+- work/templates/work/worker_faq.html — динамічний шаблон
+- work/templates/work/employer_dashboard.html — «Як це працює?»
+- work/templates/work/worker_dashboard.html — «Як це працює?»
+- config/django/base.py — +MEDIA_URL, +MEDIA_ROOT
+- CLAUDE.md — +FAQ System секція
+
+### Сессия 16.04.2026 — bugfix admin filter "Заблоковані" + Invariants registry
+
+**Fix:**
+- work/views/admin_panel.py:78 — фильтр "Заблоковані" изменён с is_active=False на blocks__is_active=True (distinct)
+- Причина (см. INV-009): только PERMANENT блокировки ставят User.is_active=False; TEMPORARY оставляют is_active=True
+- Verification: recrutcorpltd (temporary rollcall_reject) теперь корректно возвращается в поиске
+
+**Doc changes:**
+- PROJECT_RULES.md — добавлена секция "Invariants" (INV-001..INV-009)
+- CLAUDE.md — добавлен блок "Before doing anything" с порядком загрузки контекста
+
+**Investigated (требует отдельной сессии):**
+- Employer @recrutcorpltd попал в чужую vacancy 38 через "Я ГОТОВИЙ ПРАЦЮВАТИ"
+- Диагноз: invite_link группы без creates_join_request=True → handler chat_join_request не сработал → сработал chat_member_handler (INV-007 — без проверки роли)
+- План на след. сессию: согласно INV-005, добавить проверку в check_system.py; дублировать проверку role в chat_member_handler как fallback
+
+---
+
+**Сесія 18-19.04.2026 — Фільтри кнопки «Я ГОТОВИЙ ПРАЦЮВАТИ», повідомлення заказчику, Celery-таск запрошення в групу**
+
+### Callback-архітектура кнопки «Я ГОТОВИЙ ПРАЦЮВАТИ»
+
+Кнопка в каналі міста = `callback_data=f"apply:{vacancy.id}"`. При натисканні бот прогоняє 12 перевірок в `telegram/handlers/callback/apply_vacancy.py`:
+
+1. Admin → deep link в бот (без перевірок)
+2. Постійна блокировка → popup
+3. Тимчасова блокировка → popup
+4. `is_active=False` → popup
+5. Не зареєстрований → popup з `@riznorobochi_ua_bot` + `@robochi_work_admin`
+6. Вакансія не знайдена → popup
+7. Owner вакансії → deep link в бот (`answer_callback_query(url=deep_link)`)
+8. Чужий employer → popup «Ви не можете приєднатися до чужої вакансії.»
+9. Вже в іншій вакансії → popup
+10. Група заповнена → popup
+11. Стать не вказана → popup
+12. Стать не відповідає → popup «Ця вакансія призначена для іншої статі.»
+
+Пройшов перевірки (worker) → deep link в бот → `process_start_payload` (type="apply") → silent return (повідомлення не надсилається, Celery-таск handles it).
+
+INV-005 FIX блок в `chat_member_handler` залишено як safety net.
+Admin bypass в `chat_member_handler` — не створює VacancyUser, тег «Адміністратор».
+
+### Повідомлення заказчику
+
+**2.1. Після створення вакансії (на модерацію):**
+- Текст: «Ваша вакансія для пошуку працівників відправлена на модерацію...»
+- Кнопка: «Як це працює?» → WebApp URL `/work/employer/faq/`
+- `msg_id` зберігається в `vacancy.extra["created_msg_id"]`
+- Файл: `vacancy/services/observers/created_user_observer.py`
+
+**2.2. Після approve модерації:** Залишено як є + `msg_id` зберігається в `vacancy.extra["approved_msg_id"]`
+- Файл: `vacancy/services/observers/approved_user_observer.py`
+
+**2.3. Запрошення в групу (Celery-таск):**
+- Файл: `vacancy/tasks/employer_group_invite.py`
+- Зареєстровано в `vacancy/tasks/__init__.py`
+- Через 5 сек після approve → повідомлення «Перейдіть у групу Вашої вакансії...» + кнопка
+- Повтор кожну 1 хвилину, макс 10 разів
+- Перевірка: якщо owner вже в групі (VacancyUser зі статусом OWNER/MEMBER) → зупинка
+- Після 10 спроб без входу:
+  1. Видалити всі сервісні повідомлення вакансії
+  2. Надіслати попередження в групу
+  3. Закрити вакансію через `vacancy_publisher.notify(VACANCY_CLOSE)`
+  4. Заблокувати заказчика (BlockReason.EMPLOYER_NO_GROUP)
+  5. Надіслати повідомлення про блокування
+
+**Новий BlockReason:** `EMPLOYER_NO_GROUP = "employer_no_group"` + метод `BlockService.auto_block_employer_no_group()`
+- Міграція: `user/0017`
+
+### Видалення сервісних повідомлень при закритті вакансії
+
+`VacancyDeleteEmployerInviteObserver` розширено — тепер видаляє: `employer_invite_msg_id`, `created_msg_id`, `approved_msg_id`, `apply_invite_msg_ids` (для всіх рабочих).
+Спрацьовує при будь-якому `VACANCY_CLOSE` (через 3 години, вручну, через неприхід заказчика).
+
+### Deep link автоперехід в бот
+
+`telegram/handlers/messages/commands.py`: додано `encode_start_param()`, обробка `type="apply"` в `process_start_payload` — silent return без повідомлення.
+`telegram/handlers/callback/apply_vacancy.py`: owner та worker після перевірок → `answer_callback_query(url=deep_link)` → автоматичне відкриття бота.
+
+### Ключові файли змінені
+
+- `service/telegram_markup_factory.py` — callback_data замість url
+- `telegram/handlers/callback/apply_vacancy.py` — 12 перевірок + deep link
+- `telegram/handlers/member/user/group.py` — INV-005 FIX блок (safety net) + admin bypass
+- `vacancy/tasks/employer_group_invite.py` — Celery-таск з повторами
+- `vacancy/tasks/__init__.py` — реєстрація таска
+- `vacancy/services/observers/created_user_observer.py` — збереження msg_id + кнопка FAQ
+- `vacancy/services/observers/approved_user_observer.py` — збереження msg_id + запуск таска
+- `vacancy/services/observers/vacancy_close.py` — розширене видалення повідомлень
+- `vacancy/services/call_formatter.py` — новий текст повідомлення 2.1
+- `telegram/handlers/messages/commands.py` — encode_start_param + обробка type="apply"
+- `user/choices.py` — BlockReason.EMPLOYER_NO_GROUP
+- `user/services.py` — auto_block_employer_no_group()

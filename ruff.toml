@@ -1,0 +1,34 @@
+target-version = "py311"
+line-length = 120
+
+exclude = [
+    "*/migrations/*",
+    "staticfiles",
+    "static",
+    "venv",
+    "__pycache__",
+    ".git",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "DJ",  # django-specific
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long — handled by formatter
+    "B008",  # do not perform function calls in default arguments (common in Django)
+]
+
+[lint.per-file-ignores]
+"config/settings/*.py" = ["E501", "F401", "F403"]
+"**/settings.py" = ["E501", "F401", "F403"]
+"*/models.py" = ["DJ001"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

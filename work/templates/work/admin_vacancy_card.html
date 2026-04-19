@@ -6,7 +6,7 @@
 {% block body %}
 <main class="page page--admin-vacancy-card">
 
-    <a href="javascript:history.back()" class="btn-secondary back-btn">← Назад</a>
+    <a href="{% url 'work:admin_dashboard' %}" class="page-back-btn">← Назад</a>
 
     <div class="user-header-card">
         <div class="user-header__row">
@@ -16,7 +16,7 @@
         <div class="user-header__row">
             <span class="user-header__label">ID:</span>
             <span class="user-header__value">
-                <a href="/admin/user/user/{{ target_user.pk }}/change/" class="user-link">{{ target_user.pk }}</a>
+                <a href="/taya-panel/user/user/{{ target_user.pk }}/change/" class="user-link">{{ target_user.pk }}</a>
             </span>
         </div>
         <div class="user-header__row">
@@ -31,6 +31,29 @@
             <span class="user-header__label">Телефон:</span>
             <span class="user-header__value">{{ target_user.phone_number|default:'-' }}</span>
         </div>
+    </div>
+
+    <div class="block-status-card">
+        {% if active_block %}
+        <div class="block-status-badge block-status-badge--active">
+            {% if active_block.block_type == 'permanent' %}
+            🔴 Постійне блокування
+            {% else %}
+            🟡 Тимчасове блокування{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}
+            {% endif %}
+        </div>
+        <div class="block-status-reason">Причина: {{ active_block.get_reason_display }}</div>
+        {% if active_block.comment %}<div class="block-status-comment">{{ active_block.comment }}</div>{% endif %}
+        <form method="post" action="{% url 'work:admin_block_user' target_user.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="unblock">
+            <input type="hidden" name="block_id" value="{{ active_block.pk }}">
+            <button type="submit" class="btn-primary block-action-btn" onclick="return confirm('Розблокувати користувача?')">Розблокувати</button>
+        </form>
+        {% else %}
+        <div class="block-status-badge block-status-badge--none">✅ Не заблоковано</div>
+        <button type="button" class="btn-danger block-action-btn" onclick="openBlockModal()">Заблокувати</button>
+        {% endif %}
     </div>
 
     <h2 class="section-title">Вакансії по містах</h2>
@@ -95,6 +118,63 @@
 
 </main>
 
+<!-- Block User Modal -->
+<div id="block-modal" class="modal-overlay" style="display:none;" onclick="closeBlockModalOutside(event)">
+    <div class="modal-sheet">
+        <div class="modal-header">
+            <span class="modal-title">Блокування користувача {% if target_user.username %}@{{ target_user.username }}{% else %}#{{ target_user.pk }}{% endif %}</span>
+        </div>
+        <form method="post" action="{% url 'work:admin_block_user' target_user.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="block">
+
+            <div class="modal-field">
+                <label class="modal-label">Тип блокування</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="block_type" value="temporary" checked onchange="onBlockTypeChange(this)"> Тимчасове
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="block_type" value="permanent" onchange="onBlockTypeChange(this)"> Постійне
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-field" id="duration-field">
+                <label class="modal-label" for="duration_days">Термін</label>
+                <select name="duration_days" id="duration_days" class="modal-select">
+                    <option value="1">1 день</option>
+                    <option value="3">3 дні</option>
+                    <option value="7" selected>7 днів</option>
+                    <option value="14">14 днів</option>
+                    <option value="30">30 днів</option>
+                </select>
+            </div>
+
+            <div class="modal-field">
+                <label class="modal-label" for="reason">Причина</label>
+                <select name="reason" id="reason" class="modal-select">
+                    <option value="manual">Ручне (адміністратор)</option>
+                    <option value="rollcall_reject">Неявка на перекличку</option>
+                    <option value="employer_uncheck">Зняття галочки замовником</option>
+                    <option value="unpaid">Неоплачений рахунок</option>
+                    <option value="other">Інше</option>
+                </select>
+            </div>
+
+            <div class="modal-field">
+                <label class="modal-label" for="comment">Коментар</label>
+                <textarea name="comment" id="comment" class="modal-textarea" rows="3" placeholder="Необов'язково"></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button type="submit" class="btn-danger modal-btn-submit">Заблокувати</button>
+                <button type="button" class="btn-secondary modal-btn-cancel" onclick="closeBlockModal()">Скасувати</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 function toggleCity(header) {
     var content = header.nextElementSibling;
@@ -107,6 +187,21 @@ function toggleCity(header) {
         arrow.textContent = '▼';
     }
 }
+function openBlockModal() {
+    document.getElementById('block-modal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+}
+function closeBlockModal() {
+    document.getElementById('block-modal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+function closeBlockModalOutside(e) {
+    if (e.target === document.getElementById('block-modal')) closeBlockModal();
+}
+function onBlockTypeChange(radio) {
+    var durationField = document.getElementById('duration-field');
+    durationField.style.display = radio.value === 'temporary' ? 'flex' : 'none';
+}
 </script>
 
 <style>
@@ -118,18 +213,10 @@ function toggleCity(header) {
         max-width: 520px;
         margin: 0 auto;
     }
-    .back-btn {
-        display: inline-block;
-        width: auto;
-        margin: 0;
-        padding: 10px 20px;
-        font-size: 14px;
-        align-self: flex-start;
-    }
     .user-header-card {
-        background: var(--btn-bg);
-        border-radius: var(--card-radius);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
         padding: 14px 16px;
         display: flex;
         flex-direction: column;
@@ -150,14 +237,13 @@ function toggleCity(header) {
         word-break: break-all;
     }
     .user-link {
-        color: var(--accent-dark);
+        color: var(--foreground);
         font-weight: 600;
         text-decoration: underline;
     }
     .section-title {
         font-size: 19px;
         font-weight: 700;
-        text-shadow: var(--btn-text-shadow);
         margin: 4px 0 0;
     }
     .vacancies-empty {
@@ -167,9 +253,9 @@ function toggleCity(header) {
         padding: 24px 0;
     }
     .city-block {
-        background: var(--btn-bg);
-        border-radius: var(--card-radius);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
         overflow: hidden;
     }
     .city-header {
@@ -183,11 +269,10 @@ function toggleCity(header) {
         font-size: 15px;
     }
     .city-header:active {
-        box-shadow: var(--btn-shadow-active);
+        background: var(--muted);
     }
     .city-name {
         flex: 1;
-        text-shadow: var(--btn-text-shadow);
     }
     .city-count {
         background: rgba(0,0,0,0.12);
@@ -252,5 +337,119 @@ function toggleCity(header) {
         font-weight: 600;
         cursor: pointer;
     }
+    /* Block status card */
+    .block-status-card {
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .block-status-badge {
+        font-size: 14px;
+        font-weight: 700;
+    }
+    .block-status-badge--active { color: #e74c3c; }
+    .block-status-badge--none { color: #27ae60; }
+    .block-status-reason {
+        font-size: 13px;
+        opacity: 0.75;
+    }
+    .block-status-comment {
+        font-size: 13px;
+        font-style: italic;
+        opacity: 0.65;
+    }
+    .block-action-btn {
+        align-self: flex-start;
+        width: auto;
+        padding: 8px 20px;
+        font-size: 13px;
+        margin-top: 4px;
+    }
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+        z-index: 1000;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+    }
+    .modal-sheet {
+        background: var(--card);
+        border-radius: var(--radius) var(--radius) 0 0;
+        padding: 20px 16px 32px;
+        width: 100%;
+        max-width: 520px;
+        box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(0,0,0,0.1);
+    }
+    .modal-title {
+        font-size: 15px;
+        font-weight: 700;
+        text-align: center;
+    }
+    .modal-field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .modal-label {
+        font-size: 13px;
+        font-weight: 600;
+        opacity: 0.75;
+    }
+    .modal-select, .modal-textarea {
+        background: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+        color: inherit;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .modal-textarea { resize: vertical; }
+    .radio-group {
+        display: flex;
+        gap: 20px;
+    }
+    .radio-option {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+    .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 4px;
+    }
+    .modal-btn-submit, .modal-btn-cancel {
+        flex: 1;
+        padding: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+    }
+    .modal-btn-submit { background: var(--destructive); color: var(--destructive-foreground); }
 </style>
 {% endblock %}

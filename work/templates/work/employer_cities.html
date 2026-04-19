@@ -7,14 +7,14 @@
 <main class="page page--employer-cities">
 
     <div class="vacancy-list-header">
-        <h1>Мої міста</h1>
-        <a href="{% url 'index' %}" class="btn-back">← Назад</a>
+        <a href="{% url 'index' %}" class="page-back-btn">← Назад</a>
+        <h1>Загальна стрічка вакансій</h1>
     </div>
 
     {% if city_channels %}
     <div class="city-list">
         {% for item in city_channels %}
-        <a href="{{ item.invite_link }}" target="_blank" class="worker-btn">
+        <a href="#" onclick="Telegram.WebApp.openTelegramLink('{{ item.invite_link }}'); return false;" class="worker-btn">
             <span class="worker-btn__icon">🏙️</span>
             <span class="worker-btn__text">
                 <span class="worker-btn__title">{{ item.city_name }}</span>

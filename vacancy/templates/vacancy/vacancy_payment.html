@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--payment">
+    <div class="payment-container">
+
+        <div class="detail-header">
+            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+            {% if is_paid %}
+            <span class="payment-badge payment-badge--paid">Оплачено ✓</span>
+            {% endif %}
+        </div>
+
+        <h2 class="form-title">Оплата за вакансію</h2>
+
+        <div class="detail-card">
+            <div class="detail-grid">
+                <div class="detail-row">
+                    <span class="detail-label">📍 Адреса</span>
+                    <span class="detail-value">{{ vacancy.address }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">📅 Дата</span>
+                    <span class="detail-value">{{ vacancy.date|date:"d.m.Y" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">👥 Працівників</span>
+                    <span class="detail-value">{{ workers_count }}</span>
+                </div>
+                <div class="detail-row payment-total">
+                    <span class="detail-label">💰 До сплати</span>
+                    <span class="detail-value payment-amount">{{ amount }} грн</span>
+                </div>
+            </div>
+        </div>
+
+        {% if error %}
+        <p class="payment-error">⚠️ {{ error }}</p>
+        {% endif %}
+
+        {% if is_paid %}
+        <div class="payment-success-msg">
+            Рахунок оплачено. Дякуємо!
+        </div>
+        <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="btn-primary" style="display:block;text-align:center;margin-top:12px;">
+            ← До вакансії
+        </a>
+        {% elif amount == 0 %}
+        <p class="payment-note">Сума до сплати — 0 грн. Оплата не потрібна.</p>
+        {% else %}
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary payment-btn">
+                💳 Оплатити рахунок
+            </button>
+        </form>
+        {% endif %}
+
+    </div>
+</main>
+
+<style>
+.page--payment {
+    padding: 20px 14px;
+    justify-content: flex-start;
+    min-height: 100vh;
+}
+.payment-container {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto;
+}
+.payment-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+.payment-badge--paid {
+    background: var(--message-success-bg);
+    color: #1b5e20;
+}
+.payment-total {
+    padding-top: 10px;
+    border-top: 1px solid rgba(0,0,0,0.1);
+    margin-top: 4px;
+}
+.payment-amount {
+    font-size: 20px;
+    font-weight: 700;
+    color: #2e7d32;
+}
+.payment-error {
+    color: #c62828;
+    font-size: 14px;
+    margin: 12px 0;
+    padding: 10px 14px;
+    background: rgba(198,40,40,0.08);
+    border-radius: 12px;
+}
+.payment-success-msg {
+    text-align: center;
+    color: #2e7d32;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 16px;
+    background: var(--message-success-bg);
+    border-radius: var(--btn-radius);
+    margin-top: 12px;
+}
+.payment-note {
+    text-align: center;
+    font-size: 14px;
+    opacity: 0.7;
+    margin-top: 12px;
+}
+.payment-btn {
+    width: 100%;
+    margin-top: 16px;
+    font-size: 16px;
+    padding: 14px;
+}
+@media (prefers-color-scheme: dark) {
+    .payment-badge--paid { color: #a5d6a7; }
+    .payment-amount { color: #a5d6a7; }
+    .payment-success-msg { color: #a5d6a7; }
+}
+</style>
+{% endblock %}

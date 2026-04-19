@@ -1,24 +1,24 @@
 from datetime import date
-from typing import Literal, Optional
+from typing import Literal
 
-from django.utils.translation import gettext as _, override
+from django.utils.translation import gettext as _
+from django.utils.translation import override
 
 from user.models import UserFeedback
 from vacancy.models import Vacancy
 
 
 class VacancyTelegramTextFormatter:
-
     def __init__(self, vacancy: Vacancy):
         self.vacancy = vacancy
 
     def _get_date_label(self) -> str:
         """Dynamic: if vacancy.date == today -> Сьогодні, else Завтра."""
-        with override('uk'):
+        with override("uk"):
             if self.vacancy.date == date.today():
-                return _('Today')
+                return _("Today")
             else:
-                return _('Tomorrow')
+                return _("Tomorrow")
 
     def _get_needed_count(self) -> int:
         """How many workers still needed."""
@@ -27,7 +27,7 @@ class VacancyTelegramTextFormatter:
         return max(needed, 0)
 
     def base_format(self, show_needed: bool = False) -> str:
-        with override('uk'):
+        with override("uk"):
             date_label = self._get_date_label()
             people_display = self.vacancy.people_count
             if show_needed:
@@ -40,28 +40,28 @@ class VacancyTelegramTextFormatter:
                 f"{_('Gender')}: {self.vacancy.get_gender_display()}\n"
                 f"{_('Working hours')}: {_('from')} {self.vacancy.start_time.strftime('%H:%M')} {_('to')} {self.vacancy.end_time.strftime('%H:%M')}\n"
                 f"{_('Number of People')}: {people_display}\n"
-                f"<a href=\"{self.vacancy.map_link}\">{self.vacancy.address}</a>\n\n"
+                f'<a href="{self.vacancy.map_link}">{self.vacancy.address}</a>\n\n'
                 f"{self.vacancy.skills}\n\n"
                 + (f"{_('Need passport')}!\n" if self.vacancy.has_passport else "")
                 + f"{_('Payment')}: {int(self.vacancy.payment_amount)} {_('uah')} "
-                  f"({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n"
+                f"({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n"
             )
 
     def for_creator_chat(self) -> str:
-        return _('Your request has been created and is being moderated') + '\n' * 2 + self.base_format()
+        return _("Your request has been created and is being moderated") + "\n" * 2 + self.base_format()
 
     def for_admin_chat(self) -> str:
         return self.base_format()
 
     def for_admin_refind(self) -> str:
-        return _('Additional search for workers has been launched') + '\n' * 2 + self.base_format()
+        return _("Additional search for workers has been launched") + "\n" * 2 + self.base_format()
 
     def for_admin_new_feedback(self, feedback: UserFeedback) -> str:
-        return _('New feedback') + '\n' * 2 + feedback.text
+        return _("New feedback") + "\n" * 2 + feedback.text
 
-    def for_channel(self, status: Optional[Literal['full']] = None) -> str:
-        if status == 'full':
-            with override('uk'):
+    def for_channel(self, status: Literal["full"] | None = None) -> str:
+        if status == "full":
+            with override("uk"):
                 date_label = self._get_date_label()
                 return (
                     f"{date_label} {self.vacancy.date.strftime('%d.%m.%Y')}\n"
@@ -71,7 +71,7 @@ class VacancyTelegramTextFormatter:
                     f"{self.vacancy.skills}\n\n"
                     + (f"{_('Need passport')}!\n" if self.vacancy.has_passport else "")
                     + f"{_('Payment')}: {int(self.vacancy.payment_amount)} {_('uah')} "
-                      f"({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n"
+                    f"({self.vacancy.get_payment_unit_display()}/{self.vacancy.get_payment_method_display()})\n"
                     + f"{_('Vacancy is close')}"
                 )
         else:

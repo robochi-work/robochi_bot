@@ -1,16 +1,26 @@
 {% extends 'base.html' %}
 {% load i18n %}
-
 {% block header %}{% endblock %}
-
 {% block body %}
 <div class="call">
+    {% if call_type == "start" %}
+    <h2>Перекличка: Початок роботи</h2>
+    {% elif call_type == "after_start" %}
+    <h2>Перекличка: Кінець роботи</h2>
+    {% else %}
     <h2>{% trans "Confirm availability of workers" %}</h2>
-
+    {% endif %}
     <form action="" method="post">
         {% csrf_token %}
         {{ form.as_p }}
         <button type="submit">{% trans "Confirm" %}</button>
     </form>
+    {% if call_type == "after_start" and not second_rollcall_passed and vacancy %}
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="link-back-rollcall">
+            ← Повернутися до першої переклички
+        </a>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

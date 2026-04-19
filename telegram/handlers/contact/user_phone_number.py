@@ -1,20 +1,22 @@
 import logging
 from typing import Any
+from urllib.parse import urlencode
+
+import sentry_sdk
 from django.conf import settings
 from django.urls import reverse
 from django.utils.translation import gettext as _
 from telebot import types
 from telebot.types import ReplyKeyboardRemove, WebAppInfo
-from urllib.parse import urlencode
 
 from telegram.handlers.bot_instance import bot
 from telegram.handlers.utils import user_required
-from user.models import User, AuthIdentity
+from user.models import AuthIdentity, User
 
 logger = logging.getLogger(__name__)
 
 
-@bot.message_handler(content_types=['contact'])
+@bot.message_handler(content_types=["contact"])
 @user_required
 def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> None:
     logger.warning(f"CONTACT HANDLER CALLED: user_id={message.from_user.id}")
@@ -27,43 +29,45 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                     message_id=message.message_id,
                 )
             except Exception:
-                pass
+                sentry_sdk.capture_exception()
 
             phone = f"+{message.contact.phone_number.lstrip('+')}"
             user.phone_number = phone
-            user.save(update_fields=['phone_number'])
+            user.save(update_fields=["phone_number"])
+            logger.info("phone_received", extra={"user_id": user.id, "phone": phone[:4] + "****"})
 
             AuthIdentity.objects.get_or_create(
                 provider=AuthIdentity.Provider.PHONE,
                 provider_uid=phone,
-                defaults={'user': user},
+                defaults={"user": user},
             )
 
             bot.send_message(
                 chat_id=message.chat.id,
-                text=_('Welcome to our service!'),
+                text=_("Welcome to our service!"),
                 reply_markup=ReplyKeyboardRemove(),
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
 
             # Notify admins with complete user data
             from telegram.utils import notify_admins_new_user
+
             notify_admins_new_user(user)
 
             # Set MenuButton "ПОЧАТИ" -> WebApp on wizard
             try:
-                next_path = '/' if user.work_profile.is_completed else '/work/wizard/'
+                next_path = "/" if user.work_profile.is_completed else "/work/wizard/"
             except Exception:
-                next_path = '/work/wizard/'
+                next_path = "/work/wizard/"
 
-            check_url = reverse('telegram:telegram_check_web_app')
-            webapp_url = settings.BASE_URL.rstrip('/') + check_url + '?' + urlencode({'next': next_path})
+            check_url = reverse("telegram:telegram_check_web_app")
+            webapp_url = settings.BASE_URL.rstrip("/") + check_url + "?" + urlencode({"next": next_path})
 
             bot.set_chat_menu_button(
                 chat_id=message.chat.id,
                 menu_button=types.MenuButtonWebApp(
-                    type='web_app',
-                    text='ПОЧАТИ',
+                    type="web_app",
+                    text="ПОЧАТИ",
                     web_app=WebAppInfo(url=webapp_url),
                 ),
             )

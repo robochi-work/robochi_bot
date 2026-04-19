@@ -1,12 +1,11 @@
 {% extends 'base.html' %}
 {% load i18n %}
-
 {% block header %}{% endblock %}
 
 {% block body %}
 <main class="page page--admin-results">
 
-    <a href="{% url 'work:admin_dashboard' %}" class="btn-secondary back-btn">← Назад</a>
+    <a href="{% url 'work:admin_dashboard' %}" class="page-back-btn">← Назад</a>
 
     <h2 class="results-title">Результати пошуку <span class="results-count">{{ users|length }}</span></h2>
 
@@ -15,7 +14,7 @@
     {% endif %}
 
     {% for user in users %}
-    <div class="user-card">
+    <div class="user-card" id="user-{{ user.pk }}">
         <div class="user-card__row">
             <span class="user-card__label">Ім'я:</span>
             <span class="user-card__value">{{ user.full_name|default:'-' }}</span>
@@ -23,7 +22,7 @@
         <div class="user-card__row">
             <span class="user-card__label">ID:</span>
             <span class="user-card__value">
-                <a href="/admin/user/user/{{ user.pk }}/change/" class="user-link">{{ user.pk }}</a>
+                <a href="/taya-panel/user/user/{{ user.pk }}/change/" class="user-link">{{ user.pk }}</a>
             </span>
         </div>
         <div class="user-card__row">
@@ -48,27 +47,58 @@
         </div>
         <div class="user-card__row">
             <span class="user-card__label">Статус:</span>
-            <span class="user-card__value {% if user.is_active %}status-active{% else %}status-blocked{% endif %}">
-                {% if user.is_active %}Активний{% else %}Заблокований{% endif %}
+            <span class="user-card__value {% if user.active_block_type == 'permanent' %}status-permanent{% elif user.active_block_type == 'temporary' %}status-temporary{% else %}status-active{% endif %}">
+                {% if user.active_block_type == 'permanent' %}Постійне блокування
+                {% elif user.active_block_type == 'temporary' %}Тимчасове блокування
+                {% else %}Активний{% endif %}
             </span>
         </div>
 
         <div class="user-card__actions">
             {% if search_type == 'vacancies' %}
-            <a href="{% url 'work:admin_vacancy_card' user.pk %}" class="btn-secondary">Карта вакансій</a>
+            <a href="{% url 'vacancy:my_list' %}?for_user={{ user.pk }}" class="btn-secondary">Карта вакансій</a>
             {% endif %}
 
-            <form method="POST" action="{% url 'work:admin_block_user' user.pk %}" style="display:inline;">
-                {% csrf_token %}
-                <button type="submit" class="btn-secondary {% if user.is_active %}btn-block{% else %}btn-unblock{% endif %}">
-                    {% if user.is_active %}Заблокувати{% else %}Розблокувати{% endif %}
-                </button>
-            </form>
+            {% if not user.is_staff %}
+                {% if user.active_block_id %}
+                <form method="POST" action="{% url 'work:admin_block_user' user.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="unblock">
+                    <input type="hidden" name="block_id" value="{{ user.active_block_id }}">
+                    <button type="submit" class="btn-secondary btn-unblock" onclick="sessionStorage.setItem('scrollToUser','user-{{ user.pk }}'); return confirm('Розблокувати користувача?')">РОЗБЛОКУВАТИ</button>
+                </form>
+                {% else %}
+                <button type="button" class="btn-secondary btn-block" onclick="openBlockModal({{ user.pk }})">ЗАБЛОКУВАТИ</button>
+                {% endif %}
+            {% endif %}
         </div>
     </div>
     {% endfor %}
 
 </main>
+
+<div id="blockModal" class="block-modal-overlay" style="display:none;" onclick="if(event.target===this)closeBlockModal()">
+    <div class="block-modal">
+        <h3 class="block-modal__title">Оберіть тип блокування</h3>
+        <form id="blockForm" method="POST" action="">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="block">
+            <input type="hidden" name="reason" value="manual">
+            <input type="hidden" id="blockTypeInput" name="block_type" value="">
+
+            <div class="block-modal__options">
+                <button type="submit" class="block-option block-option--temp" onclick="document.getElementById('blockTypeInput').value='temporary'">
+                    🟡 Тимчасове блокування
+                </button>
+                <button type="submit" class="block-option block-option--perm" onclick="document.getElementById('blockTypeInput').value='permanent'">
+                    🔴 Постійне блокування
+                </button>
+            </div>
+
+            <button type="button" class="btn-secondary block-modal__cancel" onclick="closeBlockModal()">Скасувати</button>
+        </form>
+    </div>
+</div>
 
 <style>
     .page--admin-results {
@@ -79,23 +109,14 @@
         max-width: 520px;
         margin: 0 auto;
     }
-    .back-btn {
-        display: inline-block;
-        width: auto;
-        margin: 0;
-        padding: 10px 20px;
-        font-size: 14px;
-        align-self: flex-start;
-    }
     .results-title {
         font-size: 20px;
         font-weight: 700;
-        text-shadow: var(--btn-text-shadow);
         margin: 0;
     }
     .results-count {
-        background: var(--btn-bg);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        box-shadow: var(--shadow);
         border-radius: 20px;
         padding: 2px 10px;
         font-size: 16px;
@@ -107,13 +128,16 @@
         padding: 24px 0;
     }
     .user-card {
-        background: var(--btn-bg);
-        border-radius: var(--card-radius);
-        box-shadow: var(--btn-shadow);
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
         padding: 14px 16px;
         display: flex;
         flex-direction: column;
         gap: 6px;
+        width: 100%;
+        box-sizing: border-box;
     }
     .user-card__row {
         display: flex;
@@ -124,26 +148,21 @@
     .user-card__label {
         font-weight: 700;
         min-width: 72px;
-        color: var(--accent-dark);
+        color: var(--foreground);
         opacity: 0.7;
     }
     .user-card__value {
-        color: var(--accent-dark);
+        color: var(--foreground);
         word-break: break-all;
     }
     .user-link {
-        color: var(--accent-dark);
+        color: var(--foreground);
         font-weight: 600;
         text-decoration: underline;
     }
-    .status-active {
-        color: #1a7a1a;
-        font-weight: 700;
-    }
-    .status-blocked {
-        color: #cc0000;
-        font-weight: 700;
-    }
+    .status-active { color: var(--success-text, #15803d); font-weight: 700; }
+    .status-permanent { color: var(--destructive, #ef4444); font-weight: 700; }
+    .status-temporary { color: var(--warning-text, #a16207); font-weight: 700; }
     .user-card__actions {
         display: flex;
         gap: 8px;
@@ -155,11 +174,96 @@
         padding: 9px 16px;
         font-size: 13px;
     }
-    .btn-block {
-        color: #cc0000 !important;
+    .btn-block { color: var(--destructive, #ef4444) !important; }
+    .btn-unblock { color: var(--success-text, #15803d) !important; }
+    .block-modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        z-index: 1000;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
     }
-    .btn-unblock {
-        color: #1a7a1a !important;
+    .block-modal {
+        background: var(--card);
+        border-radius: var(--radius) var(--radius) 0 0;
+        border: 1px solid var(--border);
+        padding: 20px 16px 24px;
+        width: 100%;
+        max-width: 520px;
+        animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
+    }
+    .block-modal__title {
+        font-size: 17px;
+        font-weight: 700;
+        margin: 0 0 16px;
+        text-align: center;
+    }
+    .block-modal__options {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .block-option {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 14px 16px;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+        cursor: pointer;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--foreground);
+        text-align: left;
+        width: 100%;
+    }
+    .block-option--temp:active { background: var(--warning-bg); }
+    .block-option--perm:active { background: var(--error-bg); }
+    .block-modal__cancel {
+        width: 100%;
+        text-align: center;
+        margin-top: 4px;
     }
 </style>
+
+<script>
+function openBlockModal(userId) {
+    document.getElementById('blockForm').action = '/work/admin-panel/user/' + userId + '/block/';
+    document.getElementById('blockTypeInput').value = '';
+    document.getElementById('blockModal').style.display = 'flex';
+    // Запоминаем якорь для возврата после редиректа
+    sessionStorage.setItem('scrollToUser', 'user-' + userId);
+}
+function closeBlockModal() {
+    document.getElementById('blockModal').style.display = 'none';
+}
+document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn) { btn.disabled = true; }
+    });
+});
+// Скролл к карточке после редиректа
+(function() {
+    var scrollTo = sessionStorage.getItem('scrollToUser');
+    if (scrollTo) {
+        sessionStorage.removeItem('scrollToUser');
+        var el = document.getElementById(scrollTo);
+        if (el) {
+            setTimeout(function() { el.scrollIntoView({behavior: 'auto', block: 'center'}); }, 100);
+        }
+    }
+})();
+</script>
 {% endblock %}

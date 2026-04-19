@@ -1,3 +1,3 @@
 from .group import bot
 
-__all__ = ['bot']
+__all__ = ["bot"]

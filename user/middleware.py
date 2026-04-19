@@ -1,5 +1,6 @@
 from django.utils import translation
 
+
 class UserLanguageMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
@@ -12,5 +13,5 @@ class UserLanguageMiddleware:
         response = self.get_response(request)
 
         if request.user.is_authenticated:
-            response.setdefault('Content-Language', request.LANGUAGE_CODE)
+            response.setdefault("Content-Language", request.LANGUAGE_CODE)
         return response

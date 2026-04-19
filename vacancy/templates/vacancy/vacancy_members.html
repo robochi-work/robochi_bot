@@ -8,7 +8,7 @@
     <div class="members-container">
 
         <div class="vacancy-list-header">
-            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="btn-back">← Заявка</a>
+            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Заявка</a>
             <h1>Учасники</h1>
         </div>
 
@@ -19,6 +19,7 @@
                 <div class="member-card__top">
                     <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
                     <span class="member-card__status">{{ item.status }}</span>
+                    {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;margin-left:6px;">🔒 Заблоковано</span>{% endif %}
                 </div>
                 <div class="member-card__info">
                     {% if item.user.phone_number %}
@@ -30,10 +31,16 @@
                 </div>
                 {% if item.is_member %}
                 <div class="member-card__actions">
-                    <form method="post" action="{% url 'vacancy:kick_member' pk=vacancy.pk user_id=item.user.pk %}"
-                          onsubmit="return confirm('Видалити {{ item.user.full_name|default:"цього робітника" }} з групи?')">
+                    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="display:inline;">
                         {% csrf_token %}
-                        <button type="submit" class="btn-kick">Видалити з групи</button>
+                        <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Видалити з групи?')">Видалити з групи</button>
+                    </form>
+                </div>
+                {% elif request.user.is_staff and not item.is_member %}
+                <div class="member-card__actions">
+                    <form method="POST" action="{% url 'vacancy:reinvite_worker' vacancy.pk item.user.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-secondary btn-unblock" onclick="return confirm('Повернути працівника до групи?')">Повернути до групи</button>
                     </form>
                 </div>
                 {% endif %}

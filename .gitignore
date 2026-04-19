@@ -1,3 +1,6 @@
+# Logs
+logs/
+
 # Python/Django
 __pycache__/
 *.py[cod]
@@ -37,3 +40,4 @@ coverage.xml
 gitignore.save
 fix-user-models.patch
 !static/css/styles.css
+.env

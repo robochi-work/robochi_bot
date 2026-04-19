@@ -1,13 +1,15 @@
-from typing import TypedDict, Iterable
+import logging
+from collections.abc import Iterable
+from typing import TypedDict
+
 from django.db.models import QuerySet
 from telebot import TeleBot
 
-from telegram.models import GroupMessage, MessageStatus, Group, ChannelMessage
-import logging
-
+from telegram.models import ChannelMessage, Group, GroupMessage, MessageStatus
 from vacancy.models import Vacancy
 
 logger = logging.getLogger(__name__)
+
 
 class MessageDeleter:
     def __init__(self, bot_instance: TeleBot):
@@ -15,14 +17,11 @@ class MessageDeleter:
 
     def delete_message(self, message: GroupMessage | ChannelMessage) -> bool:
         try:
-            instance = getattr(message, 'group', getattr(message, 'channel', None))
+            instance = getattr(message, "group", getattr(message, "channel", None))
             if not instance:
-                raise AttributeError(f'Message #{getattr(message, "id")} does not contain a group or channel')
+                raise AttributeError(f"Message #{message.id} does not contain a group or channel")
 
-            self.bot.delete_message(
-                chat_id=instance.id,
-                message_id=message.message_id
-            )
+            self.bot.delete_message(chat_id=instance.id, message_id=message.message_id)
             message.status = MessageStatus.DELETED
             message.save(update_fields=["status"])
             return True
@@ -33,10 +32,12 @@ class MessageDeleter:
             message.save(update_fields=["status"])
             return False
 
+
 class DeleteStats(TypedDict):
     total: int
     deleted: int
     failed: int
+
 
 class MessageDeleteService:
     def __init__(self, deleter: MessageDeleter):
@@ -54,15 +55,14 @@ class MessageDeleteService:
                 failed += 1
 
         return {
-            'total': queryset.count(),
-            'deleted': deleted,
-            'failed': failed,
+            "total": queryset.count(),
+            "deleted": deleted,
+            "failed": failed,
         }
 
     def delete_by_groups(self, groups: Iterable[Group]) -> DeleteStats:
         messages = GroupMessage.objects.filter(
-            group__in=groups,
-            status__in=[MessageStatus.RECEIVED, MessageStatus.DELETE_FAILED]
+            group__in=groups, status__in=[MessageStatus.RECEIVED, MessageStatus.DELETE_FAILED]
         )
         return self.delete_messages(messages)
 
