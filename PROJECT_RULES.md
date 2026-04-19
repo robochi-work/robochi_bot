@@ -131,21 +131,17 @@ Enforced: service/group.py — no create_chat_invite_link / export_chat_invite_l
 Exception: admin manually creates links in Telegram UI and pastes into Django admin.
 Decided: sessions 31.03.2026, 11.04.2026.
 
-### INV-005: All invite_links for vacancy groups MUST have creates_join_request=True
-Reason: without this flag, users bypass chat_join_request_handler (12 filter checks)
-and only chat_member_handler fires — which has NO role/block checks.
-Responsibility: admin when creating link in Telegram UI ticks "Request Admin Approval".
-TODO: add enforcement check to work/management/commands/check_system.py.
-Decided: session 16.04.2026.
+### INV-005: All entry checks happen in callback handler (apply_vacancy.py)
+Reason: `chat_join_request` handler (`auto_approve`) does NOT trigger for standard invite links. All 12 filtering checks (block, gender, role, capacity) run in the callback handler `telegram/handlers/callback/apply_vacancy.py`. The `chat_member_handler` in `group.py` has a safety-net INV-005 FIX block that kicks users who somehow bypass the callback.
+Enforced in: `telegram/handlers/callback/apply_vacancy.py`, `telegram/handlers/member/user/group.py`
 
 ### INV-006: Channel invite_links use creates_join_request=False
 Reason: channels are for browsing — filtering happens at "Apply for vacancy" button click (leads to group where INV-005 applies).
 Enforced: telegram/handlers/member/bot/channel.py:22.
 
-### INV-007: chat_member_handler has NO role/block filters
-Reason: it fires AFTER user is already in group. All filters belong in chat_join_request_handler (auto_approve).
-Protection relies on INV-005. If INV-005 is broken, INV-007 becomes a security hole.
-Enforced: telegram/handlers/member/user/group.py:197 — handle_user_status_change.
+### INV-007: chat_member_handler has safety-net filters (INV-005 FIX)
+Reason: Primary filtering is in callback handler (INV-005). The `chat_member_handler` has a secondary INV-005 FIX block that kicks users who bypass the callback (e.g. if someone shares an invite link directly). Admin bypass: admins get `UserInGroup` with ADMINISTRATOR status but no `VacancyUser` record.
+Enforced in: `telegram/handlers/member/user/group.py`
 
 ### INV-008: supergroup guard in both group handlers
 Reason: Telegram sends chat_member/chat_join_request events with linked channel IDs — without guard, channels get inserted into Group table.

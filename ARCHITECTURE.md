@@ -255,3 +255,45 @@ sequenceDiagram
 - Celery tasks change → restart worker/beat
 - models change → migrations required
 - Telegram auth / WebApp change → manual test of user path
+
+## Apply Button Architecture (updated 2026-04-19)
+Channel post with vacancy
+|
+v
+[Я ГОТОВИЙ ПРАЦЮВАТИ] (callback_data="apply:{vacancy_id}")
+|
+v
+apply_vacancy.py — 12 checks
+|
+├── FAIL → popup with error text
+│
+└── PASS → answer_callback_query(url=deep_link)
+|
+v
+Bot receives /start with payload
+|
+v
+process_start_payload(type="apply") → silent return
+(Celery task already sends group invite for owner)
+(Worker receives invite via _send_invite fallback)
+
+### Employer Group Invite Flow
+Vacancy approved → approved_user_observer
+|
+v
+Celery task: send_employer_group_invite_task (countdown=5s)
+|
+├── Owner in group? → STOP (delete invite msg)
+├── Vacancy closed? → STOP
+├── Retry < 10 → send msg + retry after 60s
+└── Retry == 10 → close vacancy + block employer + kick workers
+
+### Message Lifecycle
+
+All bot messages store their `message_id` in `vacancy.extra`:
+- `created_msg_id` — message 2.1 (sent to moderation)
+- `approved_msg_id` — message 2.2 (approved)
+- `employer_invite_msg_id` — message 2.3 (group invite)
+- `apply_invite_msg_ids` — dict {user_id: msg_id} for workers
+
+On `VACANCY_CLOSE`, `VacancyDeleteEmployerInviteObserver` deletes all stored messages.
