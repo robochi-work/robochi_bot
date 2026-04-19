@@ -129,38 +129,8 @@ def process_start_payload(payload: str, message) -> bool:
             return True
 
         elif data.get("type") == "apply":
-            vacancy_id = data.get("vacancy_id")
-            if vacancy_id:
-                from vacancy.models import Vacancy
-
-                try:
-                    vacancy = Vacancy.objects.select_related("group").get(id=vacancy_id)
-                    if vacancy.group and vacancy.group.invite_link:
-                        markup = InlineKeyboardMarkup()
-                        markup.add(
-                            InlineKeyboardButton(
-                                text="Перейти в групу вакансії",
-                                url=vacancy.group.invite_link,
-                            )
-                        )
-                        sent = get_bot().send_message(
-                            message.chat.id,
-                            text="✅ Вас допущено до вакансії як Робітник.\nПерейдіть у групу за посиланням нижче:",
-                            reply_markup=markup,
-                        )
-                        vacancy.extra = vacancy.extra or {}
-                        invites = vacancy.extra.get("apply_invite_msg_ids", {})
-                        invites[str(message.from_user.id)] = sent.message_id
-                        vacancy.extra["apply_invite_msg_ids"] = invites
-                        vacancy.save(update_fields=["extra"])
-                    else:
-                        get_bot().send_message(message.chat.id, "Групу вакансії не знайдено.")
-                except Vacancy.DoesNotExist:
-                    get_bot().send_message(message.chat.id, "Вакансію не знайдено або вона вже закрита.")
-                except Exception:
-                    import sentry_sdk
-
-                    sentry_sdk.capture_exception()
+            # Deep link redirect — no message needed.
+            # Celery task handles group invite with retries.
             return True
 
         elif data.get("type") == "info":
