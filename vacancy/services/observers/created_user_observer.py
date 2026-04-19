@@ -16,12 +16,25 @@ class VacancyCreatedUserObserver(Observer):
 
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data["vacancy"]
+        from django.conf import settings
+        from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+        faq_url = f"{settings.BASE_URL}/work/employer/faq/"
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton(
+                text="Як це працює?",
+                web_app=WebAppInfo(url=faq_url),
+            )
+        )
+
         self.notifier.notify(
             recipient=SimpleNamespace(
                 chat_id=vacancy.owner.id,
             ),
             method=NotificationMethod.TEXT,
             text=CallVacancyTelegramTextFormatter.vacancy_created_user(),
+            reply_markup=markup,
         )
 
 
