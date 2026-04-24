@@ -285,11 +285,21 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - **Bot cannot promote/demote itself** — `promote_chat_member` with bot's own ID returns "can't promote self". Admin rights changes for the bot must be done manually by group owner.
 - **chat_member / chat_join_request events can arrive with chat.type="channel"** (linked discussion groups). Handlers `auto_approve` and `handle_user_status_change` in `telegram/handlers/member/user/group.py` MUST check `chat.type == "supergroup"` before any access to the Group model, otherwise channel IDs leak into the Group table. Fix: 09.04.2026.
 
+## VacancyContactPhone (Apr 24 session — DONE)
+- New model `VacancyContactPhone` (vacancy FK, user FK, phone, created_at, unique_together vacancy+user)
+- Replaces direct writes to `User.phone_number` for contact sharing
+- Worker contact phone: saved via `worker_phone.py` → `VacancyContactPhone` (was `User.phone_number`)
+- Employer contact phone: saved via `forms.py` and edit view → `VacancyContactPhone` (+ still written to `Vacancy.contact_phone` for form pre-fill)
+- "Учасники" page shows `VacancyContactPhone.phone` instead of `User.phone_number`
+- All fallbacks to `owner.phone_number` removed from: `callback/call.py`, `vacancy_send_contact`, `call_formatter.py`, `tasks/call.py`
+- `User.phone_number` is now registration-only, never shared with other users
+- `Vacancy.contact_phone` field kept for form pre-fill compatibility; canonical source is `VacancyContactPhone`
+
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом
 3. ЛК Employer — Фаза 2: управление заявками из ЛК — **DONE** (ЖЦВ)
-4. ЛК Worker — доработка: блокировка UI при блокировке, запрос телефона после подтверждения вакансії
+4. ЛК Worker — доработка: блокировка UI при блокировке
 5. Ротация вакансий — **DONE**
 6. Monobank інтеграція — **DONE** (ЖЦВ: vacancy_payment + webhook)
 7. Переклички рабочих — **DONE** (ЖЦВ)
