@@ -4,7 +4,7 @@ import re
 from telegram.choices import CallStatus, CallType
 from telegram.handlers.bot_instance import bot
 from user.models import User
-from vacancy.models import VacancyUserCall
+from vacancy.models import VacancyContactPhone, VacancyUserCall
 
 logger = logging.getLogger(__name__)
 
@@ -30,18 +30,24 @@ def handle_worker_phone(message):
     if not user:
         return
 
-    # Check if user has a pending phone request
-    pending_call = VacancyUserCall.objects.filter(
-        vacancy_user__user=user,
-        call_type=CallType.WORKER_JOIN_CONFIRM.value,
-        status=CallStatus.CONFIRM.value,
-    ).first()
+    # Check if user has a pending phone request (confirmed join)
+    pending_call = (
+        VacancyUserCall.objects.filter(
+            vacancy_user__user=user,
+            call_type=CallType.WORKER_JOIN_CONFIRM.value,
+            status=CallStatus.CONFIRM.value,
+        )
+        .select_related("vacancy_user__vacancy")
+        .first()
+    )
 
     if not pending_call:
         return  # not our message to handle
 
-    if user.phone_number:
-        # Phone already saved — nothing to do
+    vacancy = pending_call.vacancy_user.vacancy
+
+    # Check if contact phone already saved for this vacancy
+    if VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).exists():
         return
 
     phone_text = message.text.strip()
@@ -53,11 +59,14 @@ def handle_worker_phone(message):
         )
         return
 
-    user.phone_number = _normalize_phone(phone_text)
-    user.save(update_fields=["phone_number"])
+    VacancyContactPhone.objects.create(
+        vacancy=vacancy,
+        user=user,
+        phone=_normalize_phone(phone_text),
+    )
 
     bot.send_message(
         chat_id=message.chat.id,
         text="Дякуємо! Ваш номер збережено.",
     )
-    logger.info(f"handle_worker_phone: saved phone for user {user.id}")
+    logger.info(f"handle_worker_phone: saved contact phone for user {user.id}, vacancy {vacancy.id}")

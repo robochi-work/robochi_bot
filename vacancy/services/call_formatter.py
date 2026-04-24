@@ -53,9 +53,17 @@ class CallVacancyTelegramTextFormatter:
             call_type=call_type,
         )
         with override("uk"):
+            from vacancy.models import VacancyContactPhone
+
+            contact_phones = dict(
+                VacancyContactPhone.objects.filter(
+                    vacancy=self.vacancy,
+                    user_id__in=[uc.vacancy_user.user_id for uc in users_call],
+                ).values_list("user_id", "phone")
+            )
             user_lines = "\n".join(
                 [
-                    f"{uc.vacancy_user.user.phone_number} - "
+                    f"{contact_phones.get(uc.vacancy_user.user_id, '—')} - "
                     f"<a href='{settings.BASE_URL.rstrip('/') + get_admin_url(uc.vacancy_user.user)}'>"
                     f"{uc.vacancy_user.user.full_name or uc.vacancy_user.user.id}</a>"
                     for uc in users_call
@@ -112,6 +120,12 @@ class CallVacancyTelegramTextFormatter:
         with override("uk"):
             return "Вашу вакансію схвалено та опубліковано для пошуку робітників.\nПерейдіть до керування вакансієй- ви зможете спілкуватися з робітниками у групі, контролювати та редагувати вакансію."
 
+    def _get_owner_contact_phone(self) -> str | None:
+        from vacancy.models import VacancyContactPhone
+
+        cp = VacancyContactPhone.objects.filter(vacancy=self.vacancy, user=self.vacancy.owner).first()
+        return cp.phone if cp else None
+
     def vacancy_closed_admin(self) -> str:
         owner = self.vacancy.owner
         with override("uk"):
@@ -119,7 +133,7 @@ class CallVacancyTelegramTextFormatter:
                 f"🔒 Вакансію закрито\n"
                 f"Адреса: {self.vacancy.address}\n"
                 f"Замовник: {owner.full_name or str(owner.id)}\n"
-                f"Телефон: {getattr(owner, 'phone_number', None) or '—'}"
+                f"Телефон: {self._get_owner_contact_phone() or '—'}"
             )
 
     def vacancy_payment_no_exist_admin(self) -> str:

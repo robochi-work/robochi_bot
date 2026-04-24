@@ -336,6 +336,16 @@ class VacancyForm(forms.Form):
             "vacancy_created",
             extra={"owner_id": owner.id, "city": str(selected_city), "people_count": data.get("people_count")},
         )
+        # Save employer contact phone to VacancyContactPhone
+        employer_phone = data.get("contact_phone", "")
+        if employer_phone:
+            from vacancy.models import VacancyContactPhone
+
+            VacancyContactPhone.objects.update_or_create(
+                vacancy=vacancy,
+                user=owner,
+                defaults={"phone": employer_phone},
+            )
         return vacancy
 
 

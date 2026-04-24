@@ -107,7 +107,13 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     start_dt = timezone.make_aware(start_dt)
                 time_until_start = start_dt - timezone.now()
                 if time_until_start <= datetime.timedelta(hours=2):
-                    phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+                    try:
+                        from vacancy.models import VacancyContactPhone
+
+                        phone_obj = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
+                        phone = phone_obj.phone if phone_obj else None
+                    except Exception:
+                        phone = None
                     if phone:
                         bot.send_message(
                             chat_id=callback.message.chat.id,
@@ -184,7 +190,13 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     text=_("Answer saved"),
                 )
                 # Контакт замовника після підтвердження переклички за 2 години
-                phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+                try:
+                    from vacancy.models import VacancyContactPhone
+
+                    phone_obj = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
+                    phone = phone_obj.phone if phone_obj else None
+                except Exception:
+                    phone = None
                 if phone:
                     bot.send_message(
                         chat_id=callback.message.chat.id,

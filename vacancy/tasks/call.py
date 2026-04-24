@@ -24,6 +24,13 @@ Minutes = int
 logger = logging.getLogger(__name__)
 
 
+def _get_owner_contact_phone(vacancy) -> str | None:
+    from vacancy.models import VacancyContactPhone
+
+    cp = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
+    return cp.phone if cp else None
+
+
 def _send_rollcall_reminder(vacancy: Vacancy, call_type: CallType) -> None:
     """Send rollcall reminder to vacancy owner."""
     from telegram.handlers.bot_instance import bot
@@ -49,7 +56,7 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
         f"⚠️ Немає підтвердження {call_label}\n"
         f"Вакансія: {vacancy.address}\n"
         f"Заказчик: {owner.full_name or str(owner.id)}\n"
-        f"Телефон: {getattr(owner, 'phone_number', None) or '—'}"
+        f"Телефон: {_get_owner_contact_phone(vacancy) or '—'}"
     )
     try:
         broadcast = TelegramBroadcastService(notifier=telegram_notifier)

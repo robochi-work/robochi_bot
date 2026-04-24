@@ -301,7 +301,10 @@ def vacancy_user_list(request: WSGIRequest, pk: int) -> HttpResponse:
 
     work_profile = getattr(request.user, "work_profile", None)
     user_role = work_profile.role if work_profile else None
-    contact_phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+    from vacancy.models import VacancyContactPhone
+
+    _cp = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
+    contact_phone = _cp.phone if _cp else vacancy.contact_phone
 
     return render(
         request,
@@ -583,6 +586,16 @@ def vacancy_resume_search(request, pk):
             vacancy.payment_method = data["payment_method"]
             vacancy.skills = data["skills"]
             vacancy.contact_phone = data.get("contact_phone", "")
+            # Update VacancyContactPhone for employer
+            _edit_phone = data.get("contact_phone", "")
+            if _edit_phone:
+                from vacancy.models import VacancyContactPhone
+
+                VacancyContactPhone.objects.update_or_create(
+                    vacancy=vacancy,
+                    user=request.user,
+                    defaults={"phone": _edit_phone},
+                )
             vacancy.status = STATUS_PENDING
             vacancy.search_active = False
             vacancy.search_stopped_at = None  # reset stop timer
@@ -759,6 +772,10 @@ def vacancy_members(request, pk):
     all_users = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
 
     from user.services import BlockService
+    from vacancy.models import VacancyContactPhone
+
+    # Build contact phone lookup for this vacancy
+    contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
 
     members_list = []
     for vu in all_users:
@@ -772,6 +789,7 @@ def vacancy_members(request, pk):
                 "is_member": vu.status == "member",
                 "is_blocked": is_user_blocked,
                 "feedbacks_count": feedbacks,
+                "contact_phone": contact_phones.get(vu.user_id, ""),
             }
         )
 
@@ -797,7 +815,11 @@ def vacancy_send_contact(request: WSGIRequest, pk: int) -> JsonResponse:
         return JsonResponse({"ok": False, "error": "Only workers can request contacts"}, status=403)
 
     vacancy = get_object_or_404(Vacancy, pk=pk)
-    phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+
+    from vacancy.models import VacancyContactPhone
+
+    contact = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
+    phone = contact.phone if contact else None
     if not phone:
         return JsonResponse({"ok": False, "error": "Телефон замовника не вказано"})
 

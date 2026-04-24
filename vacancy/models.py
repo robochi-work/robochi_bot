@@ -139,3 +139,20 @@ class VacancyStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.new_status} at {self.changed_at}"
+
+
+class VacancyContactPhone(models.Model):
+    vacancy = models.ForeignKey(
+        "Vacancy", on_delete=models.CASCADE, related_name="contact_phones", verbose_name=_("Vacancy")
+    )
+    user = models.ForeignKey("user.User", on_delete=models.CASCADE, verbose_name=_("User"))
+    phone = models.CharField(max_length=20, verbose_name=_("Contact phone"))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
+
+    class Meta:
+        verbose_name = _("Контактний телефон")
+        verbose_name_plural = _("Контактні телефони")
+        unique_together = ("vacancy", "user")
+
+    def __str__(self):
+        return f"{self.user} → {self.vacancy}: {self.phone}"
