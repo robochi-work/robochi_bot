@@ -16,8 +16,7 @@ from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 logger = logging.getLogger(__name__)
 
 
-def _encode_apply_payload(vacancy_id: int) -> str:
-    data = {"type": "apply", "vacancy_id": vacancy_id}
+def _encode_start_payload(data: dict) -> str:
     json_str = json.dumps(data, separators=(",", ":"))
     return base64.urlsafe_b64encode(json_str.encode()).decode().rstrip("=")
 
@@ -87,7 +86,7 @@ def handle_apply_vacancy(call: CallbackQuery):
 
         # 7. Owner вакансии — автоперехід в бот через deep link
         if vacancy.owner == user:
-            payload = _encode_apply_payload(vacancy_id)
+            payload = _encode_start_payload({"type": "apply", "vacancy_id": vacancy_id})
             deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
             try:
                 bot.answer_callback_query(call.id, url=deep_link)
@@ -118,6 +117,15 @@ def handle_apply_vacancy(call: CallbackQuery):
             )
             return
 
+        # 9b. Уже в ЭТОЙ вакансии — redirect to cabinet
+        if VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.MEMBER).exists():
+            payload = _encode_start_payload({"type": "already_in_vacancy", "vacancy_id": vacancy_id})
+            deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
+            try:
+                bot.answer_callback_query(call.id, url=deep_link)
+            except Exception:
+                bot.answer_callback_query(call.id, text="Перейдіть у бота для продовження.", show_alert=True)
+            return
         # 10. Группа заполнена
         if vacancy.members.count() >= vacancy.people_count:
             bot.answer_callback_query(
@@ -137,12 +145,12 @@ def handle_apply_vacancy(call: CallbackQuery):
                 return
 
         # Все проверки пройдены — автоперехід в бот через deep link
-        payload = _encode_apply_payload(vacancy_id)
+        payload = _encode_start_payload({"type": "apply", "vacancy_id": vacancy_id})
         deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
         try:
             bot.answer_callback_query(call.id, url=deep_link)
         except Exception:
-            _send_invite(call, vacancy_id, user, role_text="Робітник")
+            bot.answer_callback_query(call.id, text="Перейдіть у бота для продовження.", show_alert=True)
         logger.info("apply_approved", extra={"user_id": user.id, "vacancy_id": vacancy_id})
 
     except Exception:

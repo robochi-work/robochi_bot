@@ -430,7 +430,6 @@ def worker_join_confirm_check_task():
     connection.close()
     from telegram.choices import CallStatus, CallType
     from telegram.handlers.bot_instance import bot
-    from telegram.service.group import GroupService
     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
     KICK_AFTER = 300  # 5 minutes in seconds
@@ -447,15 +446,21 @@ def worker_join_confirm_check_task():
         vacancy = call.vacancy_user.vacancy
 
         if elapsed >= KICK_AFTER:
-            # Kick and deactivate
-            if vacancy.group:
-                try:
-                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
-                except Exception as e:
-                    logger.warning(f"worker_join_confirm: kick failed for user {user.id}: {e}")
+            # Worker is NOT in group yet — mark as LEFT, notify
+            from telegram.models import Status
+            from vacancy.models import VacancyUser
+
+            VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.MEMBER).update(status=Status.LEFT)
             call.status = CallStatus.REJECT.value
             call.save(update_fields=["status"])
-            logger.info(f"worker_join_confirm: kicked user {user.id} (no confirm in 5 min)")
+            try:
+                bot.send_message(
+                    chat_id=user.id,
+                    text="Ви не підтвердили участь у вакансії протягом 5 хвилин. Вашу заявку скасовано.",
+                )
+            except Exception:
+                pass
+            logger.info(f"worker_join_confirm: removed user {user.id} (no confirm in 5 min)")
             continue
 
         # Reminder at minutes 1, 2, 3, 4 — only in first 30s of that minute

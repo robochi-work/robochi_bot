@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 @user_required
 def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dict[str, Any]) -> None:
     data = Storage.call_handler.parse(callback.data)
-    vacancy: Vacancy = Vacancy.objects.get(id=data["vacancy_id"])
+    vacancy: Vacancy = Vacancy.objects.select_related("group", "owner").get(id=data["vacancy_id"])
 
     # --- Renewal employer flow (owner is not a VacancyUser) ---
     if data["call_type"] == CallType.RENEWAL_EMPLOYER.value:
@@ -93,10 +93,23 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     "call_confirmed",
                     extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
                 )
-                bot.send_message(
-                    chat_id=callback.message.chat.id,
-                    text="Напишіть актуальний номер телефону",
-                )
+                # Check if phone already exists for this vacancy
+                from vacancy.models import VacancyContactPhone
+
+                phone_exists = VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).exists()
+
+                if phone_exists:
+                    # Phone already saved — send group invite immediately
+                    from vacancy.services.worker_invite import send_worker_group_invite
+
+                    send_worker_group_invite(user, vacancy)
+                else:
+                    # Ask for phone number
+                    bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text="Напишіть актуальний номер телефону",
+                    )
+
                 # Контакт замовника — тільки якщо до початку роботи <= 2 години
                 import datetime
 
@@ -108,8 +121,6 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                 time_until_start = start_dt - timezone.now()
                 if time_until_start <= datetime.timedelta(hours=2):
                     try:
-                        from vacancy.models import VacancyContactPhone
-
                         phone_obj = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
                         phone = phone_obj.phone if phone_obj else None
                     except Exception:
@@ -124,8 +135,11 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     "call_declined",
                     extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
                 )
-                if vacancy.group:
-                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=user.id)
+                # Worker is NOT in the group yet — just mark as LEFT
+                from telegram.models import Status
+                from vacancy.models import VacancyUser
+
+                VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
                 bot.send_message(
                     chat_id=callback.message.chat.id,
                     text="Ви відмовились від вакансії.",

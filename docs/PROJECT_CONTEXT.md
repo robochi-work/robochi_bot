@@ -295,6 +295,35 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - `User.phone_number` is now registration-only, never shared with other users
 - `Vacancy.contact_phone` field kept for form pre-fill compatibility; canonical source is `VacancyContactPhone`
 
+
+
+## «Я ГОТОВИЙ ПРАЦЮВАТИ» — рефакторинг (Apr 29, 2026)
+
+### Новый флоу (worker)
+1. Рабочий нажимает «Я ГОТОВИЙ ПРАЦЮВАТИ» в канале → deep link в бот → /start
+2. `commands.py:_process_apply_payload()` — создаёт `VacancyUser(MEMBER)` + `VacancyUserCall(WORKER_JOIN_CONFIRM, SENT)` → отправляет confirm-сообщение с кнопками Підтвердити/Відміна. Рабочий **НЕ в группе** на этом этапе.
+3. Підтвердити → `call.py` → проверяет `VacancyContactPhone`: если телефон есть → сразу invite в группу; если нет → запрос телефона
+4. Ввод телефона → `worker_phone.py` → сохраняет в `VacancyContactPhone` (не `User.phone_number`) → `send_worker_group_invite()` → invite в группу
+5. Уже в этой вакансии (confirmed) → сообщение «Перейдіть у Власний кабінет» + кнопка
+6. Employer нажимает → сообщение «Перейдіть у Власний кабінет» (не worker flow)
+7. Таймаут 5 мин без підтвердження → `VacancyUser → LEFT` (без кика из группы, рабочий не был в группе)
+
+### Изменённые файлы
+- `telegram/handlers/callback/apply_vacancy.py` — `_encode_start_payload()`, проверка already_in_vacancy, убран fallback `_send_invite` для рабочего
+- `telegram/handlers/messages/commands.py` — `_process_apply_payload()`, `_send_cabinet_message()`, employer-check
+- `telegram/handlers/callback/call.py` — CONFIRM: проверка VacancyContactPhone → invite или запрос телефона; REJECT: VacancyUser→LEFT без кика
+- `telegram/handlers/messages/worker_phone.py` — сохранение в VacancyContactPhone + `send_worker_group_invite()` + контакт замовника
+- `vacancy/services/worker_invite.py` (новый) — `send_worker_group_invite(user, vacancy)`
+- `telegram/handlers/member/user/group.py` — удалён join-confirm блок (перенесён в commands.py)
+- `vacancy/tasks/call.py` — timeout: VacancyUser→LEFT + уведомление (без GroupService.kick_user)
+
+### Хранение телефонов
+- `User.phone_number` — телефон при регистрации (только для авторизации)
+- `VacancyContactPhone(vacancy, user, phone)` — телефон для конкретной вакансии (рабочий и заказчик)
+- `Vacancy.contact_phone` — телефон заказчика из формы вакансии
+
+### Тесты
+- `tests/test_apply_flow.py` — 6 тестов: create VacancyUser+call, employer→cabinet, already_confirmed→cabinet, group_full, phone→VacancyContactPhone, timeout→LEFT
 ## На горизонте (приоритеты)
 1. AgreementText для employer/worker в admin
 2. ЛК администратора — наполнить функционалом

@@ -4,16 +4,14 @@ import time
 import sentry_sdk
 from telebot.types import ChatJoinRequest, ChatMemberUpdated
 
-from telegram.choices import CallStatus, CallType
 from telegram.handlers.bot_instance import bot
 from telegram.models import Group, Status, UserInGroup
 from telegram.service.group import GroupService
 from user.models import User
 from user.services import BlockService
 from vacancy.choices import GENDER_ANY, STATUS_ACTIVE, STATUS_APPROVED
-from vacancy.models import Vacancy, VacancyUser, VacancyUserCall
+from vacancy.models import Vacancy, VacancyUser
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
-from vacancy.services.call_markup import get_worker_join_confirm_markup
 from vacancy.services.observers import events
 from vacancy.services.observers.subscriber_setup import vacancy_publisher
 
@@ -364,33 +362,6 @@ def handle_user_status_change(event: ChatMemberUpdated):
             vacancy=vacancy,
             status=status,
         )
-
-        vacancy_publisher.notify(events.VACANCY_NEW_MEMBER, data={"vacancy": vacancy})
-
-        # Send join-confirm request to the worker (not owner, not staff)
-        if not vacancy.owner == user and not user.is_staff:
-            vacancy_user = VacancyUser.objects.filter(user=user, vacancy=vacancy).first()
-            if vacancy_user:
-                from django.utils import timezone
-
-                VacancyUserCall.objects.update_or_create(
-                    vacancy_user=vacancy_user,
-                    call_type=CallType.WORKER_JOIN_CONFIRM.value,
-                    defaults={
-                        "status": CallStatus.SENT.value,
-                        "created_at": timezone.now(),
-                    },
-                )
-                try:
-                    bot.send_message(
-                        chat_id=user.id,
-                        text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
-                        reply_markup=get_worker_join_confirm_markup(vacancy),
-                    )
-                except Exception as e:
-                    import logging
-
-                    logging.warning(f"Failed to send join-confirm to user {user.id}: {e}")
     else:
         logger.info("member_left_group", extra={"user_id": user_data.id, "group_id": event.chat.id})
         UserInGroup.objects.filter(user=user, group=group).delete()
