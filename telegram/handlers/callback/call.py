@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import sentry_sdk
+import telebot
 from django.core.exceptions import ObjectDoesNotExist
 from django.urls import reverse
 from django.utils.translation import gettext as _
@@ -93,18 +94,34 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     "call_confirmed",
                     extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
                 )
-                # Check if phone already exists for this vacancy
+                # Phone confirmation flow
                 from vacancy.models import VacancyContactPhone
 
                 phone_exists = VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).exists()
 
                 if phone_exists:
-                    # Phone already saved — send group invite immediately
+                    # Phone already saved for this vacancy — send group invite
                     from vacancy.services.worker_invite import send_worker_group_invite
 
                     send_worker_group_invite(user, vacancy)
+                elif user.contact_phone:
+                    # User has saved contact phone — ask to confirm or change
+                    import json as _json
+
+                    confirm_data = _json.dumps({"t": "phone_confirm", "v": vacancy.id, "s": "confirm"})
+                    change_data = _json.dumps({"t": "phone_confirm", "v": vacancy.id, "s": "change"})
+                    markup = telebot.types.InlineKeyboardMarkup()
+                    markup.row(
+                        telebot.types.InlineKeyboardButton("Підтвердити", callback_data=confirm_data),
+                        telebot.types.InlineKeyboardButton("Змінити", callback_data=change_data),
+                    )
+                    bot.send_message(
+                        chat_id=callback.message.chat.id,
+                        text=f"Ваш контактний номер: {user.contact_phone}",
+                        reply_markup=markup,
+                    )
                 else:
-                    # Ask for phone number
+                    # No contact phone at all — ask to enter
                     bot.send_message(
                         chat_id=callback.message.chat.id,
                         text="Напишіть актуальний номер телефону",

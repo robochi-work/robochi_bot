@@ -8,7 +8,6 @@ from vacancy.models import VacancyContactPhone, VacancyUserCall
 
 logger = logging.getLogger(__name__)
 
-# Ukrainian phone number patterns
 _PHONE_RE = re.compile(r"^(\+380\d{9}|380\d{9}|0\d{9})$")
 
 
@@ -25,12 +24,11 @@ def _is_valid_phone(text: str) -> bool:
     content_types=["text"],
 )
 def handle_worker_phone(message):
-    """Captures phone number from worker after they confirmed their vacancy participation."""
+    """Captures NEW phone number from worker who chose 'Змінити' or has no contact_phone yet."""
     user = User.objects.filter(id=message.from_user.id).first()
     if not user:
         return
 
-    # Check if user has a pending phone request (confirmed join)
     pending_call = (
         VacancyUserCall.objects.filter(
             vacancy_user__user=user,
@@ -42,11 +40,11 @@ def handle_worker_phone(message):
     )
 
     if not pending_call:
-        return  # not our message to handle
+        return
 
     vacancy = pending_call.vacancy_user.vacancy
 
-    # Check if contact phone already saved for this vacancy
+    # If contact phone already saved for this vacancy — not our message
     if VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).exists():
         return
 
@@ -59,11 +57,19 @@ def handle_worker_phone(message):
         )
         return
 
+    normalized = _normalize_phone(phone_text)
+
+    # Save to VacancyContactPhone (for this vacancy)
     VacancyContactPhone.objects.create(
         vacancy=vacancy,
         user=user,
-        phone=_normalize_phone(phone_text),
+        phone=normalized,
     )
+
+    # Persist to User.contact_phone (for future vacancies)
+    if user.contact_phone != normalized:
+        user.contact_phone = normalized
+        user.save(update_fields=["contact_phone"])
 
     bot.send_message(
         chat_id=message.chat.id,
@@ -86,7 +92,11 @@ def handle_worker_phone(message):
         start_dt = timezone.make_aware(start_dt)
     time_until_start = start_dt - timezone.now()
     if time_until_start <= datetime.timedelta(hours=2):
-        phone = vacancy.contact_phone or getattr(vacancy.owner, "phone_number", None)
+        try:
+            cp = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
+            phone = cp.phone if cp else None
+        except Exception:
+            phone = None
         if phone:
             bot.send_message(
                 chat_id=message.chat.id,

@@ -80,7 +80,7 @@ def vacancy_create(request):
                 "payment_unit": last_vacancy.payment_unit,
                 "payment_method": last_vacancy.payment_method,
                 "skills": last_vacancy.skills,
-                "contact_phone": last_vacancy.contact_phone,
+                "contact_phone": request.user.contact_phone or last_vacancy.contact_phone,
             }
         # Auto-set start_time to now+1h (rounded to 15min) for today
         import datetime as d

@@ -346,6 +346,10 @@ class VacancyForm(forms.Form):
                 user=owner,
                 defaults={"phone": employer_phone},
             )
+            # Persist to user profile for future vacancies
+            if owner.contact_phone != employer_phone:
+                owner.contact_phone = employer_phone
+                owner.save(update_fields=["contact_phone"])
         return vacancy
 
 
