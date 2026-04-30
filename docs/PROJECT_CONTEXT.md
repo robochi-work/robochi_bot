@@ -1270,3 +1270,35 @@ Admin bypass в `chat_member_handler` — не створює VacancyUser, те�
 - `telegram/handlers/messages/commands.py` — encode_start_param + обробка type="apply"
 - `user/choices.py` — BlockReason.EMPLOYER_NO_GROUP
 - `user/services.py` — auto_block_employer_no_group()
+
+## Session 2026-04-30
+
+### Worker «Моя робота» page
+- New view `worker_my_work` in `work/views/worker.py` + template `work/templates/work/worker_my_work.html`
+- URL: `/work/my-work/` (name: `work:worker_my_work`)
+- Shows vacancy detail + buttons: Група моєї роботи, Залишити відгук
+- Employer contact phone shown only when <= 2h before start_time
+- Vacancy shown ONLY when worker is in Telegram group (UserInGroup check)
+- Worker dashboard button leads to this page instead of direct group link
+- Renamed: Мої вакансії -> Загальна стрічка вакансій
+
+### Phone flow fixes
+- Змінити in phone_confirm: deletes old VacancyContactPhone before accepting new number
+- worker_phone handler: iterates CONFIRM calls by created_at DESC, picks vacancy without saved CP
+- Employer contact phone removed from bot messages, shown only in worker LK
+
+### before_start_call fix
+- Skips workers who joined < 2h before start (start_aware - join_confirm.created_at < 7200)
+- Uses .value for enum comparisons in ORM filters
+- VacancyUserCall.update_or_create: call_type moved to lookup key
+
+### Group join and limits
+- VACANCY_NEW_MEMBER notify added in group.py -> triggers VacancyIsFullObserver
+- people_count check removed from apply_vacancy and commands (controlled by channel button)
+- Group full check uses UserInGroup count instead of VacancyUser
+- Invite message deleted from bot on group join and kick
+
+### Timeout and rejection flow
+- confirm message_id saved in vacancy.extra for deletion on 5min timeout
+- Cabinet link message sent after timeout and rejection
+- VacancyContactPhone cleaned up on rejection and timeout for fresh re-apply
