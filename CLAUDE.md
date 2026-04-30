@@ -131,3 +131,16 @@ vacancy_payment.html             — Payment page
 - Nginx serves `/media/` → `/home/webuser/robochi_bot/media/`
 - Images uploaded to `media/faq/`
 - Video: YouTube URL only (no file upload) — embed iframe in template
+
+## Contact Phone System (Apr 29, 2026)
+
+Two phone fields per user:
+- `User.phone_number` — registration (from Telegram), permanent, NEVER shared with other users
+- `User.contact_phone` — contact phone for work, persistent, editable, shared via `VacancyContactPhone`
+
+`VacancyContactPhone(vacancy, user, phone)` — per-vacancy snapshot, cascade-deleted with vacancy.
+
+Employer: `User.contact_phone` pre-fills vacancy form → on save writes to `VacancyContactPhone` + updates `User.contact_phone`.
+Worker: after join confirm → bot shows saved phone with Підтвердити/Змінити buttons → on confirm/change writes to `VacancyContactPhone` + `User.contact_phone`.
+
+Key handler: `telegram/handlers/callback/phone_confirm.py` — handles Підтвердити/Змінити callbacks.

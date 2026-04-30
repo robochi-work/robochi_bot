@@ -285,15 +285,38 @@ AuthIdentity модель (user/models.py) — связывает User с про
 - **Bot cannot promote/demote itself** — `promote_chat_member` with bot's own ID returns "can't promote self". Admin rights changes for the bot must be done manually by group owner.
 - **chat_member / chat_join_request events can arrive with chat.type="channel"** (linked discussion groups). Handlers `auto_approve` and `handle_user_status_change` in `telegram/handlers/member/user/group.py` MUST check `chat.type == "supergroup"` before any access to the Group model, otherwise channel IDs leak into the Group table. Fix: 09.04.2026.
 
-## VacancyContactPhone (Apr 24 session — DONE)
-- New model `VacancyContactPhone` (vacancy FK, user FK, phone, created_at, unique_together vacancy+user)
-- Replaces direct writes to `User.phone_number` for contact sharing
-- Worker contact phone: saved via `worker_phone.py` → `VacancyContactPhone` (was `User.phone_number`)
-- Employer contact phone: saved via `forms.py` and edit view → `VacancyContactPhone` (+ still written to `Vacancy.contact_phone` for form pre-fill)
-- "Учасники" page shows `VacancyContactPhone.phone` instead of `User.phone_number`
-- All fallbacks to `owner.phone_number` removed from: `callback/call.py`, `vacancy_send_contact`, `call_formatter.py`, `tasks/call.py`
-- `User.phone_number` is now registration-only, never shared with other users
-- `Vacancy.contact_phone` field kept for form pre-fill compatibility; canonical source is `VacancyContactPhone`
+## Contact Phone System (Apr 24+29 sessions — DONE)
+
+**Two phones per user:**
+- `User.phone_number` — registration phone (from Telegram contact), permanent, never shared
+- `User.contact_phone` — contact phone for work interactions, persistent, updated on each change
+
+**Per-vacancy snapshot:**
+- `VacancyContactPhone(vacancy, user, phone)` — copy of contact phone at time of vacancy participation
+- Created when: employer saves vacancy form; worker confirms phone in bot
+- Cascade-deleted with vacancy (ЖЦВ cleanup)
+
+**Employer flow:**
+- `User.contact_phone` auto-fills vacancy form field "Телефон для зв'язку"
+- On save/edit: writes to `VacancyContactPhone` + updates `User.contact_phone`
+- `Vacancy.contact_phone` still written for backward compat
+
+**Worker flow:**
+- After "Підтвердити" join: bot shows saved `User.contact_phone` with buttons "Підтвердити" / "Змінити"
+- "Підтвердити" → saves to `VacancyContactPhone`, sends group invite
+- "Змінити" → asks for new number → saves to `VacancyContactPhone` + `User.contact_phone`
+- First time (no contact_phone) → asks to enter number
+
+**Key files:**
+- `user/models.py` — `User.contact_phone` field
+- `vacancy/models.py` — `VacancyContactPhone` model
+- `telegram/handlers/callback/phone_confirm.py` — Підтвердити/Змінити buttons handler
+- `telegram/handlers/messages/worker_phone.py` — text input handler, saves to both models
+- `telegram/handlers/callback/call.py` — WORKER_JOIN_CONFIRM: shows phone or asks for input
+- `vacancy/forms.py` — employer phone save to both models
+- `vacancy/views.py` — pre-fill from `User.contact_phone`, edit save to both models
+
+**All fallbacks to `owner.phone_number` removed.** Registration phone never shared.
 
 
 
