@@ -144,3 +144,5 @@ Employer: `User.contact_phone` pre-fills vacancy form → on save writes to `Vac
 Worker: after join confirm → bot shows saved phone with Підтвердити/Змінити buttons → on confirm/change writes to `VacancyContactPhone` + `User.contact_phone`.
 
 Key handler: `telegram/handlers/callback/phone_confirm.py` — handles Підтвердити/Змінити callbacks.
+
+Admin panel: `User.contact_phone` editable in UserAdmin (Personal info section). Legacy `UserWorkProfile.phone_number` removed from WorkProfileInline (not used in new system).
