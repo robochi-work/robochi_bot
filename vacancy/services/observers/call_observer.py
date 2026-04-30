@@ -1,5 +1,5 @@
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -38,10 +38,22 @@ class VacancyBeforeCallObserver(Observer):
                 call_type=CallType.BEFORE_START,
             ).exists()
             if not user_answer_exists:
+                # Skip if worker joined less than 2h before start (already confirmed recently)
+                join_confirm = VacancyUserCall.objects.filter(
+                    vacancy_user=member,
+                    call_type=CallType.WORKER_JOIN_CONFIRM.value,
+                    status=CallStatus.CONFIRM.value,
+                ).first()
+                if join_confirm:
+                    start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+                    start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+                    joined_less_than_2h = (start_aware - join_confirm.created_at).total_seconds() < 7200
+                    if joined_less_than_2h:
+                        continue
                 VacancyUserCall.objects.update_or_create(
                     vacancy_user=member,
+                    call_type=CallType.BEFORE_START,
                     defaults={
-                        "call_type": CallType.BEFORE_START,
                         "status": CallStatus.SENT,
                     },
                 )

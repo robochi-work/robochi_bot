@@ -18,7 +18,7 @@ from work.views.work_profile import (
     ProfileWizard,
     questionnaire_redirect,
 )
-from work.views.worker import worker_faq, worker_reviews
+from work.views.worker import worker_faq, worker_my_work, worker_reviews
 
 app_name = "work"
 urlpatterns = [
@@ -30,6 +30,7 @@ urlpatterns = [
     # Worker pages
     path("reviews/", worker_reviews, name="worker_reviews"),
     path("faq/", worker_faq, name="worker_faq"),
+    path("my-work/", worker_my_work, name="worker_my_work"),
     # Employer pages
     path("employer/reviews/", employer_reviews, name="employer_reviews"),
     path("employer/faq/", employer_faq, name="employer_faq"),

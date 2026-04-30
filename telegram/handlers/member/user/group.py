@@ -13,7 +13,6 @@ from vacancy.choices import GENDER_ANY, STATUS_ACTIVE, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.observers import events
-from vacancy.services.observers.subscriber_setup import vacancy_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -291,10 +290,13 @@ def handle_user_status_change(event: ChatMemberUpdated):
             decline_reason = "already_in_vacancy"
             decline_message = "Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну."
 
-        # Check: group is full
-        elif vacancy.members.count() >= vacancy.people_count:
+        # Check: group is full (count actual Telegram group members, not VacancyUser)
+        elif (
+            UserInGroup.objects.filter(group=vacancy.group, status=Status.MEMBER).exclude(user=user).count()
+            >= vacancy.people_count
+        ):
             decline_reason = "group_full"
-            decline_message = "На жаль, всі місця за цією вакансією вже зайняті."
+            decline_message = "Упс, схоже ця вакансія вже зайнята! Обирайте інші вакансії у каналі."
 
         # Check: gender filter
         elif vacancy.gender != GENDER_ANY:
@@ -362,10 +364,42 @@ def handle_user_status_change(event: ChatMemberUpdated):
             vacancy=vacancy,
             status=status,
         )
+        # Delete invite message from bot chat
+        try:
+            invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})
+            msg_id = invites.pop(str(user.id), None)
+            if msg_id:
+                bot.delete_message(chat_id=user.id, message_id=msg_id)
+                vacancy.extra["apply_invite_msg_ids"] = invites
+                vacancy.save(update_fields=["extra"])
+        except Exception:
+            pass
+        # Notify that new member joined — triggers VacancyIsFullObserver
+        from vacancy.services.observers.events import VACANCY_NEW_MEMBER
+        from vacancy.services.observers.subscriber_setup import vacancy_publisher
+
+        vacancy.refresh_from_db()
+        vacancy_publisher.notify(VACANCY_NEW_MEMBER, data={"vacancy": vacancy})
     else:
         logger.info("member_left_group", extra={"user_id": user_data.id, "group_id": event.chat.id})
         UserInGroup.objects.filter(user=user, group=group).delete()
         VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
+        # Delete invite message from bot chat
+        try:
+            invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})
+            msg_id = invites.pop(str(user.id), None)
+            if msg_id:
+                bot.delete_message(chat_id=user.id, message_id=msg_id)
+                vacancy.extra["apply_invite_msg_ids"] = invites
+                vacancy.save(update_fields=["extra"])
+        except Exception:
+            pass
+        # Notify that new member joined — triggers VacancyIsFullObserver
+        from vacancy.services.observers.events import VACANCY_NEW_MEMBER
+        from vacancy.services.observers.subscriber_setup import vacancy_publisher
+
+        vacancy.refresh_from_db()
+        vacancy_publisher.notify(VACANCY_NEW_MEMBER, data={"vacancy": vacancy})
         GroupService.kick_user(
             chat_id=event.chat.id,
             user_id=event.new_chat_member.user.id,

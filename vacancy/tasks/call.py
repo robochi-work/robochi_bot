@@ -453,10 +453,42 @@ def worker_join_confirm_check_task():
             VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.MEMBER).update(status=Status.LEFT)
             call.status = CallStatus.REJECT.value
             call.save(update_fields=["status"])
+            # Clean up contact phone so re-apply starts fresh
+            from vacancy.models import VacancyContactPhone
+
+            VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).delete()
+            # Delete confirm message with buttons
+            try:
+                confirm_msgs = vacancy.extra.get("confirm_msg_ids", {}) if vacancy.extra else {}
+                msg_id = confirm_msgs.get(str(user.id))
+                if msg_id:
+                    bot.delete_message(chat_id=user.id, message_id=msg_id)
+                    del confirm_msgs[str(user.id)]
+                    vacancy.extra["confirm_msg_ids"] = confirm_msgs
+                    vacancy.save(update_fields=["extra"])
+            except Exception:
+                pass
             try:
                 bot.send_message(
                     chat_id=user.id,
                     text="Ви не підтвердили участь у вакансії протягом 5 хвилин. Вашу заявку скасовано.",
+                )
+            except Exception:
+                pass
+            # Send cabinet link
+            try:
+                from django.conf import settings
+                from django.urls import reverse
+                from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+                check_url = reverse("telegram:check_web_app")
+                url = settings.BASE_URL.rstrip("/") + check_url + "?next=/"
+                markup = InlineKeyboardMarkup()
+                markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
+                bot.send_message(
+                    chat_id=user.id,
+                    text="Перейдіть у Власний кабінет— тут ви зможете обрати роботу, знайти групу Вашої вакансії та отримати підказки користування сервісом.",
+                    reply_markup=markup,
                 )
             except Exception:
                 pass

@@ -126,27 +126,6 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                         chat_id=callback.message.chat.id,
                         text="Напишіть актуальний номер телефону",
                     )
-
-                # Контакт замовника — тільки якщо до початку роботи <= 2 години
-                import datetime
-
-                from django.utils import timezone
-
-                start_dt = datetime.datetime.combine(vacancy.date, vacancy.start_time)
-                if timezone.is_naive(start_dt):
-                    start_dt = timezone.make_aware(start_dt)
-                time_until_start = start_dt - timezone.now()
-                if time_until_start <= datetime.timedelta(hours=2):
-                    try:
-                        phone_obj = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
-                        phone = phone_obj.phone if phone_obj else None
-                    except Exception:
-                        phone = None
-                    if phone:
-                        bot.send_message(
-                            chat_id=callback.message.chat.id,
-                            text=f"Контактний телефон замовника за вакансією {vacancy.address}: {phone}",
-                        )
             else:  # REJECT
                 logger.info(
                     "call_declined",
@@ -157,10 +136,18 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                 from vacancy.models import VacancyUser
 
                 VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
+                # Clean up contact phone so re-apply starts fresh
+                from vacancy.models import VacancyContactPhone
+
+                VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).delete()
                 bot.send_message(
                     chat_id=callback.message.chat.id,
                     text="Ви відмовились від вакансії.",
                 )
+                # Send cabinet link
+                from telegram.handlers.messages.commands import _send_cabinet_message
+
+                _send_cabinet_message(callback.message)
             return
 
         # --- Renewal worker flow ---

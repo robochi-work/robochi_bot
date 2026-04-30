@@ -46,8 +46,16 @@ def index(request: WSGIRequest):
             .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
             .first()
         )
-        if vacancy_user:
-            current_vacancy = vacancy_user.vacancy
+        if vacancy_user and vacancy_user.vacancy.group:
+            from telegram.models import UserInGroup
+
+            in_group = UserInGroup.objects.filter(
+                user=user,
+                group=vacancy_user.vacancy.group,
+                status=Status.MEMBER,
+            ).exists()
+            if in_group:
+                current_vacancy = vacancy_user.vacancy
 
         # Reviews count
         reviews_count = UserFeedback.objects.filter(user=user).count()

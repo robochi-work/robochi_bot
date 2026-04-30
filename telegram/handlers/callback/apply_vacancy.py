@@ -126,12 +126,6 @@ def handle_apply_vacancy(call: CallbackQuery):
             except Exception:
                 bot.answer_callback_query(call.id, text="Перейдіть у бота для продовження.", show_alert=True)
             return
-        # 10. Группа заполнена
-        if vacancy.members.count() >= vacancy.people_count:
-            bot.answer_callback_query(
-                call.id, show_alert=True, text="На жаль, всі місця за цією вакансією вже зайняті."
-            )
-            return
 
         # 11-12. Пол
         if vacancy.gender != GENDER_ANY:

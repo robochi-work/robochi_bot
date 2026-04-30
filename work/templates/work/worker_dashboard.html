@@ -6,7 +6,6 @@
 {% block body %}
 <div class="employer-layout">
 
-    {# === TOP: Мій рейтинг (fixed) === #}
     <div class="employer-top">
         <a href="{% url 'work:worker_reviews' %}" class="worker-btn worker-btn--compact">
             <span class="worker-btn__icon">⭐</span>
@@ -23,7 +22,6 @@
         </a>
     </div>
 
-    {# === MIDDLE: Main buttons === #}
     <div class="employer-middle">
 
         {% if is_blocked and active_block %}
@@ -38,103 +36,50 @@
 
         <div class="worker-buttons">
 
-            {# 1. Мої вакансії — link to city channel #}
             {% if channel %}
-                {% if active_block and active_block.block_type == 'permanent' %}
-                <a href="#" onclick="return false;" class="worker-btn disabled">
-                    <span class="worker-btn__icon">📋</span>
-                    <span class="worker-btn__text">
-                        <span class="worker-btn__title">Мої вакансії</span>
-                        <span class="worker-btn__sub">{{ channel.title }}</span>
-                    </span>
-                </a>
-                {% else %}
-                <a href="{{ channel.invite_link }}" target="_blank" class="worker-btn">
-                    <span class="worker-btn__icon">📋</span>
-                    <span class="worker-btn__text">
-                        <span class="worker-btn__title">Мої вакансії</span>
-                        <span class="worker-btn__sub">{{ channel.title }}</span>
-                    </span>
-                </a>
-                {% endif %}
-            {% endif %}
-
-            {# 2. Моя робота — link to current vacancy group or modal #}
-            {% if current_vacancy and current_vacancy.group and current_vacancy.group.invite_link %}
-            <a href="{{ current_vacancy.group.invite_link }}" target="_blank" class="worker-btn">
-                <span class="worker-btn__icon">🔨</span>
+            <a href="{% if not is_blocked or active_block.block_type != 'permanent' %}{{ channel.invite_link }}{% endif %}"
+               {% if not is_blocked or active_block.block_type != 'permanent' %}target="_blank"{% endif %}
+               class="worker-btn{% if is_blocked and active_block.block_type == 'permanent' %} disabled{% endif %}"
+               {% if is_blocked and active_block.block_type == 'permanent' %}aria-disabled="true"{% endif %}>
+                <span class="worker-btn__icon">📋</span>
                 <span class="worker-btn__text">
-                    <span class="worker-btn__title">Моя робота</span>
-                    <span class="worker-btn__sub">{{ current_vacancy.address|truncatechars:40 }}</span>
+                    <span class="worker-btn__title">Загальна стрічка вакансій</span>
+                    <span class="worker-btn__sub">{{ channel.title }}</span>
                 </span>
             </a>
+            {% endif %}
+
+            {% if current_vacancy %}
+            <a href="{% url 'work:worker_my_work' %}" class="worker-btn">
             {% else %}
-            <button type="button" class="worker-btn" onclick="showNoVacancyModal()">
+            <a href="#" data-modal="no-vacancy" aria-haspopup="dialog" class="worker-btn">
+            {% endif %}
                 <span class="worker-btn__icon">🔨</span>
                 <span class="worker-btn__text">
                     <span class="worker-btn__title">Моя робота</span>
-                    <span class="worker-btn__sub">Немає активної вакансії</span>
+                    <span class="worker-btn__sub">
+                        {% if current_vacancy %}
+                            {{ current_vacancy.address|truncatechars:40 }}
+                        {% else %}
+                            Немає активної вакансії
+                        {% endif %}
+                    </span>
                 </span>
-            </button>
-            {% endif %}
+            </a>
 
         </div>
     </div>
 
-    {# === BOTTOM: FAQ + Admin help (fixed) === #}
     <div class="employer-bottom">
-        <a href="{% url 'work:worker_faq' %}" class="worker-btn worker-btn--compact">
-            <span class="worker-btn__icon">❓</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Як це працює?</span>
-                <span class="worker-btn__sub">Часті питання</span>
-            </span>
-        </a>
-        <a href="https://t.me/robochi_work_admin" target="_blank" class="worker-btn worker-btn--compact">
-            <span class="worker-btn__icon">🛟</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Допомога адміністратора</span>
-                <span class="worker-btn__sub">Зв'язатися</span>
-            </span>
-        </a>
+        {% include "work/includes/dashboard_bottom.html" with faq_url="work:worker_faq" %}
     </div>
 
 </div>
 
-{# Modal: no active vacancy #}
-<div id="no-vacancy-modal" class="modal-overlay" style="display:none;">
+<div id="no-vacancy" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
     <div class="modal-card">
         <p class="modal-text">Спочатку оберіть вакансію в каналі вашого міста</p>
-        <button type="button" class="btn-primary" onclick="closeNoVacancyModal()">Зрозуміло</button>
+        <button type="button" class="btn-primary" data-modal-close>Зрозуміло</button>
     </div>
 </div>
-
-<script>
-function showNoVacancyModal() {
-    document.getElementById('no-vacancy-modal').style.display = 'flex';
-}
-function closeNoVacancyModal() {
-    document.getElementById('no-vacancy-modal').style.display = 'none';
-}
-document.getElementById('no-vacancy-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeNoVacancyModal();
-});
-</script>
-
-<style>
-.worker-btn.disabled {
-    opacity: 0.45;
-    pointer-events: none;
-}
-.block-alert {
-    border-radius: var(--radius);
-    padding: 12px 16px;
-    margin-bottom: 12px;
-    font-size: 14px;
-    text-align: center;
-    line-height: 1.5;
-}
-.block-alert--permanent { background: var(--error-bg); color: var(--error-text); }
-.block-alert--temporary { background: var(--warning-bg); color: var(--warning-text); }
-</style>
 {% endblock %}

@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--vacancy-detail">
+    <div class="detail-container">
+
+        <div class="detail-header">
+            <a href="{% url 'index' %}" class="page-back-btn">← На головну</a>
+            <h1>Моя робота</h1>
+        </div>
+
+        {% if vacancy %}
+
+        <div class="detail-card">
+            <h2 class="detail-address">📍 {{ vacancy.address }}</h2>
+
+            <div class="detail-grid">
+                <div class="detail-row">
+                    <span class="detail-label">📅 Дата</span>
+                    <span class="detail-value">{{ vacancy.date|date:"d.m.Y" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">⏰ Час</span>
+                    <span class="detail-value">{{ vacancy.start_time|time:"H:i" }} – {{ vacancy.end_time|time:"H:i" }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">👥 Люди</span>
+                    <span class="detail-value">{{ members_count }} / {{ vacancy.people_count }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">💰 Оплата</span>
+                    <span class="detail-value">{{ vacancy.payment_amount }} грн / {{ vacancy.get_payment_unit_display }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">💳 Спосіб</span>
+                    <span class="detail-value">{{ vacancy.get_payment_method_display }}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">👤 Стать</span>
+                    <span class="detail-value">{{ vacancy.get_gender_display }}</span>
+                </div>
+                {% if vacancy.has_passport %}
+                <div class="detail-row">
+                    <span class="detail-label">🪪 Паспорт</span>
+                    <span class="detail-value">Потрібен</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if vacancy.skills %}
+            <div class="detail-skills">
+                <span class="detail-label">📝 Опис роботи</span>
+                <p>{{ vacancy.skills }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if show_contact_phone and contact_phone %}
+        <div class="detail-card worker-contact-card">
+            <span class="detail-label">📞 Контактний номер телефону Замовника</span>
+            <a href="tel:{{ contact_phone }}" class="worker-contact-phone">{{ contact_phone }}</a>
+        </div>
+        {% elif not show_contact_phone and vacancy %}
+        <div class="detail-card worker-contact-card worker-contact-card--hidden">
+            <span class="detail-label">📞 Контактний номер телефону Замовника</span>
+            <span class="worker-contact-hint">Буде доступний за 2 години до початку роботи</span>
+        </div>
+        {% endif %}
+
+        <div class="detail-actions">
+
+            {% if vacancy.group and vacancy.group.invite_link %}
+            <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
+                <span class="worker-btn__icon">💬</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Група моєї роботи</span>
+                    <span class="worker-btn__sub">Перейти в Telegram</span>
+                </span>
+            </a>
+            {% endif %}
+
+            <a href="{% url 'vacancy:user_list' pk=vacancy.pk %}" class="worker-btn">
+                <span class="worker-btn__icon">⭐</span>
+                <span class="worker-btn__text">
+                    <span class="worker-btn__title">Залишити відгук</span>
+                    <span class="worker-btn__sub">Оцінити учасників вакансії</span>
+                </span>
+            </a>
+
+        </div>
+
+        {% else %}
+
+        <div class="vacancy-list-empty">
+            <p>Немає активної вакансії</p>
+            <p style="font-size:14px;opacity:0.7;margin-top:8px;">Оберіть вакансію в каналі вашого міста</p>
+        </div>
+
+        {% endif %}
+
+    </div>
+</main>
+
+<style>
+.worker-contact-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.worker-contact-phone {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    text-decoration: none;
+}
+.worker-contact-card--hidden {
+    opacity: 0.6;
+}
+.worker-contact-hint {
+    font-size: 13px;
+    color: var(--muted-foreground);
+    font-style: italic;
+}
+</style>
+{% endblock %}

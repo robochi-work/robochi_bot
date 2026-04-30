@@ -29,23 +29,24 @@ def handle_worker_phone(message):
     if not user:
         return
 
-    pending_call = (
+    # Find the CONFIRM call where contact phone is NOT yet saved (worker chose "Change" or first time)
+    pending_calls = (
         VacancyUserCall.objects.filter(
             vacancy_user__user=user,
             call_type=CallType.WORKER_JOIN_CONFIRM.value,
             status=CallStatus.CONFIRM.value,
         )
         .select_related("vacancy_user__vacancy")
-        .first()
+        .order_by("-created_at")
     )
 
-    if not pending_call:
-        return
+    vacancy = None
+    for pc in pending_calls:
+        if not VacancyContactPhone.objects.filter(vacancy=pc.vacancy_user.vacancy, user=user).exists():
+            vacancy = pc.vacancy_user.vacancy
+            break
 
-    vacancy = pending_call.vacancy_user.vacancy
-
-    # If contact phone already saved for this vacancy — not our message
-    if VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).exists():
+    if not vacancy:
         return
 
     phone_text = message.text.strip()
@@ -81,24 +82,3 @@ def handle_worker_phone(message):
     from vacancy.services.worker_invite import send_worker_group_invite
 
     send_worker_group_invite(user, vacancy)
-
-    # Send employer contact phone if <= 2h to start
-    import datetime
-
-    from django.utils import timezone
-
-    start_dt = datetime.datetime.combine(vacancy.date, vacancy.start_time)
-    if timezone.is_naive(start_dt):
-        start_dt = timezone.make_aware(start_dt)
-    time_until_start = start_dt - timezone.now()
-    if time_until_start <= datetime.timedelta(hours=2):
-        try:
-            cp = VacancyContactPhone.objects.filter(vacancy=vacancy, user=vacancy.owner).first()
-            phone = cp.phone if cp else None
-        except Exception:
-            phone = None
-        if phone:
-            bot.send_message(
-                chat_id=message.chat.id,
-                text=f"Контактний телефон замовника за вакансією {vacancy.address}: {phone}",
-            )

@@ -195,11 +195,6 @@ def _process_apply_payload(data: dict, message) -> bool:
         )
         return True
 
-    # Check: group full
-    if vacancy.members.count() >= vacancy.people_count:
-        get_bot().send_message(message.chat.id, "На жаль, всі місця за цією вакансією вже зайняті.")
-        return True
-
     # Create VacancyUser (MEMBER status but NOT in Telegram group yet)
     vu, _ = VacancyUser.objects.update_or_create(
         user=user,
@@ -221,11 +216,18 @@ def _process_apply_payload(data: dict, message) -> bool:
 
     # Send confirm message
     try:
-        get_bot().send_message(
+        sent = get_bot().send_message(
             chat_id=message.chat.id,
             text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
             reply_markup=get_worker_join_confirm_markup(vacancy),
         )
+        # Save message_id for deletion on timeout
+        if vacancy.extra is None:
+            vacancy.extra = {}
+        confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
+        confirm_msgs[str(user.id)] = sent.message_id
+        vacancy.extra["confirm_msg_ids"] = confirm_msgs
+        vacancy.save(update_fields=["extra"])
     except Exception as e:
         logger.warning(f"_process_apply_payload: send confirm failed: {e}")
 
