@@ -37,7 +37,6 @@ class UserWorkProfileInline(admin.StackedInline):
     fields = (
         "role",
         "city",
-        "phone_number",
         "agreement_accepted",
         "is_completed",
         "multi_city_enabled",
