@@ -146,12 +146,12 @@ class UserAdmin(BaseUserAdmin):
         "display_block_status",
     )
     list_filter = (RoleFilter, CityFilter, BlockedFilter, "gender", "is_staff", "is_active")
-    search_fields = ("username", "full_name", "phone_number")
+    search_fields = ("username", "full_name", "phone_number", "contact_phone")
     ordering = ("id",)
 
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        (_("Personal info"), {"fields": ("gender", "full_name", "phone_number", "language_code")}),
+        (_("Personal info"), {"fields": ("gender", "full_name", "phone_number", "contact_phone", "language_code")}),
         (_("Permissions"), {"fields": ("is_active", "is_staff", "is_superuser")}),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
