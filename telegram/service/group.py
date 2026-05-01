@@ -175,7 +175,7 @@ class GroupService:
 
     @classmethod
     def reset_group(cls, group: Group) -> None:
-        """Full group reset: delete messages, unpin, demote admins, kick everyone, unban, reset permissions."""
+        """Full group reset: delete messages, kick everyone (except bot & creator), reset permissions."""
         chat_id = group.id
 
         try:
@@ -183,16 +183,16 @@ class GroupService:
         except Exception:
             bot_id = None
 
-        # 1. Get pinned message ID BEFORE unpinning
-        last_msg_id = 0
+        # 1. Get pinned message ID BEFORE unpinning (to know max message range)
+        max_msg_id = 0
         try:
             chat = bot.get_chat(chat_id)
             if chat.pinned_message:
-                last_msg_id = chat.pinned_message.message_id
+                max_msg_id = chat.pinned_message.message_id
         except Exception as e:
             logger.warning(f"reset_group: get_chat failed: {e}")
 
-        # Also check GroupMessage DB for max ID
+        # Also check GroupMessage DB
         from telegram.models import GroupMessage
 
         db_max = (
@@ -202,7 +202,11 @@ class GroupService:
             .first()
         )
         if db_max:
-            last_msg_id = max(last_msg_id, db_max)
+            max_msg_id = max(max_msg_id, db_max)
+
+        # Fallback: if we still don't know max ID, use a reasonable default
+        if max_msg_id == 0:
+            max_msg_id = 500
 
         # 2. Unpin all messages
         try:
@@ -211,31 +215,41 @@ class GroupService:
         except Exception as e:
             logger.warning(f"reset_group: unpin failed: {e}")
 
-        # 3. Delete ALL messages by ID range (one by one — batch fails if any msg is undeletable)
-        if last_msg_id > 0:
-            upper = last_msg_id + 100
-            deleted_count = 0
-            for msg_id in range(2, upper + 1):  # skip ID=1 (group creation service msg)
-                try:
-                    bot.delete_message(chat_id=chat_id, message_id=msg_id)
-                    deleted_count += 1
-                except Exception:
-                    pass
-            logger.info(
-                f"reset_group: deleted {deleted_count} messages (range 2..{upper})",
-                extra={"group_id": chat_id},
-            )
+        # 3. Delete ALL messages one by one (skip ID=1 — undeletable group creation msg)
+        upper = max_msg_id + 100
+        deleted_count = 0
+        for msg_id in range(2, upper + 1):
+            try:
+                bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                deleted_count += 1
+            except Exception:
+                pass
+        logger.info(
+            f"reset_group: deleted {deleted_count} messages (range 2..{upper})",
+            extra={"group_id": chat_id},
+        )
 
-        # 4. Demote admins before kicking (can't kick admins without demoting first)
-        all_uig = UserInGroup.objects.filter(group=group)
-        for uig in all_uig:
-            if uig.user_id == bot_id:
-                continue
-            # Demote: set all admin rights to False
+        # 4. Get ALL admins from Telegram API (not from our DB)
+        creator_id = None
+        telegram_admin_ids = []
+        try:
+            admins = bot.get_chat_administrators(chat_id)
+            for admin in admins:
+                if admin.user.is_bot:
+                    continue
+                if admin.status == "creator":
+                    creator_id = admin.user.id
+                    continue
+                telegram_admin_ids.append(admin.user.id)
+        except Exception as e:
+            logger.warning(f"reset_group: get_chat_administrators failed: {e}")
+
+        # 5. Demote and kick admins (from Telegram API)
+        for uid in telegram_admin_ids:
             try:
                 bot.promote_chat_member(
                     chat_id=chat_id,
-                    user_id=uig.user_id,
+                    user_id=uid,
                     can_promote_members=False,
                     can_edit_messages=False,
                     can_delete_messages=False,
@@ -253,13 +267,29 @@ class GroupService:
                     can_edit_stories=False,
                     can_delete_stories=False,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"reset_group: demote admin {uid} failed: {e}")
+            try:
+                bot.ban_chat_member(
+                    chat_id=chat_id,
+                    user_id=uid,
+                    revoke_messages=False,
+                    until_date=int(time.time()) + 1,
+                )
+            except Exception as e:
+                logger.warning(f"reset_group: ban admin {uid} failed: {e}")
+            try:
+                bot.unban_chat_member(chat_id=chat_id, user_id=uid, only_if_banned=True)
+            except Exception as e:
+                logger.warning(f"reset_group: unban admin {uid} failed: {e}")
 
-        # 5. Kick ALL users (except bot and group creator who can't be removed)
+        # 6. Kick regular users from UserInGroup (workers, employers)
+        all_uig = UserInGroup.objects.filter(group=group)
         for uig in all_uig:
-            if uig.user_id == bot_id:
+            if uig.user_id == bot_id or uig.user_id == creator_id:
                 continue
+            if uig.user_id in telegram_admin_ids:
+                continue  # already handled above
             try:
                 bot.ban_chat_member(
                     chat_id=chat_id,
@@ -268,22 +298,22 @@ class GroupService:
                     until_date=int(time.time()) + 1,
                 )
             except Exception as e:
-                logger.warning(f"reset_group: kick failed user {uig.user_id}: {e}")
+                logger.warning(f"reset_group: kick user {uig.user_id} failed: {e}")
             try:
                 bot.unban_chat_member(chat_id=chat_id, user_id=uig.user_id, only_if_banned=True)
             except Exception:
                 pass
 
-        # 6. Delete ALL UserInGroup records
+        # 7. Delete ALL UserInGroup records
         all_uig.delete()
         logger.info("reset_group: UserInGroup cleaned", extra={"group_id": chat_id})
 
-        # 7. Reset group permissions to restricted defaults
+        # 8. Reset group permissions
         try:
             cls.set_default_permissions(group)
             logger.info("reset_group: permissions reset", extra={"group_id": chat_id})
         except Exception as e:
             logger.warning(f"reset_group: permissions reset failed: {e}")
 
-        # 8. Clean GroupMessage DB records
+        # 9. Clean GroupMessage DB records
         GroupMessage.objects.filter(group=group).delete()
