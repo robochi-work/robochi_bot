@@ -172,3 +172,97 @@ class GroupService:
             )
         except Exception:
             sentry_sdk.capture_exception()
+
+    @classmethod
+    def reset_group(cls, group: Group) -> None:
+        """Full group reset: unpin, delete messages, kick everyone (except bot), unban all, reset permissions."""
+        chat_id = group.id
+
+        # 1. Unpin all messages
+        try:
+            bot.unpin_all_chat_messages(chat_id=chat_id)
+            logger.info("reset_group: unpinned all", extra={"group_id": chat_id})
+        except Exception as e:
+            logger.warning(f"reset_group: unpin failed: {e}")
+
+        # 2. Delete messages by ID range
+        try:
+            chat = bot.get_chat(chat_id)
+            last_msg_id = None
+            if chat.pinned_message:
+                last_msg_id = chat.pinned_message.message_id
+
+            from telegram.models import GroupMessage
+
+            db_max = (
+                GroupMessage.objects.filter(group=group)
+                .order_by("-message_id")
+                .values_list("message_id", flat=True)
+                .first()
+            )
+            if db_max:
+                last_msg_id = max(last_msg_id or 0, db_max)
+
+            if last_msg_id:
+                upper = last_msg_id + 50
+                for batch_start in range(1, upper + 1, 100):
+                    batch_end = min(batch_start + 100, upper + 1)
+                    batch_ids = list(range(batch_start, batch_end))
+                    try:
+                        bot.delete_messages(chat_id=chat_id, message_ids=batch_ids)
+                    except Exception:
+                        pass
+                logger.info(f"reset_group: deleted messages 1..{upper}", extra={"group_id": chat_id})
+        except Exception as e:
+            logger.warning(f"reset_group: message deletion failed: {e}")
+
+        # 3. Kick ALL users (including admins/owner, except the bot itself)
+        try:
+            bot_id = bot.get_me().id
+        except Exception:
+            bot_id = None
+
+        all_users = UserInGroup.objects.filter(group=group)
+        for uig in all_users:
+            if uig.user_id == bot_id:
+                continue
+            try:
+                bot.ban_chat_member(
+                    chat_id=chat_id,
+                    user_id=uig.user_id,
+                    revoke_messages=False,
+                    until_date=int(time.time()) + 1,
+                )
+            except Exception as e:
+                logger.warning(f"reset_group: ban failed user {uig.user_id}: {e}")
+            try:
+                bot.unban_chat_member(chat_id=chat_id, user_id=uig.user_id, only_if_banned=True)
+            except Exception as e:
+                logger.warning(f"reset_group: unban failed user {uig.user_id}: {e}")
+
+        # 4. Unban previously kicked/banned users not in step 3
+        for uid in all_users.filter(status__in=[Status.KICKED, Status.BAN, Status.LEFT]).values_list(
+            "user_id", flat=True
+        ):
+            if uid == bot_id:
+                continue
+            try:
+                bot.unban_chat_member(chat_id=chat_id, user_id=uid, only_if_banned=True)
+            except Exception:
+                pass
+
+        # 5. Delete all UserInGroup records for this group
+        all_users.delete()
+        logger.info("reset_group: UserInGroup cleaned", extra={"group_id": chat_id})
+
+        # 6. Reset group permissions to default
+        try:
+            cls.set_default_permissions(group)
+            logger.info("reset_group: permissions reset", extra={"group_id": chat_id})
+        except Exception as e:
+            logger.warning(f"reset_group: permissions reset failed: {e}")
+
+        # 7. Clean GroupMessage DB records
+        from telegram.models import GroupMessage
+
+        GroupMessage.objects.filter(group=group).delete()

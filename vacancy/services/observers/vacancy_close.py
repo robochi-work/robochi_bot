@@ -85,10 +85,10 @@ class VacancyKickGroupUsersObserver(Observer):
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy = data["vacancy"]
         if vacancy.group:
-            GroupService.kick_all_users(group=vacancy.group)
-            logging.info("kick users")
+            GroupService.reset_group(group=vacancy.group)
+            logging.info("group reset complete")
         else:
-            logging.info("kick users fail - vacancy has no group")
+            logging.info("group reset skip - vacancy has no group")
 
 
 class VacancyGroupFeeStatusObserver(Observer):
