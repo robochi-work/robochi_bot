@@ -3,7 +3,7 @@ import time
 from collections.abc import Iterable
 
 import sentry_sdk
-from django.db.models import QuerySet
+from django.db.models import F, QuerySet
 from telebot.types import ChatPermissions
 
 from telegram.choices import STATUS_AVAILABLE, STATUS_PROCESS, Status
@@ -34,7 +34,7 @@ class GroupService:
                 ),
             )
             .filter(active_users=0)
-            .order_by("last_used_at")
+            .order_by(F("last_used_at").asc(nulls_first=True))
             .first()
         )
 
