@@ -211,17 +211,20 @@ class GroupService:
         except Exception as e:
             logger.warning(f"reset_group: unpin failed: {e}")
 
-        # 3. Delete ALL messages by ID range
+        # 3. Delete ALL messages by ID range (one by one — batch fails if any msg is undeletable)
         if last_msg_id > 0:
             upper = last_msg_id + 100
-            for batch_start in range(1, upper + 1, 100):
-                batch_end = min(batch_start + 100, upper + 1)
-                batch_ids = list(range(batch_start, batch_end))
+            deleted_count = 0
+            for msg_id in range(2, upper + 1):  # skip ID=1 (group creation service msg)
                 try:
-                    bot.delete_messages(chat_id=chat_id, message_ids=batch_ids)
+                    bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                    deleted_count += 1
                 except Exception:
                     pass
-            logger.info(f"reset_group: deleted messages 1..{upper}", extra={"group_id": chat_id})
+            logger.info(
+                f"reset_group: deleted {deleted_count} messages (range 2..{upper})",
+                extra={"group_id": chat_id},
+            )
 
         # 4. Demote admins before kicking (can't kick admins without demoting first)
         all_uig = UserInGroup.objects.filter(group=group)
