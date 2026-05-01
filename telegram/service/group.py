@@ -78,11 +78,11 @@ class GroupService:
             statuses = [Status.MEMBER, Status.OWNER]
 
         users: QuerySet[UserInGroup] = group.user_links.filter(status__in=statuses)
-        for user_in_group in users:
-            cls.kick_user(chat_id=group.id, user_id=user_in_group.user.id)
-            user_in_group.status = Status.KICKED
+        user_ids = list(users.values_list("user_id", flat=True))
+        for uid in user_ids:
+            cls.kick_user(chat_id=group.id, user_id=uid)
 
-        UserInGroup.objects.bulk_update(users, ["status"])
+        group.user_links.filter(user_id__in=user_ids).delete()
 
     @classmethod
     def set_default_permissions(cls, group: Group) -> bool:
