@@ -174,6 +174,14 @@ class GroupService:
             sentry_sdk.capture_exception()
 
     @classmethod
+    def set_member_tag(cls, chat_id: int, user_id: int, tag: str) -> None:
+        try:
+            bot.set_chat_member_tag(chat_id=chat_id, user_id=user_id, tag=tag)
+            logger.info("member_tag_set", extra={"user_id": user_id, "group_id": chat_id, "tag": tag})
+        except Exception as e:
+            logger.warning(f"Failed to set tag for {user_id=} in {chat_id=}: {e}")
+
+    @classmethod
     def reset_group(cls, group: Group) -> None:
         """Full group reset: delete messages, kick everyone (except bot & creator), reset permissions."""
         chat_id = group.id
