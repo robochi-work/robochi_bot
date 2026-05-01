@@ -344,10 +344,14 @@ def handle_user_status_change(event: ChatMemberUpdated):
     if status not in ["kicked", "left"]:
         if status not in Status.values:
             status = Status.MEMBER.value
-            GroupService.set_member_tag(
+            GroupService.set_default_owner_permissions(
                 chat_id=event.chat.id,
                 user_id=event.new_chat_member.user.id,
-                tag="Працівник",
+            )
+            GroupService.set_admin_custom_title(
+                chat_id=event.chat.id,
+                user_id=event.new_chat_member.user.id,
+                custom_title="Працівник",
             )
         if event.new_chat_member.user.id == vacancy.owner.id:
             status = Status.OWNER.value
