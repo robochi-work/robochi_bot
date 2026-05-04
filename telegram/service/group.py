@@ -325,3 +325,21 @@ class GroupService:
 
         # 9. Clean GroupMessage DB records
         GroupMessage.objects.filter(group=group).delete()
+
+        # 10. Detect untracked users (joined outside bot flow)
+        try:
+            telegram_count = bot.get_chat_member_count(chat_id)
+            # Expected: bot + creator (if exists) = 2 max
+            tracked = 1  # bot
+            if creator_id:
+                tracked += 1
+            untracked = telegram_count - tracked
+            if untracked > 0:
+                logger.warning(
+                    f"reset_group: {untracked} untracked users remain in group {chat_id} "
+                    f"(telegram_count={telegram_count}, tracked={tracked}). "
+                    f"They joined outside bot flow and need manual cleanup.",
+                    extra={"group_id": chat_id, "untracked_count": untracked},
+                )
+        except Exception as e:
+            logger.warning(f"reset_group: untracked users check failed: {e}")
