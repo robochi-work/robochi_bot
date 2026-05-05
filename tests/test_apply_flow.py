@@ -325,3 +325,54 @@ class TestPendingConfirmStatus:
 
         vu.refresh_from_db()
         assert vu.status == Status.LEFT.value
+
+    @pytest.mark.django_db
+    def test_pending_confirm_user_skipped_by_before_start_observer(self, worker, vacancy):
+        """
+        Регресія для бага "Через 2 години" — юзер зі статусом PENDING_CONFIRM
+        не потрапляє в vacancy.members і не отримує BEFORE_START call.
+        """
+        from unittest.mock import MagicMock
+
+        from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
+
+        vacancy.start_time = (timezone.now() + datetime.timedelta(hours=1)).time()
+        vacancy.save()
+
+        VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.PENDING_CONFIRM.value)
+
+        notifier = MagicMock()
+        observer = VacancyBeforeCallObserver(notifier=notifier)
+        observer.check_before_start(vacancy)
+
+        assert not VacancyUserCall.objects.filter(
+            vacancy_user__vacancy=vacancy,
+            vacancy_user__user=worker,
+            call_type=CallType.BEFORE_START.value,
+        ).exists(), "BEFORE_START call must NOT be sent to PENDING_CONFIRM user"
+
+        assert vacancy.members.count() == 0, "PENDING_CONFIRM user must not be in vacancy.members"
+
+    @pytest.mark.django_db
+    def test_member_user_gets_before_start_call(self, worker, vacancy):
+        """Контроль: юзер зі статусом MEMBER повинен отримувати BEFORE_START call."""
+        from unittest.mock import MagicMock
+
+        from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
+
+        vacancy.start_time = (timezone.now() + datetime.timedelta(hours=1)).time()
+        vacancy.save()
+
+        VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER.value)
+
+        notifier = MagicMock()
+        observer = VacancyBeforeCallObserver(notifier=notifier)
+        observer.check_before_start(vacancy)
+
+        assert VacancyUserCall.objects.filter(
+            vacancy_user__vacancy=vacancy,
+            vacancy_user__user=worker,
+            call_type=CallType.BEFORE_START.value,
+        ).exists(), "BEFORE_START call must be sent to MEMBER user"
+
+        assert vacancy.members.count() == 1, "MEMBER user must appear in vacancy.members"
