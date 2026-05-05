@@ -195,6 +195,17 @@ def _process_apply_payload(data: dict, message) -> bool:
         )
         return True
 
+    # Check: vacancy is full (early reject before VacancyUser creation)
+    if vacancy.members.count() >= vacancy.people_count:
+        try:
+            get_bot().send_message(
+                chat_id=message.chat.id,
+                text="На жаль, всі місця в цій вакансії вже зайняті.",
+            )
+        except Exception as e:
+            logger.warning(f"_process_apply_payload: send full-msg failed: {e}")
+        return True
+
     # Create VacancyUser (MEMBER status but NOT in Telegram group yet)
     vu, _ = VacancyUser.objects.update_or_create(
         user=user,

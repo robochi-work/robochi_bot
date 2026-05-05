@@ -123,18 +123,28 @@ class TestDashboardRename:
     """Verify dashboards use 'Як це працює?' instead of 'Що робити якщо?'."""
 
     def test_employer_dashboard_renamed(self):
-        path = os.path.join(BASE_DIR, "work", "templates", "work", "employer_dashboard.html")
+        # FAQ button moved to includes/dashboard_bottom.html (refactor)
+        path = os.path.join(BASE_DIR, "work", "templates", "work", "includes", "dashboard_bottom.html")
         with open(path) as f:
             content = f.read()
         assert "Як це працює?" in content
         assert "Що робити якщо?" not in content
+        # And dashboard includes the bottom
+        dash_path = os.path.join(BASE_DIR, "work", "templates", "work", "employer_dashboard.html")
+        with open(dash_path) as f:
+            dash_content = f.read()
+        assert "dashboard_bottom.html" in dash_content
 
     def test_worker_dashboard_renamed(self):
-        path = os.path.join(BASE_DIR, "work", "templates", "work", "worker_dashboard.html")
+        path = os.path.join(BASE_DIR, "work", "templates", "work", "includes", "dashboard_bottom.html")
         with open(path) as f:
             content = f.read()
         assert "Як це працює?" in content
         assert "Що робити якщо?" not in content
+        dash_path = os.path.join(BASE_DIR, "work", "templates", "work", "worker_dashboard.html")
+        with open(dash_path) as f:
+            dash_content = f.read()
+        assert "dashboard_bottom.html" in dash_content
 
 
 class TestFaqViews:

@@ -71,7 +71,8 @@ class TestProcessApplyPayload:
         message.chat.id = worker.id
         data = {"type": "apply", "vacancy_id": vacancy.id}
 
-        with patch("telegram.handlers.messages.commands.get_bot"):
+        with patch("telegram.handlers.messages.commands.get_bot") as gb:
+            gb.return_value.send_message.return_value.message_id = 12345
             result = _process_apply_payload(data, message)
 
         assert result is True
@@ -90,7 +91,8 @@ class TestProcessApplyPayload:
         message.chat.id = employer.id
         data = {"type": "apply", "vacancy_id": vacancy.id}
 
-        with patch("telegram.handlers.messages.commands.get_bot"):
+        with patch("telegram.handlers.messages.commands.get_bot") as gb:
+            gb.return_value.send_message.return_value.message_id = 12345
             result = _process_apply_payload(data, message)
 
         assert result is True
@@ -112,6 +114,7 @@ class TestProcessApplyPayload:
         data = {"type": "apply", "vacancy_id": vacancy.id}
 
         with patch("telegram.handlers.messages.commands.get_bot") as mock_bot:
+            mock_bot.return_value.send_message.return_value.message_id = 12345
             result = _process_apply_payload(data, message)
 
         assert result is True
@@ -133,7 +136,8 @@ class TestProcessApplyPayload:
         message.chat.id = worker.id
         data = {"type": "apply", "vacancy_id": vacancy.id}
 
-        with patch("telegram.handlers.messages.commands.get_bot"):
+        with patch("telegram.handlers.messages.commands.get_bot") as gb:
+            gb.return_value.send_message.return_value.message_id = 12345
             result = _process_apply_payload(data, message)
 
         assert result is True
