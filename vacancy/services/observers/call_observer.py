@@ -83,6 +83,8 @@ class VacancyBeforeCallObserver(Observer):
                 sentry_sdk.capture_exception()
 
             if kick:
+                if BlockService.is_blocked(member.user):
+                    continue
                 GroupService.kick_user(chat_id=member.vacancy.group.id, user_id=member.user.id)
                 BlockService.auto_block_rollcall_reject(user=member.user)
                 try:
@@ -149,6 +151,8 @@ class VacancyStartCallFailObserver(Observer):
                 except Exception:
                     sentry_sdk.capture_exception()
             # Временная блокировка — причина employer_uncheck
+            if BlockService.is_blocked(user):
+                continue
             BlockService.block_user(
                 user=user,
                 block_type=BlockType.TEMPORARY,
@@ -223,6 +227,8 @@ class VacancyAfterStartCallFailObserver(Observer):
                 except Exception:
                     sentry_sdk.capture_exception()
             # Временная блокировка — причина employer_uncheck
+            if BlockService.is_blocked(user):
+                continue
             BlockService.block_user(
                 user=user,
                 block_type=BlockType.TEMPORARY,

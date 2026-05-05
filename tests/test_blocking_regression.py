@@ -164,12 +164,12 @@ def test_unblock_does_not_duplicate_is_active_true(client):
 
     client.force_login(admin)
 
-    with patch.object(BlockService, "unblock_user") as mock_unblock:
+    with patch.object(BlockService, "unblock_user_all") as mock_unblock:
         url = reverse("work:admin_block_user", kwargs={"user_id": target.pk})
         client.post(url, {"action": "unblock", "block_id": str(block.pk)})
 
-    mock_unblock.assert_called_once_with(block.pk)
-    # BlockService.unblock_user was mocked → is_active stays False.
+    mock_unblock.assert_called_once_with(target)
+    # BlockService.unblock_user_all was mocked → is_active stays False.
     # If the view also set it directly, it would be True now.
     target.refresh_from_db()
     assert target.is_active is False, "View must not set is_active=True itself"
@@ -427,4 +427,119 @@ def test_reinvite_worker_unblocks_and_sends_message(client):
     first_positional_arg = mock_send.call_args[0][0] if mock_send.call_args[0] else None
     assert first_positional_arg == worker.id, (
         f"send_message must target worker.id={worker.id}, got {first_positional_arg}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# 12. kick_user syncs VacancyUser status to KICKED in DB
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_kick_user_updates_vacancy_user_status():
+    """GroupService.kick_user must set VacancyUser.status=KICKED after kicking."""
+    from telegram.choices import Status
+    from telegram.models import UserInGroup
+    from telegram.service.group import GroupService
+    from vacancy.models import VacancyUser
+
+    worker = WorkerFactory()
+    group = GroupFactory(status="process")
+    channel = ChannelFactory()
+    vacancy = VacancyFactory(group=group, channel=channel, status="approved")
+
+    VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
+    UserInGroup.objects.get_or_create(user=worker, group=group, defaults={"status": Status.MEMBER})
+
+    with (
+        patch("telegram.service.group.bot.ban_chat_member"),
+        patch("telegram.service.group.bot.unban_chat_member"),
+    ):
+        GroupService.kick_user(chat_id=group.id, user_id=worker.id)
+
+    vu = VacancyUser.objects.get(user=worker, vacancy=vacancy)
+    assert vu.status == Status.KICKED, f"Expected KICKED, got {vu.status}"
+
+
+# ---------------------------------------------------------------------------
+# 13. auto_block_rollcall_reject does not create duplicates
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_auto_block_rollcall_reject_no_duplicates():
+    """Calling auto_block_rollcall_reject twice must produce only one active block."""
+    from user.choices import BlockReason
+    from user.models import UserBlock
+    from user.services import BlockService
+
+    worker = WorkerFactory()
+
+    BlockService.auto_block_rollcall_reject(user=worker)
+    BlockService.auto_block_rollcall_reject(user=worker)
+
+    count = UserBlock.objects.filter(user=worker, is_active=True, reason=BlockReason.ROLLCALL_REJECT).count()
+    assert count == 1, f"Expected 1 active block, got {count}"
+
+
+# ---------------------------------------------------------------------------
+# 14. unblock_user_all removes all active blocks and restores is_active
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_unblock_user_all_removes_all_active_blocks():
+    """unblock_user_all must deactivate all active blocks and restore is_active for permanent."""
+    from user.choices import BlockReason, BlockType
+    from user.models import UserBlock
+    from user.services import BlockService
+
+    worker = WorkerFactory()
+
+    UserBlock.objects.create(user=worker, block_type=BlockType.PERMANENT, reason=BlockReason.MANUAL, is_active=True)
+    UserBlock.objects.create(
+        user=worker, block_type=BlockType.TEMPORARY, reason=BlockReason.ROLLCALL_REJECT, is_active=True
+    )
+    UserBlock.objects.create(user=worker, block_type=BlockType.TEMPORARY, reason=BlockReason.UNPAID, is_active=True)
+    worker.is_active = False
+    worker.save(update_fields=["is_active"])
+
+    removed = BlockService.unblock_user_all(worker)
+
+    assert removed == 3, f"Expected 3 removed, got {removed}"
+    assert UserBlock.objects.filter(user=worker, is_active=True).count() == 0
+    worker.refresh_from_db()
+    assert worker.is_active is True, "is_active must be restored after permanent block removed"
+
+
+# ---------------------------------------------------------------------------
+# 15. Admin unblock button removes ALL active blocks
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_admin_unblock_button_removes_all(client):
+    """POST action=unblock must call unblock_user_all, deactivating all blocks."""
+    from user.choices import BlockReason, BlockType
+    from user.models import UserBlock
+
+    admin = UserFactory(is_staff=True)
+    target = WorkerFactory()
+
+    UserBlock.objects.create(
+        user=target, block_type=BlockType.TEMPORARY, reason=BlockReason.ROLLCALL_REJECT, is_active=True
+    )
+    UserBlock.objects.create(user=target, block_type=BlockType.TEMPORARY, reason=BlockReason.UNPAID, is_active=True)
+    UserBlock.objects.create(
+        user=target, block_type=BlockType.TEMPORARY, reason=BlockReason.EMPLOYER_NO_GROUP, is_active=True
+    )
+
+    client.force_login(admin)
+
+    with patch("telegram.handlers.bot_instance.get_bot"):
+        url = reverse("work:admin_block_user", kwargs={"user_id": target.pk})
+        client.post(url, {"action": "unblock", "block_id": "999"})
+
+    assert UserBlock.objects.filter(user=target, is_active=True).count() == 0, (
+        "All active blocks must be removed after unblock action"
     )

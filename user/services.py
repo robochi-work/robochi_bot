@@ -137,6 +137,9 @@ class BlockService:
 
     @staticmethod
     def auto_block_rollcall_reject(user, blocked_by=None) -> UserBlock:
+        existing = UserBlock.objects.filter(user=user, is_active=True, reason=BlockReason.ROLLCALL_REJECT).first()
+        if existing:
+            return existing
         return BlockService.block_user(
             user=user,
             block_type=BlockType.TEMPORARY,
@@ -146,6 +149,9 @@ class BlockService:
 
     @staticmethod
     def auto_block_employer_unpaid(user) -> UserBlock:
+        existing = UserBlock.objects.filter(user=user, is_active=True, reason=BlockReason.UNPAID).first()
+        if existing:
+            return existing
         return BlockService.block_user(
             user=user,
             block_type=BlockType.TEMPORARY,
@@ -155,12 +161,26 @@ class BlockService:
 
     @staticmethod
     def auto_block_employer_no_group(user) -> UserBlock:
+        existing = UserBlock.objects.filter(user=user, is_active=True, reason=BlockReason.EMPLOYER_NO_GROUP).first()
+        if existing:
+            return existing
         return BlockService.block_user(
             user=user,
             block_type=BlockType.TEMPORARY,
             reason=BlockReason.EMPLOYER_NO_GROUP,
             blocked_until=None,
         )
+
+    @staticmethod
+    def unblock_user_all(user) -> int:
+        qs = UserBlock.objects.filter(user=user, is_active=True)
+        had_permanent = qs.filter(block_type=BlockType.PERMANENT).exists()
+        count = qs.update(is_active=False)
+        if had_permanent:
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+        logger.info("all_blocks_removed", extra={"user_id": user.id, "count": count})
+        return count
 
 
 def find_user_by_phone(*, phone_number: str):

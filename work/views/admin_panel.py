@@ -474,16 +474,14 @@ def admin_block_user(request, user_id):
                     sentry_sdk.capture_exception()
 
         elif action == "unblock":
-            block_id = request.POST.get("block_id")
-            if block_id:
-                BlockService.unblock_user(int(block_id))
-                logger.info("user_unblocked", extra={"admin_id": request.user.id, "target_user_id": target_user.id})
-                try:
-                    from telegram.handlers.bot_instance import get_bot
+            BlockService.unblock_user_all(target_user)
+            logger.info("user_unblocked", extra={"admin_id": request.user.id, "target_user_id": target_user.id})
+            try:
+                from telegram.handlers.bot_instance import get_bot
 
-                    get_bot().send_message(target_user.id, "Вас розблоковано. Ви знову можете користуватися сервісом.")
-                except Exception:
-                    sentry_sdk.capture_exception()
+                get_bot().send_message(target_user.id, "Вас розблоковано. Ви знову можете користуватися сервісом.")
+            except Exception:
+                sentry_sdk.capture_exception()
 
     from django.http import HttpResponseRedirect
 

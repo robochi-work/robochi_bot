@@ -60,6 +60,22 @@ class GroupService:
                 until_date=int(time.time()) + 1,
             )
             logger.info("user_kicked", extra={"user_id": user_id, "group_id": chat_id})
+            try:
+                Group.objects.get(pk=chat_id)
+                UserInGroup.objects.filter(group_id=chat_id, user_id=user_id).update(status=Status.KICKED)
+                from vacancy.models import Vacancy, VacancyUser
+
+                vacancy = Vacancy.objects.filter(group_id=chat_id).first()
+                if vacancy:
+                    VacancyUser.objects.filter(
+                        vacancy=vacancy,
+                        user_id=user_id,
+                        status=Status.MEMBER,
+                    ).update(status=Status.KICKED)
+            except Group.DoesNotExist:
+                pass
+            except Exception as e:
+                logger.warning(f"kick_user: DB sync failed for {user_id=} in {chat_id=}: {e}")
         except Exception as e:
             logger.error("kick_failed", extra={"user_id": user_id, "group_id": chat_id, "error": str(e)})
         finally:

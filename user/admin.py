@@ -17,10 +17,23 @@ class UserBlockInline(admin.TabularInline):
     model = UserBlock
     fk_name = "user"
     extra = 0
+    max_num = 0
+    can_delete = False
     fields = ("block_type", "reason", "blocked_by", "blocked_until", "comment", "is_active", "created_at")
-    readonly_fields = ("created_at",)
+    readonly_fields = ("block_type", "reason", "blocked_by", "blocked_until", "comment", "is_active", "created_at")
     verbose_name = "Блокування"
     verbose_name_plural = "Блокування"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        recent_ids = list(qs.order_by("-created_at").values_list("pk", flat=True)[:20])
+        return qs.filter(pk__in=recent_ids).order_by("-created_at")
 
 
 class AuthIdentityInline(admin.TabularInline):
