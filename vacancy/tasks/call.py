@@ -450,7 +450,9 @@ def worker_join_confirm_check_task():
             from telegram.models import Status
             from vacancy.models import VacancyUser
 
-            VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.MEMBER).update(status=Status.LEFT)
+            VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.PENDING_CONFIRM).update(
+                status=Status.LEFT
+            )
             call.status = CallStatus.REJECT.value
             call.save(update_fields=["status"])
             # Clean up contact phone so re-apply starts fresh

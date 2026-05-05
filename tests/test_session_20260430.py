@@ -57,10 +57,12 @@ class TestWorkerMyWork:
 
 
 @pytest.mark.django_db
-class TestBeforeStartCallSkip:
-    """before_start_call should skip workers who joined < 2h before start."""
+class TestBeforeStartCall:
+    """before_start_call sends BEFORE_START to all members without a prior BEFORE_START call."""
 
-    def test_skip_when_joined_less_than_2h(self, worker_factory, vacancy_factory, group_factory):
+    def test_before_start_created_for_confirmed_member(self, worker_factory, vacancy_factory, group_factory):
+        from unittest.mock import MagicMock
+
         worker = worker_factory()
         group = group_factory()
         now = timezone.now()
@@ -76,7 +78,7 @@ class TestBeforeStartCallSkip:
         vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
         UserInGroup.objects.create(user=worker, group=group, status=Status.MEMBER)
 
-        # Worker confirmed join 30 min ago (< 2h before start)
+        # Worker confirmed join 30 min ago (was < 2h before start — old skip logic is now removed)
         VacancyUserCall.objects.create(
             vacancy_user=vu,
             call_type=CallType.WORKER_JOIN_CONFIRM.value,
@@ -86,11 +88,12 @@ class TestBeforeStartCallSkip:
 
         from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
 
-        observer = VacancyBeforeCallObserver(notifier=None)
+        notifier = MagicMock()
+        observer = VacancyBeforeCallObserver(notifier=notifier)
         observer.check_before_start(vacancy)
 
-        # Should NOT create BEFORE_START call
-        assert not VacancyUserCall.objects.filter(
+        # Dead code removed: BEFORE_START is now always created for members
+        assert VacancyUserCall.objects.filter(
             vacancy_user=vu,
             call_type=CallType.BEFORE_START.value,
         ).exists()

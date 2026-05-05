@@ -77,7 +77,7 @@ class TestProcessApplyPayload:
 
         assert result is True
         vu = VacancyUser.objects.get(user=worker, vacancy=vacancy)
-        assert vu.status == Status.MEMBER.value
+        assert vu.status == Status.PENDING_CONFIRM.value
         call = VacancyUserCall.objects.get(vacancy_user=vu)
         assert call.call_type == CallType.WORKER_JOIN_CONFIRM.value
         assert call.status == CallStatus.SENT.value
@@ -175,7 +175,7 @@ class TestWorkerPhoneFlow:
 class TestJoinConfirmTimeout:
     @pytest.mark.django_db
     def test_timeout_sets_left_no_group_kick(self, worker, vacancy):
-        vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER.value)
+        vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.PENDING_CONFIRM.value)
         VacancyUserCall.objects.create(
             vacancy_user=vu,
             call_type=CallType.WORKER_JOIN_CONFIRM.value,
@@ -194,3 +194,134 @@ class TestJoinConfirmTimeout:
         assert vu.status == Status.LEFT
         call = VacancyUserCall.objects.get(vacancy_user=vu, call_type=CallType.WORKER_JOIN_CONFIRM.value)
         assert call.status == CallStatus.REJECT.value
+
+
+class TestPendingConfirmStatus:
+    @pytest.mark.django_db
+    def test_apply_creates_pending_confirm_status(self, worker, vacancy):
+        from telegram.handlers.messages.commands import _process_apply_payload
+
+        message = MagicMock()
+        message.from_user.id = worker.id
+        message.chat.id = worker.id
+
+        with patch("telegram.handlers.messages.commands.get_bot") as gb:
+            gb.return_value.send_message.return_value.message_id = 12345
+            result = _process_apply_payload({"type": "apply", "vacancy_id": vacancy.id}, message)
+
+        assert result is True
+        vu = VacancyUser.objects.get(user=worker, vacancy=vacancy)
+        assert vu.status == Status.PENDING_CONFIRM.value
+
+    @pytest.mark.django_db
+    def test_confirm_button_promotes_to_member(self, worker, vacancy):
+        from telegram.handlers.callback.call import confirm_before_start_call
+        from telegram.handlers.common import CallbackStorage as Storage
+
+        vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.PENDING_CONFIRM.value)
+        VacancyUserCall.objects.create(
+            vacancy_user=vu,
+            call_type=CallType.WORKER_JOIN_CONFIRM.value,
+            status=CallStatus.SENT.value,
+        )
+
+        callback_data = Storage.call_handler.new(
+            call_type=CallType.WORKER_JOIN_CONFIRM.value,
+            status=CallStatus.CONFIRM.value,
+            vacancy_id=str(vacancy.id),
+        )
+        callback = MagicMock()
+        callback.data = callback_data
+        callback.from_user.id = worker.id
+        callback.message.chat.id = worker.id
+        callback.message.message_id = 999
+
+        with patch("telegram.handlers.callback.call.bot"):
+            confirm_before_start_call(callback, user=worker)
+
+        vu.refresh_from_db()
+        assert vu.status == Status.MEMBER.value
+
+    @pytest.mark.django_db
+    def test_pending_confirm_blocks_apply_to_other_vacancy(self, worker, vacancy, employer):
+        from telegram.handlers.messages.commands import _process_apply_payload
+        from telegram.models import Group
+
+        group2 = Group.objects.create(id=-1002, title="Test Group 2", invite_link="https://t.me/+testlink2")
+        vacancy_b = Vacancy.objects.create(
+            owner=employer,
+            gender="A",
+            people_count=5,
+            has_passport=False,
+            address="Test Address B",
+            date=vacancy.date,
+            start_time=vacancy.start_time,
+            end_time=vacancy.end_time,
+            payment_amount=500,
+            skills="Test",
+            status=STATUS_APPROVED,
+            group=group2,
+        )
+
+        message = MagicMock()
+        message.from_user.id = worker.id
+        message.chat.id = worker.id
+
+        with patch("telegram.handlers.messages.commands.get_bot") as gb:
+            gb.return_value.send_message.return_value.message_id = 12345
+            _process_apply_payload({"type": "apply", "vacancy_id": vacancy.id}, message)
+
+        assert VacancyUser.objects.filter(user=worker, vacancy=vacancy, status=Status.PENDING_CONFIRM.value).exists()
+
+        mock_bot = MagicMock()
+        with patch("telegram.handlers.messages.commands.get_bot", return_value=mock_bot):
+            _process_apply_payload({"type": "apply", "vacancy_id": vacancy_b.id}, message)
+
+        sent_text = str(mock_bot.send_message.call_args)
+        assert "вже берете участь" in sent_text
+        assert not VacancyUser.objects.filter(user=worker, vacancy=vacancy_b).exists()
+
+    @pytest.mark.django_db
+    def test_pending_confirm_counts_in_full_check(self, worker, vacancy):
+        from telegram.handlers.messages.commands import _process_apply_payload
+
+        vacancy.people_count = 2
+        vacancy.save()
+
+        user1 = User.objects.create(id=3001, username="worker_pc1", phone_number="+380991112234")
+        user2 = User.objects.create(id=3002, username="worker_pc2", phone_number="+380991112235")
+        VacancyUser.objects.create(user=user1, vacancy=vacancy, status=Status.PENDING_CONFIRM.value)
+        VacancyUser.objects.create(user=user2, vacancy=vacancy, status=Status.PENDING_CONFIRM.value)
+
+        message = MagicMock()
+        message.from_user.id = worker.id
+        message.chat.id = worker.id
+
+        mock_bot = MagicMock()
+        with patch("telegram.handlers.messages.commands.get_bot", return_value=mock_bot):
+            result = _process_apply_payload({"type": "apply", "vacancy_id": vacancy.id}, message)
+
+        assert result is True
+        sent_text = str(mock_bot.send_message.call_args)
+        assert "всі місця" in sent_text
+        assert not VacancyUser.objects.filter(user=worker, vacancy=vacancy).exists()
+
+    @pytest.mark.django_db
+    def test_timeout_kicks_pending_confirm(self, worker, vacancy):
+        vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.PENDING_CONFIRM.value)
+        VacancyUserCall.objects.create(
+            vacancy_user=vu,
+            call_type=CallType.WORKER_JOIN_CONFIRM.value,
+            status=CallStatus.SENT.value,
+            created_at=timezone.now() - datetime.timedelta(minutes=6),
+        )
+
+        with patch("telegram.handlers.bot_instance.bot") as mock_bot:
+            with patch("telegram.handlers.bot_instance.get_bot", return_value=mock_bot):
+                with patch("vacancy.tasks.call.connection"):
+                    from vacancy.tasks.call import worker_join_confirm_check_task
+
+                    worker_join_confirm_check_task()
+
+        vu.refresh_from_db()
+        assert vu.status == Status.LEFT.value

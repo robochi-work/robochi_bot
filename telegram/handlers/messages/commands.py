@@ -150,7 +150,9 @@ def _process_apply_payload(data: dict, message) -> bool:
         return True
 
     # Already has VacancyUser for THIS vacancy — re-send confirm or redirect
-    existing_vu = VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.MEMBER).first()
+    existing_vu = VacancyUser.objects.filter(
+        user=user, vacancy=vacancy, status__in=[Status.MEMBER, Status.PENDING_CONFIRM]
+    ).first()
     if existing_vu:
         # Check if already confirmed (has CONFIRM call)
         confirmed = VacancyUserCall.objects.filter(
@@ -183,7 +185,7 @@ def _process_apply_payload(data: dict, message) -> bool:
     if (
         VacancyUser.objects.filter(
             user=user,
-            status=Status.MEMBER,
+            status__in=[Status.MEMBER, Status.PENDING_CONFIRM],
             vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
         )
         .exclude(vacancy=vacancy)
@@ -195,8 +197,12 @@ def _process_apply_payload(data: dict, message) -> bool:
         )
         return True
 
-    # Check: vacancy is full (early reject before VacancyUser creation)
-    if vacancy.members.count() >= vacancy.people_count:
+    # Check: vacancy is full (MEMBER + PENDING_CONFIRM both count)
+    occupied = VacancyUser.objects.filter(
+        vacancy=vacancy,
+        status__in=[Status.MEMBER, Status.PENDING_CONFIRM],
+    ).count()
+    if occupied >= vacancy.people_count:
         try:
             get_bot().send_message(
                 chat_id=message.chat.id,
@@ -206,11 +212,11 @@ def _process_apply_payload(data: dict, message) -> bool:
             logger.warning(f"_process_apply_payload: send full-msg failed: {e}")
         return True
 
-    # Create VacancyUser (MEMBER status but NOT in Telegram group yet)
+    # Create VacancyUser — awaiting confirmation before Telegram group entry
     vu, _ = VacancyUser.objects.update_or_create(
         user=user,
         vacancy=vacancy,
-        defaults={"status": Status.MEMBER.value},
+        defaults={"status": Status.PENDING_CONFIRM.value},
     )
 
     # Create join-confirm call

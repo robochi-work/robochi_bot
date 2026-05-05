@@ -106,7 +106,7 @@ def handle_apply_vacancy(call: CallbackQuery):
         if (
             VacancyUser.objects.filter(
                 user=user,
-                status=Status.MEMBER,
+                status__in=[Status.MEMBER, Status.PENDING_CONFIRM],
                 vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
             )
             .exclude(vacancy=vacancy)
@@ -118,7 +118,9 @@ def handle_apply_vacancy(call: CallbackQuery):
             return
 
         # 9b. Уже в ЭТОЙ вакансии — redirect to cabinet
-        if VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.MEMBER).exists():
+        if VacancyUser.objects.filter(
+            user=user, vacancy=vacancy, status__in=[Status.MEMBER, Status.PENDING_CONFIRM]
+        ).exists():
             payload = _encode_start_payload({"type": "already_in_vacancy", "vacancy_id": vacancy_id})
             deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
             try:

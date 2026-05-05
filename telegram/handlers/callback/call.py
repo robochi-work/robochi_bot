@@ -94,6 +94,13 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     "call_confirmed",
                     extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
                 )
+                # Promote from PENDING_CONFIRM to MEMBER on explicit confirm
+                from telegram.choices import Status as _Status
+
+                if vacancy_user.status == _Status.PENDING_CONFIRM.value:
+                    vacancy_user.status = _Status.MEMBER.value
+                    vacancy_user.save(update_fields=["status"])
+
                 # Phone confirmation flow
                 from vacancy.models import VacancyContactPhone
 
@@ -131,11 +138,12 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     "call_declined",
                     extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
                 )
-                # Worker is NOT in the group yet — just mark as LEFT
+                # Worker is NOT in the group yet — mark as LEFT only if still pending
                 from telegram.models import Status
-                from vacancy.models import VacancyUser
 
-                VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
+                if vacancy_user.status == Status.PENDING_CONFIRM.value:
+                    vacancy_user.status = Status.LEFT.value
+                    vacancy_user.save(update_fields=["status"])
                 # Clean up contact phone so re-apply starts fresh
                 from vacancy.models import VacancyContactPhone
 
