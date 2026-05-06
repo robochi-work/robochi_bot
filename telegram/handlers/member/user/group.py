@@ -342,18 +342,8 @@ def handle_user_status_change(event: ChatMemberUpdated):
         return
 
     if status not in ["kicked", "left"]:
-        if status not in Status.values:
-            status = Status.MEMBER.value
-            GroupService.set_default_owner_permissions(
-                chat_id=event.chat.id,
-                user_id=event.new_chat_member.user.id,
-            )
-            GroupService.set_admin_custom_title(
-                chat_id=event.chat.id,
-                user_id=event.new_chat_member.user.id,
-                custom_title="Працівник",
-            )
         if event.new_chat_member.user.id == vacancy.owner.id:
+            # Vacancy owner (employer)
             status = Status.OWNER.value
             GroupService.set_default_owner_permissions(
                 chat_id=event.chat.id,
@@ -364,8 +354,20 @@ def handle_user_status_change(event: ChatMemberUpdated):
                 user_id=event.new_chat_member.user.id,
                 custom_title="Роботодавець",
             )
-        if user.is_staff:
+        elif user.is_staff:
             status = Status.ADMINISTRATOR.value
+        else:
+            # Worker
+            status = Status.MEMBER.value
+            GroupService.set_default_owner_permissions(
+                chat_id=event.chat.id,
+                user_id=event.new_chat_member.user.id,
+            )
+            GroupService.set_admin_custom_title(
+                chat_id=event.chat.id,
+                user_id=event.new_chat_member.user.id,
+                custom_title="Працівник",
+            )
 
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})
         VacancyUser.objects.update_or_create(
