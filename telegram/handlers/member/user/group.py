@@ -359,7 +359,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
         else:
             # Worker
             status = Status.MEMBER.value
-            GroupService.set_default_owner_permissions(
+            GroupService.set_default_worker_permissions(
                 chat_id=event.chat.id,
                 user_id=event.new_chat_member.user.id,
             )

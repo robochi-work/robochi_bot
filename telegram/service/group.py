@@ -125,12 +125,14 @@ class GroupService:
 
     @classmethod
     def set_default_owner_permissions(cls, chat_id: int, user_id: int):
+        """Promote vacancy owner (employer) — can kick workers, cannot promote admins."""
         try:
             bot.promote_chat_member(
                 chat_id=chat_id,
                 user_id=user_id,
+                can_manage_chat=True,
+                can_restrict_members=True,
                 can_promote_members=False,
-                can_restrict_members=False,
                 can_delete_messages=False,
                 can_pin_messages=False,
                 can_invite_users=False,
@@ -138,7 +140,6 @@ class GroupService:
                 can_post_messages=False,
                 can_edit_messages=False,
                 is_anonymous=False,
-                can_manage_chat=False,
                 can_manage_video_chats=False,
                 can_manage_voice_chats=False,
                 can_manage_topics=False,
@@ -147,9 +148,34 @@ class GroupService:
                 can_delete_stories=False,
             )
         except Exception as e:
-            import logging
+            logger.warning(f"Failed to promote owner {user_id=} in {chat_id=}: {e}")
 
-            logging.warning(f"Failed to promote owner {user_id=} in {chat_id=}: {e}")
+    @classmethod
+    def set_default_worker_permissions(cls, chat_id: int, user_id: int):
+        """Promote worker with minimal rights — only for custom title display."""
+        try:
+            bot.promote_chat_member(
+                chat_id=chat_id,
+                user_id=user_id,
+                can_manage_chat=True,
+                can_restrict_members=False,
+                can_promote_members=False,
+                can_delete_messages=False,
+                can_pin_messages=False,
+                can_invite_users=False,
+                can_change_info=False,
+                can_post_messages=False,
+                can_edit_messages=False,
+                is_anonymous=False,
+                can_manage_video_chats=False,
+                can_manage_voice_chats=False,
+                can_manage_topics=False,
+                can_post_stories=False,
+                can_edit_stories=False,
+                can_delete_stories=False,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to promote worker {user_id=} in {chat_id=}: {e}")
 
     @classmethod
     def set_default_admin_permissions(cls, chat_id: int, user_id: int):
