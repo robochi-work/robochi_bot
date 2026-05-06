@@ -32,12 +32,32 @@ class VacancyBeforeCallObserver(Observer):
         self.notifier = notifier
 
     def check_before_start(self, vacancy: Vacancy):
+        from datetime import datetime
+
+        start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        two_hours_before = start_aware - timedelta(hours=2)
+
         for member in vacancy.members:
             user_answer_exists = VacancyUserCall.objects.filter(
                 vacancy_user=member,
                 call_type=CallType.BEFORE_START,
             ).exists()
             if not user_answer_exists:
+                # Skip workers who joined after the 2h-before mark —
+                # they already confirmed via join_confirm
+                join_confirmed = VacancyUserCall.objects.filter(
+                    vacancy_user=member,
+                    call_type=CallType.WORKER_JOIN_CONFIRM,
+                    status=CallStatus.CONFIRM,
+                    created_at__gte=two_hours_before,
+                ).exists()
+                if join_confirmed:
+                    logger.info(
+                        "before_start_skipped",
+                        extra={"user_id": member.user.id, "vacancy_id": vacancy.id, "reason": "joined_after_2h_mark"},
+                    )
+                    continue
                 VacancyUserCall.objects.update_or_create(
                     vacancy_user=member,
                     call_type=CallType.BEFORE_START,
