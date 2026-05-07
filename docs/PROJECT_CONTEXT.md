@@ -1436,3 +1436,23 @@ Admin bypass в `chat_member_handler` — не створює VacancyUser, те�
 - `fix: separate permissions for employer and worker in vacancy group`
 - `fix: skip 2h rollcall for workers who joined after the 2h-before mark`
 - `test: update before_start tests for skip-recent-joiner logic`
+
+## Обязательные переменные .env (чеклист)
+
+При любых правках .env — сверить что ВСЕ ключи на месте:
+
+- DJANGO_SECRET_KEY
+- DJANGO_SETTINGS_MODULE
+- BASE_URL (2 записи)
+- HOST (2 записи)
+- ADMIN_TELEGRAM_IDS
+- TELEGRAM_BOT_TOKEN
+- TELEGRAM_WEBHOOK_SECRET
+- POSTGRESQL_HOST
+- POSTGRESQL_PORT
+- POSTGRESQL_NAME
+- POSTGRESQL_USER
+- POSTGRESQL_PASSWORD
+- REDIS_PASSWORD
+- PROVIDER_TOKEN
+- SENTRY_DSN
