@@ -152,14 +152,14 @@ class TestMaxReminders:
 
 class TestOwnerPermissions:
     def test_set_default_owner_permissions_no_restrict(self):
-        """Verify source has can_restrict_members=False."""
+        """Verify source has can_restrict_members=True (employer can kick workers)."""
         with open("telegram/service/group.py") as f:
             source = f.read()
         # Find the set_default_owner_permissions method
         idx = source.find("def set_default_owner_permissions")
         assert idx != -1
         block = source[idx : idx + 500]
-        assert "can_restrict_members=False" in block
+        assert "can_restrict_members=True" in block
 
 
 # === 6. Vacancy form — no inherited time ===
