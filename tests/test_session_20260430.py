@@ -17,6 +17,7 @@ from telegram.choices import CallStatus, CallType, Status
 from telegram.models import UserInGroup
 from vacancy.choices import STATUS_APPROVED
 from vacancy.models import VacancyContactPhone, VacancyUser, VacancyUserCall
+from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
 
 
 @pytest.mark.django_db
@@ -58,16 +59,16 @@ class TestWorkerMyWork:
 
 @pytest.mark.django_db
 class TestBeforeStartCall:
-    """before_start_call sends BEFORE_START to all members without a prior BEFORE_START call."""
+    """before_start_call skips workers who joined after the 2h-before mark."""
 
-    def test_before_start_created_for_confirmed_member(self, worker_factory, vacancy_factory, group_factory):
+    def test_before_start_skipped_for_recent_joiner(self, worker_factory, vacancy_factory, group_factory):
+        """Worker who joined less than 2h before start should NOT get before_start call."""
         from unittest.mock import MagicMock
 
         worker = worker_factory()
         group = group_factory()
         now = timezone.now()
         start_time_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone()).time()
-
         vacancy = vacancy_factory(
             owner=worker_factory(),
             status=STATUS_APPROVED,
@@ -77,26 +78,48 @@ class TestBeforeStartCall:
         )
         vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
         UserInGroup.objects.create(user=worker, group=group, status=Status.MEMBER)
-
-        # Worker confirmed join 30 min ago (was < 2h before start — old skip logic is now removed)
         VacancyUserCall.objects.create(
             vacancy_user=vu,
             call_type=CallType.WORKER_JOIN_CONFIRM.value,
             status=CallStatus.CONFIRM.value,
             created_at=now - timedelta(minutes=30),
         )
-
-        from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
-
-        notifier = MagicMock()
-        observer = VacancyBeforeCallObserver(notifier=notifier)
+        observer = VacancyBeforeCallObserver(MagicMock())
         observer.check_before_start(vacancy)
+        assert not VacancyUserCall.objects.filter(
+            vacancy_user=vu,
+            call_type=CallType.BEFORE_START.value,
+        ).exists(), "Worker who joined <2h before start should be skipped"
 
-        # Dead code removed: BEFORE_START is now always created for members
+    def test_before_start_created_for_early_joiner(self, worker_factory, vacancy_factory, group_factory):
+        """Worker who joined more than 2h before start SHOULD get before_start call."""
+        from unittest.mock import MagicMock
+
+        worker = worker_factory()
+        group = group_factory()
+        now = timezone.now()
+        start_time_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone()).time()
+        vacancy = vacancy_factory(
+            owner=worker_factory(),
+            status=STATUS_APPROVED,
+            group=group,
+            date=date.today(),
+            start_time=start_time_local,
+        )
+        vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
+        UserInGroup.objects.create(user=worker, group=group, status=Status.MEMBER)
+        VacancyUserCall.objects.create(
+            vacancy_user=vu,
+            call_type=CallType.WORKER_JOIN_CONFIRM.value,
+            status=CallStatus.CONFIRM.value,
+            created_at=now - timedelta(hours=3),
+        )
+        observer = VacancyBeforeCallObserver(MagicMock())
+        observer.check_before_start(vacancy)
         assert VacancyUserCall.objects.filter(
             vacancy_user=vu,
             call_type=CallType.BEFORE_START.value,
-        ).exists()
+        ).exists(), "Worker who joined >2h before start should get before_start call"
 
 
 @pytest.mark.django_db
@@ -149,7 +172,6 @@ class TestWorkerPhoneHandler:
         VacancyContactPhone.objects.create(vacancy=vacancy1, user=worker, phone="0501111111")
 
         # Handler should pick vacancy2 (no contact phone)
-        from vacancy.models import VacancyContactPhone as VCP
 
         pending_calls = (
             VacancyUserCall.objects.filter(
@@ -163,7 +185,7 @@ class TestWorkerPhoneHandler:
 
         found_vacancy = None
         for pc in pending_calls:
-            if not VCP.objects.filter(vacancy=pc.vacancy_user.vacancy, user=worker).exists():
+            if not VacancyContactPhone.objects.filter(vacancy=pc.vacancy_user.vacancy, user=worker).exists():
                 found_vacancy = pc.vacancy_user.vacancy
                 break
 
