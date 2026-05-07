@@ -154,3 +154,53 @@ class TestCleanupDeletedTelegramAccount:
         WorkerFactory(id=900000031, telegram_id=900000031, username="activetg")
         cleanup_inactive_users_task()
         assert User.objects.filter(id=900000031).exists()
+
+
+@pytest.mark.django_db
+class TestCheckTelegramDeleted:
+    """Tests for check_telegram_deleted function accuracy."""
+
+    @patch("user.tasks.bot")
+    def test_empty_first_name_detected_as_deleted(self, mock_bot):
+        """Regression: user 7373456897 had empty first_name but was not caught."""
+        from unittest.mock import MagicMock
+
+        mock_chat = MagicMock()
+        mock_chat.first_name = ""
+        mock_bot.get_chat.return_value = mock_chat
+
+        from user.tasks import check_telegram_deleted
+
+        assert check_telegram_deleted(123456) is True
+
+    @patch("user.tasks.bot")
+    def test_deleted_account_name_detected(self, mock_bot):
+        from unittest.mock import MagicMock
+
+        mock_chat = MagicMock()
+        mock_chat.first_name = "Deleted Account"
+        mock_bot.get_chat.return_value = mock_chat
+
+        from user.tasks import check_telegram_deleted
+
+        assert check_telegram_deleted(123456) is True
+
+    @patch("user.tasks.bot")
+    def test_normal_user_not_deleted(self, mock_bot):
+        from unittest.mock import MagicMock
+
+        mock_chat = MagicMock()
+        mock_chat.first_name = "Иван"
+        mock_bot.get_chat.return_value = mock_chat
+
+        from user.tasks import check_telegram_deleted
+
+        assert check_telegram_deleted(123456) is False
+
+    @patch("user.tasks.bot")
+    def test_api_error_treated_as_deleted(self, mock_bot):
+        mock_bot.get_chat.side_effect = Exception("Bad Request: chat not found")
+
+        from user.tasks import check_telegram_deleted
+
+        assert check_telegram_deleted(123456) is True
