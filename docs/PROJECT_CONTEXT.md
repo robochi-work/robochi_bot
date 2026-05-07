@@ -1484,3 +1484,11 @@ Admin bypass в `chat_member_handler` — не створює VacancyUser, те�
 - DJANGO_SETTINGS_MODULE=config.django.test (SQLite)
 - pytest tests/ -x --timeout=60
 - Все тесты должны проходить перед push
+
+### Session 2026-05-07 (update 2): check_telegram_deleted improvements
+
+- Fixed: empty first_name was not caught as deleted account (user 7373456897 case)
+- Fixed: cleanup_inactive_users_task now checks ALL users (including is_active=False), not just active
+- Removed send_chat_action from check_telegram_deleted to reduce API calls (1 call per user instead of 2)
+- Detection logic: get_chat → empty/missing first_name OR name contains 'deleted' OR API error = deleted
+- 15 regression tests in test_user_cleanup.py (was 11, added 4 for check_telegram_deleted)
