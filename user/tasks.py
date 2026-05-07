@@ -40,9 +40,22 @@ def get_last_worker_activity_date(user):
     return last_date
 
 
+def get_last_employer_activity_date(user):
+    """Get employer's last vacancy creation date."""
+    from vacancy.models import Vacancy
+
+    result = Vacancy.objects.filter(owner=user).aggregate(last=Max("created_at"))
+    last_date = result.get("last")
+
+    if not last_date:
+        last_date = user.date_joined
+
+    return last_date
+
+
 @shared_task(name="user.tasks.cleanup_inactive_users_task")
 def cleanup_inactive_users_task():
-    """Daily task: delete users with deleted Telegram accounts and inactive workers (180 days)."""
+    """Daily task: delete users with deleted Telegram accounts and inactive workers/employers (180 days)."""
     from user.models import User
     from work.choices import WorkProfileRole
 
@@ -71,7 +84,7 @@ def cleanup_inactive_users_task():
                     continue
                 time.sleep(TELEGRAM_API_DELAY)
 
-            # 2. Check inactivity (180 days) - only workers
+            # 2. Check inactivity (180 days) - workers and employers
             profile = getattr(user, "work_profile", None)
             if profile and profile.role == WorkProfileRole.WORKER:
                 last_activity = get_last_worker_activity_date(user)
@@ -80,6 +93,15 @@ def cleanup_inactive_users_task():
                     user.delete()
                     inactive_count += 1
                     logger.info(f"Deleted inactive worker: {user_id} (@{username}), last activity: {last_activity}")
+                    continue
+
+            if profile and profile.role == WorkProfileRole.EMPLOYER:
+                last_activity = get_last_employer_activity_date(user)
+                if last_activity and last_activity < cutoff:
+                    username = user.username
+                    user.delete()
+                    inactive_count += 1
+                    logger.info(f"Deleted inactive employer: {user_id} (@{username}), last activity: {last_activity}")
 
         except User.DoesNotExist:
             continue
@@ -89,9 +111,7 @@ def cleanup_inactive_users_task():
         if (i + 1) % 500 == 0:
             logger.info(f"Cleanup progress: {i + 1}/{total}")
 
-    logger.info(
-        f"Cleanup complete: {deleted_count} deleted accounts removed, {inactive_count} inactive workers removed"
-    )
+    logger.info(f"Cleanup complete: {deleted_count} deleted accounts removed, {inactive_count} inactive users removed")
 
 
 @shared_task(name="user.tasks.cleanup_unregistered_users_task")
