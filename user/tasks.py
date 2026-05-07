@@ -44,10 +44,15 @@ def get_last_employer_activity_date(user):
     """Get employer's last vacancy creation date."""
     from vacancy.models import Vacancy
 
-    result = Vacancy.objects.filter(owner=user).aggregate(last=Max("created_at"))
+    result = Vacancy.objects.filter(owner=user).aggregate(last=Max("date"))
     last_date = result.get("last")
 
-    if not last_date:
+    if last_date:
+        last_date = timezone.make_aware(
+            timezone.datetime.combine(last_date, timezone.datetime.min.time()),
+            timezone.get_current_timezone(),
+        )
+    else:
         last_date = user.date_joined
 
     return last_date
