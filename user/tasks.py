@@ -20,8 +20,14 @@ def check_telegram_deleted(telegram_id: int) -> bool:
     try:
         chat = bot.get_chat(telegram_id)
         first_name = getattr(chat, "first_name", "") or ""
-        if first_name.lower().strip() in ["deleted account", "deleted"]:
+        first_name = first_name.lower().strip()
+        if not first_name or first_name in ["deleted account", "deleted"]:
             return True
+        try:
+            bot.send_chat_action(telegram_id, "typing")
+        except Exception as e:
+            if "deactivated" in str(e).lower() or "blocked" in str(e).lower():
+                return True
         return False
     except Exception:
         return True
@@ -65,9 +71,7 @@ def cleanup_inactive_users_task():
     from work.choices import WorkProfileRole
 
     cutoff = timezone.now() - timedelta(days=INACTIVE_DAYS)
-    user_ids = list(
-        User.objects.filter(is_active=True, is_staff=False, is_superuser=False).values_list("id", flat=True)
-    )
+    user_ids = list(User.objects.filter(is_staff=False, is_superuser=False).values_list("id", flat=True))
 
     deleted_count = 0
     inactive_count = 0
@@ -77,7 +81,7 @@ def cleanup_inactive_users_task():
 
     for i, user_id in enumerate(user_ids):
         try:
-            user = User.objects.select_related("work_profile").get(id=user_id, is_active=True)
+            user = User.objects.select_related("work_profile").get(id=user_id)
 
             # 1. Check if Telegram account is deleted
             if user.telegram_id:
