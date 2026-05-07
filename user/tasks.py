@@ -23,11 +23,6 @@ def check_telegram_deleted(telegram_id: int) -> bool:
         first_name = first_name.lower().strip()
         if not first_name or first_name in ["deleted account", "deleted"]:
             return True
-        try:
-            bot.send_chat_action(telegram_id, "typing")
-        except Exception as e:
-            if "deactivated" in str(e).lower() or "blocked" in str(e).lower():
-                return True
         return False
     except Exception:
         return True
