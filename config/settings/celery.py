@@ -58,6 +58,10 @@ app.conf.beat_schedule = {
         "task": "vacancy.tasks.call.renewal_worker_check_task",
         "schedule": timedelta(seconds=30),
     },
+    "cleanup_unregistered_users": {
+        "task": "user.tasks.cleanup_unregistered_users_task",
+        "schedule": crontab(hour=3, minute=30),
+    },
     "check_system": {
         "task": "work.tasks.check_system_task",
         "schedule": crontab(hour=4, minute=0),  # Every night at 04:00 Kyiv time

@@ -22,6 +22,7 @@ REQUIRED_BEAT_TASKS = [
     "renewal_offer_task",
     "renewal_worker_check_task",
     "check_system",
+    "cleanup_unregistered_users",
     "check_logs",
 ]
 
