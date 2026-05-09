@@ -22,13 +22,18 @@ class CallVacancyTelegramTextFormatter:
 
     def start_call(self) -> str:
         with override("uk"):
-            return f"Початок роботи за заявкою {self.vacancy.address}.\nПроведіть перекличку серед працівників."
+            return (
+                f"Початок роботи за вакансією-\n"
+                f"Адреса: {self.vacancy.address}\n"
+                f"Проведіть перекличку серед працівників- натисніть кнопку нижче."
+            )
 
     def final_call(self) -> str:
         with override("uk"):
             return (
-                f"Скоро завершення роботи за заявкою {self.vacancy.address}.\n"
-                f"Підтвердіть, хто відпрацював до кінця зміни."
+                f"Скоро завершення роботи за вакансією-\n"
+                f"Адреса: {self.vacancy.address}\n"
+                f"Підтвердіть хто відпрацював до кінця зміни- натисніть кнопку нижче."
             )
 
     # ─── Employer: invoice after second rollcall ──────────────────────────────

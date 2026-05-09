@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.urls import reverse
-from django.utils.translation import gettext as _
 from telebot.types import InlineKeyboardButton as IKB
 from telebot.types import InlineKeyboardMarkup
 
@@ -48,7 +47,7 @@ def get_start_call_markup(vacancy: Vacancy, **kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
-            label=_("Confirm first call"),
+            label="Підтвердити перше опитування",
             url=settings.BASE_URL.rstrip("/") + reverse("vacancy:pre_call", args=[vacancy.id, CallType.START.value]),
         )
     )
@@ -59,7 +58,7 @@ def get_final_call_markup(vacancy: Vacancy, **kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
-            label=_("Confirm second call"),
+            label="Підтвердити друге опитування",
             url=settings.BASE_URL.rstrip("/")
             + reverse("vacancy:pre_call", args=[vacancy.id, CallType.AFTER_START.value]),
         )
@@ -71,7 +70,7 @@ def get_final_call_success_markup(**kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.pay(
-            label=_("Pay"),
+            label="Сплатити рахунок",
         )
     )
     return markup
@@ -87,7 +86,7 @@ def get_rollcall_reminder_markup(vacancy: Vacancy, call_type: CallType) -> Inlin
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
-            label=_("Go to rollcall"),
+            label="Перейти до переклички",
             url=settings.BASE_URL.rstrip("/") + reverse("vacancy:pre_call", args=[vacancy.id, call_type.value]),
         )
     )

@@ -44,6 +44,14 @@ class VacancyBeforeCallObserver(Observer):
                 call_type=CallType.BEFORE_START,
             ).exists()
             if not user_answer_exists:
+                # Skip workers already confirmed at start rollcall
+                already_confirmed = VacancyUserCall.objects.filter(
+                    vacancy_user=member,
+                    call_type=CallType.START,
+                    status=CallStatus.CONFIRM,
+                ).exists()
+                if already_confirmed:
+                    continue
                 # Skip workers who joined after the 2h-before mark —
                 # they already confirmed via join_confirm
                 join_confirmed = VacancyUserCall.objects.filter(

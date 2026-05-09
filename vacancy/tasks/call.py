@@ -24,6 +24,21 @@ Minutes = int
 logger = logging.getLogger(__name__)
 
 
+def _get_start_aware(vacancy: Vacancy) -> datetime:
+    """Get timezone-aware start datetime for vacancy."""
+    start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+    return timezone.make_aware(start_naive, timezone.get_current_timezone())
+
+
+def _get_end_aware(vacancy: Vacancy) -> datetime:
+    """Get timezone-aware end datetime. Adds +1 day for overnight shifts."""
+    end_date = vacancy.date
+    if vacancy.end_time < vacancy.start_time:
+        end_date = vacancy.date + timedelta(days=1)
+    end_naive = datetime.combine(end_date, vacancy.end_time)
+    return timezone.make_aware(end_naive, timezone.get_current_timezone())
+
+
 def _get_owner_contact_phone(vacancy) -> str | None:
     from vacancy.models import VacancyContactPhone
 
@@ -52,25 +67,36 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
     from service.broadcast_service import TelegramBroadcastService
 
     owner = vacancy.owner
-    admin_text = (
-        f"⚠️ Немає підтвердження {call_label}\n"
-        f"Вакансія: {vacancy.address}\n"
-        f"Заказчик: {owner.full_name or str(owner.id)}\n"
-        f"Телефон: {_get_owner_contact_phone(vacancy) or '—'}"
+    phone = _get_owner_contact_phone(vacancy) or chr(8212)
+    user_block = f"<b>ID:</b> <code>{owner.pk}</code>" + chr(10)
+    user_block += f"<b>{chr(1030)}{chr(1084)}{chr(8217)}{chr(1103)}:</b> {owner.full_name or chr(8212)}" + chr(10)
+    if owner.username:
+        user_block += f"<b>Username:</b> @{owner.username}" + chr(10)
+    else:
+        user_block += "<b>Username:</b> " + chr(8212) + chr(10)
+    user_block += (
+        f"<b>{chr(1058)}{chr(1077)}{chr(1083)}{chr(1077)}{chr(1092)}{chr(1086)}{chr(1085)}:</b> {phone}" + chr(10)
     )
+    admin_text = (
+        f"{chr(9888)}{chr(65039)} {chr(1053)}{chr(1077)}{chr(1084)}{chr(1072)}{chr(1108)} {chr(1087)}{chr(1110)}{chr(1076)}{chr(1090)}{chr(1074)}{chr(1077)}{chr(1088)}{chr(1076)}{chr(1078)}{chr(1077)}{chr(1085)}{chr(1085)}{chr(1103)} {call_label}"
+        + chr(10)
+        + chr(10)
+        + f"{chr(1042)}{chr(1072)}{chr(1082)}{chr(1072)}{chr(1085)}{chr(1089)}{chr(1110)}{chr(1103)}: {vacancy.address}"
+        + chr(10)
+        + user_block
+    )
+    if vacancy.group and vacancy.group.invite_link:
+        admin_text += chr(10) + f"{chr(1043)}{chr(1088)}{chr(1091)}{chr(1087)}{chr(1072)}: {vacancy.group.invite_link}"
     try:
         broadcast = TelegramBroadcastService(notifier=telegram_notifier)
-        broadcast.admin_broadcast(text=admin_text)
+        broadcast.admin_broadcast(text=admin_text, parse_mode="HTML")
     except Exception as e:
         logger.warning(f"_escalate_rollcall ({call_label}): admin broadcast failed: {e}")
-
     if vacancy.group:
         try:
             GroupService.kick_user(chat_id=vacancy.group.id, user_id=owner.id)
         except Exception as e:
             logger.warning(f"_escalate_rollcall ({call_label}): kick owner failed: {e}")
-
-        # Delete employer invite message from bot chat
         msg_id = vacancy.extra.get("employer_invite_msg_id")
         if msg_id:
             try:
@@ -79,6 +105,40 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
                 bot.delete_message(chat_id=owner.id, message_id=msg_id)
             except Exception as e:
                 logger.warning(f"_escalate_rollcall: delete invite msg failed: {e}")
+    # Auto-confirm rollcall
+    members = vacancy.members
+    members_count = members.count()
+    if members_count == 0:
+        vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+        from telegram.handlers.bot_instance import bot as _bot
+
+        try:
+            _bot.send_message(chat_id=owner.id, text=f"Вакансію за адресою {vacancy.address} закрито.")
+        except Exception:
+            pass
+    else:
+        from vacancy.models import VacancyUserCall
+        from vacancy.services.call import create_vacancy_call
+
+        if not vacancy.first_rollcall_passed:
+            ct = CallType.START
+            create_vacancy_call(vacancy=vacancy, call_type=ct, status=CallStatus.CREATED)
+            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=ct).update(status=CallStatus.CONFIRM)
+            vacancy.first_rollcall_passed = True
+            vacancy.save(update_fields=["first_rollcall_passed"])
+        elif not vacancy.second_rollcall_passed:
+            ct = CallType.AFTER_START
+            create_vacancy_call(vacancy=vacancy, call_type=ct, status=CallStatus.CREATED)
+            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=ct).update(status=CallStatus.CONFIRM)
+            vacancy.second_rollcall_passed = True
+            vacancy.save(update_fields=["second_rollcall_passed"])
+        from telegram.handlers.bot_instance import bot as _bot
+
+        try:
+            _auto_text = f"Перекличку підтверджено автоматично. Працівників: {members_count}."
+            _bot.send_message(chat_id=owner.id, text=_auto_text)
+        except Exception:
+            pass
 
 
 def _update_channel_search_stopped(vacancy: Vacancy) -> None:
@@ -118,8 +178,7 @@ def get_before_start_vacancies(delay: Minutes = 120) -> Iterable[Vacancy]:
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     filtered_vacancies = []
     for vacancy in vacancies:
-        start_naive = datetime.combine(vacancy.date, vacancy.start_time)
-        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        start_aware = _get_start_aware(vacancy)
 
         before_start_time = start_aware - timedelta(minutes=delay)
         if before_start_time < aware_now < start_aware:
@@ -137,8 +196,7 @@ def get_start_vacancies(delay: Minutes = 10) -> Iterable[Vacancy]:
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     filtered_vacancies = []
     for vacancy in vacancies:
-        start_naive = datetime.combine(vacancy.date, vacancy.start_time)
-        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        start_aware = _get_start_aware(vacancy)
 
         after_start_time = start_aware + timedelta(minutes=delay)
         if after_start_time > aware_now > start_aware:
@@ -156,8 +214,7 @@ def get_final_vacancies() -> Iterable[Vacancy]:
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     filtered_vacancies = []
     for vacancy in vacancies:
-        end_naive = datetime.combine(vacancy.date, vacancy.end_time)
-        end_aware = timezone.make_aware(end_naive, timezone.get_current_timezone())
+        end_aware = _get_end_aware(vacancy)
 
         if aware_now > end_aware:
             filtered_vacancies.append(vacancy)
@@ -175,8 +232,7 @@ def get_final_call_vacancies(before_end: Minutes = 60) -> Iterable[Vacancy]:
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     filtered_vacancies = []
     for vacancy in vacancies:
-        end_naive = datetime.combine(vacancy.date, vacancy.end_time)
-        end_aware = timezone.make_aware(end_naive, timezone.get_current_timezone())
+        end_aware = _get_end_aware(vacancy)
         trigger_time = end_aware - timedelta(minutes=before_end)
 
         if aware_now > trigger_time and aware_now < end_aware:
@@ -317,8 +373,7 @@ def start_call_check_task():
         status__in=[STATUS_ACTIVE, STATUS_APPROVED, STATUS_SEARCH_STOPPED],
         first_rollcall_passed=False,
     ):
-        start_naive = datetime.combine(v.date, v.start_time)
-        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        start_aware = _get_start_aware(v)
         if aware_now >= start_aware:
             reminder_candidates.append(v)
     start_call_check(vacancies=reminder_candidates)
@@ -339,7 +394,7 @@ def final_call_check_task():
         status=STATUS_SEARCH_STOPPED,
         second_rollcall_passed=False,
     ):
-        end_aware = timezone.make_aware(datetime.combine(v.date, v.end_time), timezone.get_current_timezone())
+        end_aware = _get_end_aware(v)
         trigger_time = end_aware - timedelta(minutes=60)
         if aware_now > trigger_time:
             stopped_candidates.append(v)
@@ -357,8 +412,7 @@ def close_vacancy_task(delay: Minutes = 120):
         if vacancy.closed_at is not None:
             continue  # already handled by close_lifecycle_timer_task
         if not vacancy.status == STATUS_CLOSED:
-            end_naive = datetime.combine(vacancy.date, vacancy.end_time)
-            end_time = timezone.make_aware(end_naive, timezone.get_current_timezone())
+            end_time = _get_end_aware(vacancy)
             if end_time + timedelta(minutes=delay) < timezone.now():
                 close_vacancy(vacancy=vacancy)
                 processed += 1

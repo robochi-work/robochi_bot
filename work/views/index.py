@@ -5,7 +5,7 @@ from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
 from user.services import BlockService
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED, STATUS_SEARCH_STOPPED
 from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
 from work.choices import WorkProfileRole
@@ -73,6 +73,18 @@ def index(request: WSGIRequest):
 
     # Employer — dedicated dashboard
     if profile and profile.role == WorkProfileRole.EMPLOYER:
+        # Check if employer has pending rollcall (block vacancy creation)
+        has_pending_rollcall = False
+        for _v in Vacancy.objects.filter(
+            owner=user,
+            status__in=[STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED],
+        ):
+            if (_v.extra.get("sent_start_call") and not _v.first_rollcall_passed) or (
+                _v.extra.get("sent_final_call") and not _v.second_rollcall_passed
+            ):
+                has_pending_rollcall = True
+                break
+
         # First visit: no vacancies yet → redirect to create
         if Vacancy.objects.filter(owner=user).count() == 0:
             return redirect("vacancy:create")
@@ -120,6 +132,7 @@ def index(request: WSGIRequest):
             "city_channels": city_channels,
             "is_blocked": is_blocked,
             "active_block": BlockService.get_active_block(user) if is_blocked else None,
+            "has_pending_rollcall": has_pending_rollcall,
         }
         return render(request, "work/employer_dashboard.html", context)
 

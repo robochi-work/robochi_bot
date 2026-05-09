@@ -183,7 +183,43 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             vacancy.second_rollcall_passed = True
             vacancy.save(update_fields=["second_rollcall_passed"])
 
-        if rejected_users > 0:
+        all_unchecked = len(selected_users) == 0 and users_queryset.exists()
+        no_workers_ever = len(selected_users) == 0 and not users_queryset.exists()
+
+        if no_workers_ever:
+            # No workers existed at all — just close vacancy
+            from vacancy.services.observers.events import VACANCY_CLOSE
+
+            vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+        elif all_unchecked:
+            # All workers unchecked but workers existed — kick employer + notify admin
+            from service.broadcast_service import TelegramBroadcastService
+
+            if vacancy.group:
+                try:
+                    from telegram.service.group import GroupService
+
+                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=vacancy.owner.id)
+                except Exception:
+                    import sentry_sdk
+
+                    sentry_sdk.capture_exception()
+            admin_text = (
+                f"ЗАКРИТИ ВАКАНСІЮ\n"
+                f"Замовник зняв усі відмітки на перекличці\n"
+                f"Вакансія: {vacancy.address}\n"
+                f"Замовник: {vacancy.owner.full_name or str(vacancy.owner.id)}"
+            )
+            if vacancy.group and vacancy.group.invite_link:
+                admin_text += f"\nГрупа вакансії: {vacancy.group.invite_link}"
+            broadcast = TelegramBroadcastService()
+            broadcast.admin_broadcast(text=admin_text)
+            # Also trigger fail observer for worker notifications
+            if call_type == CallType.START:
+                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
+            elif call_type == CallType.AFTER_START:
+                vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
+        elif rejected_users > 0:
             if call_type == CallType.START:
                 vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
             elif call_type == CallType.AFTER_START:
@@ -192,27 +228,74 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             if call_type == CallType.AFTER_START:
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_SUCCESS, data={"vacancy": vacancy})
 
+        # Send bot notification about rollcall result
+        try:
+            from telegram.handlers.bot_instance import bot as _bot
+
+            _confirmed = len(selected_users)
+            _text = f"Перекличку пройдено. Підтверджено працівників: {_confirmed}."
+            _bot.send_message(chat_id=vacancy.owner.id, text=_text)
+        except Exception:
+            pass
         return render(request, "vacancy/call_confirm.html", context={"form": form})
     return None
 
 
 def vacancy_pre_call_check(request: WSGIRequest, pk: int, call_type: CallType):
     vacancy: Vacancy = get_object_or_404(Vacancy, pk=pk)
-    users_queryset = vacancy.members
+    members = vacancy.members
+    members_count = members.count()
+    people_count = vacancy.people_count
+
     if call_type == CallType.START:
         vacancy.extra["pre_call_start"] = True
         vacancy.save(update_fields=["extra"])
 
-        if vacancy.extra.get("start_pre_call", "need") in ["need"]:
-            can_request_find_users_again = users_queryset.count() < vacancy.people_count
+    # Check if continued search is still available (2h after start_time)
+    from datetime import timedelta
 
-            if can_request_find_users_again:
-                return render(
-                    request,
-                    "vacancy/pre_call.html",
-                    context={"pk": pk, "call_type": call_type, "members_count": users_queryset.count()},
-                )
+    from django.utils import timezone
 
+    from vacancy.tasks.call import _get_start_aware
+
+    start_aware = _get_start_aware(vacancy)
+    search_deadline = start_aware + timedelta(hours=2)
+    can_search = timezone.now() < search_deadline and call_type == CallType.START
+
+    # Scenario A: no workers at all
+    if members_count == 0 and call_type == CallType.START:
+        return render(
+            request,
+            "vacancy/pre_call.html",
+            context={
+                "pk": pk,
+                "call_type": call_type,
+                "scenario": "A",
+                "vacancy": vacancy,
+                "members_count": 0,
+                "can_search": can_search,
+            },
+        )
+
+    # Scenario B: workers exist but less than needed
+    if members_count < people_count and call_type == CallType.START:
+        form = VacancyCallForm(queryset=members, call_type=call_type, initial={"users": list(members)})
+        return render(
+            request,
+            "vacancy/pre_call.html",
+            context={
+                "pk": pk,
+                "call_type": call_type,
+                "scenario": "B",
+                "vacancy": vacancy,
+                "members_count": members_count,
+                "people_count": people_count,
+                "can_search": can_search,
+                "form": form,
+            },
+        )
+
+    # Scenario C: enough workers — go straight to rollcall
     return redirect("vacancy:call", pk=pk, call_type=call_type)
 
 
@@ -549,6 +632,81 @@ def vacancy_stop_search(request, pk):
 
 
 @login_required
+def vacancy_continue_search(request, pk):
+    """Quick resume search: auto-adjust time, republish in channel, no moderation."""
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from django.utils import timezone as _tz
+
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    # Auto-confirm rollcall if requested
+    if request.GET.get("confirm_rollcall") == "1" and not vacancy.first_rollcall_passed:
+        members = vacancy.members
+        if members.exists():
+            from vacancy.services.call import create_vacancy_call
+
+            create_vacancy_call(vacancy=vacancy, call_type=CallType.START, status=CallStatus.CREATED)
+            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=CallType.START).update(
+                status=CallStatus.CONFIRM
+            )
+            vacancy.first_rollcall_passed = True
+            vacancy.save(update_fields=["first_rollcall_passed"])
+
+    # 1. Auto-adjust start_time
+    now = _tz.localtime(_tz.now())
+    new_start = now + _td(hours=1)
+    # Round to next 15 min
+    minute = (new_start.minute // 15 + 1) * 15
+    if minute >= 60:
+        new_start = new_start.replace(hour=new_start.hour + 1, minute=0, second=0, microsecond=0)
+    else:
+        new_start = new_start.replace(minute=minute, second=0, microsecond=0)
+
+    vacancy.start_time = new_start.time()
+    vacancy.date = now.date()
+
+    # 2. Ensure minimum 3h shift
+    end_naive = _dt.combine(vacancy.date, vacancy.end_time)
+    end_aware = _tz.make_aware(end_naive, _tz.get_current_timezone())
+    if vacancy.end_time < vacancy.start_time:
+        end_aware += _td(days=1)
+    diff = end_aware - _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone())
+    if diff < _td(hours=3):
+        new_end = _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone()) + _td(
+            hours=3
+        )
+        vacancy.end_time = _tz.localtime(new_end).time()
+
+    # 3. Re-activate search
+    from vacancy.choices import STATUS_APPROVED
+
+    vacancy.status = STATUS_APPROVED
+    vacancy.search_active = True
+    vacancy.search_stopped_at = None
+    vacancy.save(update_fields=["start_time", "end_time", "date", "status", "search_active", "search_stopped_at"])
+
+    # 4. Republish in channel
+    from vacancy.services.observers.events import VACANCY_APPROVED
+    from vacancy.services.observers.subscriber_setup import vacancy_publisher as _vp
+
+    _vp.notify(VACANCY_APPROVED, data={"vacancy": vacancy})
+
+    # 5. Send bot message
+    try:
+        from telegram.handlers.bot_instance import bot
+
+        bot.send_message(
+            chat_id=vacancy.owner.id,
+            text=f"Повторний пошук розпочато. Адреса: {vacancy.address}",
+        )
+    except Exception:
+        pass
+
+    return redirect("vacancy:detail", pk=pk)
+
+
 def vacancy_resume_search(request, pk):
     """Resume search after stop: re-submit vacancy for moderation."""
     if request.user.is_staff:
@@ -556,6 +714,24 @@ def vacancy_resume_search(request, pk):
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
     work_profile = getattr(request.user, "work_profile", None)
+
+    # Auto-confirm rollcall if coming from pre_call "Продовжити пошук"
+    if request.GET.get("confirm_rollcall") == "1" and not vacancy.first_rollcall_passed:
+        members = vacancy.members
+        if members.exists():
+            from vacancy.models import VacancyUserCall
+            from vacancy.services.call import create_vacancy_call
+
+            create_vacancy_call(vacancy=vacancy, call_type=CallType.START, status=CallStatus.CREATED)
+            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=CallType.START).update(
+                status=CallStatus.CONFIRM
+            )
+            vacancy.extra["start_pre_call"] = "continue"
+            extra_calls = vacancy.extra.get("calls", {})
+            extra_calls[CallType.START] = [m.user.id for m in members]
+            vacancy.extra["calls"] = extra_calls
+            vacancy.first_rollcall_passed = True
+            vacancy.save(update_fields=["extra", "first_rollcall_passed"])
 
     if request.method == "POST":
         form = VacancyForm(request.POST, work_profile=work_profile, resume_mode=True)
@@ -596,6 +772,7 @@ def vacancy_resume_search(request, pk):
                     user=request.user,
                     defaults={"phone": _edit_phone},
                 )
+            print(f"RESUME_SEARCH: saving vacancy pk={vacancy.pk} id={vacancy.id} status={vacancy.status}")
             vacancy.status = STATUS_PENDING
             vacancy.search_active = False
             vacancy.search_stopped_at = None  # reset stop timer
@@ -617,6 +794,34 @@ def vacancy_resume_search(request, pk):
             "skills": vacancy.skills,
             "contact_phone": vacancy.contact_phone,
         }
+
+        # Adjust start_time for continued search after work has started
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
+        from django.utils import timezone as _tz
+
+        _now = _tz.localtime(_tz.now())
+        _start_naive = _dt.combine(vacancy.date, vacancy.start_time)
+        _start_aware = _tz.make_aware(_start_naive, _tz.get_current_timezone())
+        if _now >= _start_aware:
+            _min_start = _now + _td(hours=1)
+            _minute = (_min_start.minute // 15 + 1) * 15
+            if _minute >= 60:
+                _min_start = _min_start.replace(hour=_min_start.hour + 1, minute=0, second=0, microsecond=0)
+            else:
+                _min_start = _min_start.replace(minute=_minute, second=0, microsecond=0)
+            initial["start_time"] = _min_start.time()
+            _orig_end = _dt.combine(vacancy.date, vacancy.end_time)
+            _orig_end_aware = _tz.make_aware(_orig_end, _tz.get_current_timezone())
+            if vacancy.end_time < vacancy.start_time:
+                _orig_end_aware += _td(days=1)
+            _new_end = _min_start + _td(hours=3)
+            if _orig_end_aware > _new_end:
+                pass  # keep original end_time
+            else:
+                initial["end_time"] = _new_end.time()
+
         form = VacancyForm(initial=initial, work_profile=work_profile, resume_mode=True)
 
     return render(
@@ -906,3 +1111,20 @@ def vacancy_reinvite_worker(request, pk, user_id):
     )
 
     return redirect("vacancy:members", pk=pk)
+
+
+def vacancy_members_json(request, pk):
+    """JSON endpoint for auto-refresh: returns members count and list."""
+    from django.http import JsonResponse
+
+    vacancy = get_object_or_404(Vacancy, pk=pk)
+    members = vacancy.members.select_related("user")
+    data = {
+        "members_count": members.count(),
+        "people_count": vacancy.people_count,
+        "members": [{"id": m.user.id, "name": m.user.full_name or f"ID {m.user.id}"} for m in members],
+        "first_rollcall_passed": vacancy.first_rollcall_passed,
+        "second_rollcall_passed": vacancy.second_rollcall_passed,
+        "status": vacancy.status,
+    }
+    return JsonResponse(data)

@@ -1,7 +1,24 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block header %}{% endblock %}
+{% block header %}
+<script>
+(function() {
+    var pk = {{ vacancy.pk }};
+    var url = '/vacancy/' + pk + '/members-json/';
+    setInterval(function() {
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var el = document.querySelector('[data-detail-members-count]');
+                if (el) el.textContent = data.members_count;
+            })
+            .catch(function(e) {});
+    }, 15000);
+})();
+</script>
+
+{% endblock %}
 
 {% block body %}
 <main class="page page--vacancy-detail">
@@ -34,7 +51,7 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">👥 Люди</span>
-                    <span class="detail-value">{{ members_count }} / {{ vacancy.people_count }}</span>
+                    <span class="detail-value"><span data-detail-members-count>{{ members_count }}</span> / {{ vacancy.people_count }}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-label">💰 Оплата</span>
@@ -96,7 +113,7 @@
             {# 2. Rollcall #}
             {% if show_start_rollcall %}
                 {% if rollcall_time_reached %}
-                <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="worker-btn">
+                <a href="{% url 'vacancy:pre_call' pk=vacancy.pk call_type='start' %}" class="worker-btn">
                     <span class="worker-btn__icon">▶️</span>
                     <span class="worker-btn__text">
                         <span class="worker-btn__title">Перекличка: Початок роботи</span>
@@ -104,13 +121,13 @@
                     </span>
                 </a>
                 {% else %}
-                <button type="button" class="worker-btn" onclick="showRollcallTimeModal()">
+                <div class="worker-btn worker-btn--disabled">
                     <span class="worker-btn__icon">▶️</span>
                     <span class="worker-btn__text">
                         <span class="worker-btn__title">Перекличка: Початок роботи</span>
                         <span class="worker-btn__sub">Доступно з {{ vacancy.start_time|time:"H:i" }}</span>
                     </span>
-                </button>
+                </div>
                 {% endif %}
             {% elif show_end_rollcall %}
             <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='after_start' %}" class="worker-btn">
@@ -163,7 +180,7 @@
                 </span>
             </a>
             {% elif can_resume_search %}
-            <a href="{% url 'vacancy:resume_search' pk=vacancy.pk %}" class="worker-btn">
+            <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}" class="worker-btn">
                 <span class="worker-btn__icon">🔄</span>
                 <span class="worker-btn__text">
                     <span class="worker-btn__title">Поновити пошук</span>
@@ -218,12 +235,6 @@
 <script>
 function showExpiredModal() {
     document.getElementById('expired-modal').style.display = 'flex';
-}
-function closeRollcallTimeModal() {
-    document.getElementById('rollcallTimeModal').style.display = 'none';
-}
-function showRollcallTimeModal() {
-    document.getElementById('rollcallTimeModal').style.display = 'flex';
 }
 
 function closeExpiredModal() {

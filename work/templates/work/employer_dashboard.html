@@ -49,9 +49,9 @@
             </a>
             {% endif %}
 
-            <a href="{% if not is_blocked %}{% url 'vacancy:create' %}{% endif %}"
-               class="worker-btn{% if is_blocked %} disabled{% endif %}"
-               {% if is_blocked %}aria-disabled="true"{% endif %}>
+            <a href="{% if not is_blocked and not has_pending_rollcall %}{% url 'vacancy:create' %}{% endif %}"
+               class="worker-btn{% if is_blocked or has_pending_rollcall %} disabled{% endif %}"
+               {% if is_blocked or has_pending_rollcall %}aria-disabled="true"{% endif %}>
                 <span class="worker-btn__icon">📝</span>
                 <span class="worker-btn__text">
                     <span class="worker-btn__title">Створити вакансію</span>

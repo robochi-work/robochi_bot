@@ -52,6 +52,24 @@ class VacancyIsFullObserver(Observer):
                 strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
                 strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
 
+        # Notify employer about new worker during continued search
+        if vacancy.first_rollcall_passed and not vacancy.second_rollcall_passed:
+            try:
+                from telegram.choices import CallType
+                from vacancy.services.call_markup import get_rollcall_reminder_markup
+
+                _count = vacancy.members.count()
+                _text = f"Новий працівник додано. Працівників: {_count} / {vacancy.people_count}"
+                bot.send_message(
+                    chat_id=vacancy.owner.id,
+                    text=_text,
+                    reply_markup=get_rollcall_reminder_markup(vacancy, CallType.START),
+                )
+            except Exception:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
+
 
 class VacancySlotFreedObserver(Observer):
     """When worker leaves group: republish immediately with button, set search_active=True."""

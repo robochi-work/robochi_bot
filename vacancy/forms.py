@@ -184,6 +184,7 @@ class VacancyForm(forms.Form):
         self.work_profile = kwargs.pop("work_profile", None)
         resume_mode = kwargs.pop("resume_mode", False)
         super().__init__(*args, **kwargs)
+        self.resume_mode = resume_mode
 
         if resume_mode:
             self.fields["address"].widget.attrs["readonly"] = True
@@ -265,8 +266,8 @@ class VacancyForm(forms.Form):
 
             from django.utils import timezone
 
-            # Check: if today, start_time must be >= now + 2 hours
-            if date_choice == DATE_TODAY:
+            # Check: if today, start_time must be >= now + 1 hour (skip for resume)
+            if date_choice == DATE_TODAY and not getattr(self, "resume_mode", False):
                 now = timezone.localtime(timezone.now())
                 min_start = (now + timedelta(hours=1)).time()
                 if start_time < min_start:

@@ -1,6 +1,24 @@
 {% extends 'base.html' %}
 {% load i18n %}
-{% block header %}{% endblock %}
+{% block header %}
+<script>
+(function() {
+    var pk = {{ vacancy.pk }};
+    var url = '/vacancy/' + pk + '/members-json/';
+    setInterval(function() {
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.first_rollcall_passed || data.second_rollcall_passed) {
+                    window.location.href = '/vacancy/' + pk + '/detail/';
+                }
+            })
+            .catch(function(e) {});
+    }, 15000);
+})();
+</script>
+
+{% endblock %}
 {% block body %}
 <div class="call">
     {% if call_type == "start" %}
@@ -23,4 +41,22 @@
     </div>
     {% endif %}
 </div>
+
+<script>
+(function() {
+    var pk = {{ vacancy.pk }};
+    var url = '/vacancy/' + pk + '/members-json/';
+    setInterval(function() {
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.first_rollcall_passed || data.second_rollcall_passed) {
+                    window.location.href = '/vacancy/' + pk + '/detail/';
+                }
+            })
+            .catch(function(e) {});
+    }, 15000);
+})();
+</script>
+
 {% endblock %}
