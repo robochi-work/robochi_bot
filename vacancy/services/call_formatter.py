@@ -87,6 +87,20 @@ class CallVacancyTelegramTextFormatter:
     def admin_after_start_call_fail(self) -> str:
         return self.admin_call_fail(call_type=CallType.AFTER_START)
 
+    def admin_after_start_call_fail_detailed(self) -> str:
+        with override("uk"):
+            owner = self.vacancy.owner
+            phone = self._get_owner_contact_phone() or "—"
+            username_line = f"<b>Username:</b> @{owner.username}\n" if owner.username else "<b>Username:</b> —\n"
+            user_block = (
+                f"<b>ID:</b> <code>{owner.pk}</code>\n"
+                f"<b>Ім'я:</b> {owner.full_name or '—'}\n" + username_line + f"<b>Телефон:</b> {phone}\n"
+            )
+            invite = (
+                f"\n{self.vacancy.group.invite_link}" if self.vacancy.group and self.vacancy.group.invite_link else ""
+            )
+            return f"⚠️ 2 перекличка— недостатньо робітників\n\nВакансія: {self.vacancy.address}\n{user_block}{invite}"
+
     # ─── Worker: join confirmation ────────────────────────────────────────────
 
     def worker_join_confirm(self) -> str:

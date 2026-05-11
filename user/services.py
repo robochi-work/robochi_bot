@@ -182,6 +182,28 @@ class BlockService:
         logger.info("all_blocks_removed", extra={"user_id": user.id, "count": count})
         return count
 
+    @staticmethod
+    def auto_block_employer_rollcall_fail(user, blocked_by=None) -> UserBlock:
+        existing = UserBlock.objects.filter(
+            user=user, is_active=True, reason=BlockReason.EMPLOYER_ROLLCALL_FAIL
+        ).first()
+        if existing:
+            return existing
+        return BlockService.block_user(
+            user=user,
+            block_type=BlockType.TEMPORARY,
+            reason=BlockReason.EMPLOYER_ROLLCALL_FAIL,
+            blocked_by=blocked_by,
+        )
+
+    @staticmethod
+    def unblock_employer_rollcall_fail(user) -> None:
+        blocks = UserBlock.objects.filter(user=user, is_active=True, reason=BlockReason.EMPLOYER_ROLLCALL_FAIL)
+        for block in blocks:
+            block.is_active = False
+            block.save(update_fields=["is_active"])
+        logger.info("employer_rollcall_block_removed", extra={"user_id": user.id})
+
 
 def find_user_by_phone(*, phone_number: str):
     """Поиск пользователя по номеру телефона через AuthIdentity."""

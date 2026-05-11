@@ -146,6 +146,12 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
     if form.is_valid():
         users_queryset = form.fields["users"].queryset
 
+        # Detect repeat attempt for AFTER_START before creating new records
+        is_repeat_after_start = (
+            call_type == CallType.AFTER_START
+            and VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=CallType.AFTER_START).exists()
+        )
+
         create_vacancy_call(
             vacancy=vacancy,
             call_type=call_type,
@@ -179,9 +185,7 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
         if call_type == CallType.START:
             vacancy.first_rollcall_passed = True
             vacancy.save(update_fields=["first_rollcall_passed"])
-        elif call_type == CallType.AFTER_START:
-            vacancy.second_rollcall_passed = True
-            vacancy.save(update_fields=["second_rollcall_passed"])
+        # AFTER_START: second_rollcall_passed set only on success (see else branch below)
 
         all_unchecked = len(selected_users) == 0 and users_queryset.exists()
         no_workers_ever = len(selected_users) == 0 and not users_queryset.exists()
@@ -192,40 +196,79 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
 
             vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
         elif all_unchecked:
-            # All workers unchecked but workers existed — kick employer + notify admin
-            from service.broadcast_service import TelegramBroadcastService
+            if call_type == CallType.AFTER_START:
+                # Don't kick employer; block them and send detailed admin notification
+                from service.broadcast_service import TelegramBroadcastService
+                from user.services import BlockService
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+                from vacancy.services.call_markup import get_admin_check_rollcall_markup
 
-            if vacancy.group:
+                BlockService.auto_block_employer_rollcall_fail(user=vacancy.owner)
                 try:
-                    from telegram.service.group import GroupService
+                    from telegram.handlers.bot_instance import bot as _bot
 
-                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=vacancy.owner.id)
+                    _bot.send_message(
+                        chat_id=vacancy.owner.id,
+                        text="Друга перекличка не пройдена— Вас заблоковано! Зв'яжіться з Адміністратором для вирішення проблеми! @robochi_work_admin",
+                    )
                 except Exception:
-                    import sentry_sdk
-
-                    sentry_sdk.capture_exception()
-            admin_text = (
-                f"ЗАКРИТИ ВАКАНСІЮ\n"
-                f"Замовник зняв усі відмітки на перекличці\n"
-                f"Вакансія: {vacancy.address}\n"
-                f"Замовник: {vacancy.owner.full_name or str(vacancy.owner.id)}"
-            )
-            if vacancy.group and vacancy.group.invite_link:
-                admin_text += f"\nГрупа вакансії: {vacancy.group.invite_link}"
-            broadcast = TelegramBroadcastService()
-            broadcast.admin_broadcast(text=admin_text)
-            # Also trigger fail observer for worker notifications
-            if call_type == CallType.START:
-                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
-            elif call_type == CallType.AFTER_START:
+                    pass
+                broadcast = TelegramBroadcastService()
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_after_start_call_fail_detailed(),
+                    parse_mode="HTML",
+                    reply_markup=get_admin_check_rollcall_markup(vacancy),
+                )
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
+            else:
+                # START: kick employer + notify admin (existing behavior)
+                from service.broadcast_service import TelegramBroadcastService
+
+                if vacancy.group:
+                    try:
+                        from telegram.service.group import GroupService
+
+                        GroupService.kick_user(chat_id=vacancy.group.id, user_id=vacancy.owner.id)
+                    except Exception:
+                        import sentry_sdk
+
+                        sentry_sdk.capture_exception()
+                admin_text = (
+                    f"ЗАКРИТИ ВАКАНСІЮ\n"
+                    f"Замовник зняв усі відмітки на перекличці\n"
+                    f"Вакансія: {vacancy.address}\n"
+                    f"Замовник: {vacancy.owner.full_name or str(vacancy.owner.id)}"
+                )
+                if vacancy.group and vacancy.group.invite_link:
+                    admin_text += f"\nГрупа вакансії: {vacancy.group.invite_link}"
+                broadcast = TelegramBroadcastService()
+                broadcast.admin_broadcast(text=admin_text)
+                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
         elif rejected_users > 0:
             if call_type == CallType.START:
                 vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
             elif call_type == CallType.AFTER_START:
+                from user.services import BlockService
+
+                BlockService.auto_block_employer_rollcall_fail(user=vacancy.owner)
+                try:
+                    from telegram.handlers.bot_instance import bot as _bot
+
+                    _bot.send_message(
+                        chat_id=vacancy.owner.id,
+                        text="Друга перекличка не пройдена— Вас заблоковано! Зв'яжіться з Адміністратором для вирішення проблеми! @robochi_work_admin",
+                    )
+                except Exception:
+                    pass
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
         else:
             if call_type == CallType.AFTER_START:
+                if is_repeat_after_start:
+                    from user.services import BlockService
+
+                    BlockService.unblock_employer_rollcall_fail(user=vacancy.owner)
+                vacancy.second_rollcall_passed = True
+                vacancy.save(update_fields=["second_rollcall_passed"])
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_SUCCESS, data={"vacancy": vacancy})
 
         # Send bot notification about rollcall result
@@ -318,16 +361,28 @@ def vacancy_call(request: WSGIRequest, pk: int, call_type: CallType) -> HttpResp
         if call_answer:
             return call_answer
     else:
-        initial_calls = VacancyUserCall.objects.filter(
+        any_records_exist = VacancyUserCall.objects.filter(
             vacancy_user__in=users_queryset,
-            status=CallStatus.CONFIRM,
             call_type=call_type,
-        )
-        form = VacancyCallForm(
-            queryset=users_queryset,
-            call_type=call_type,
-            initial={"users": [user_call.vacancy_user for user_call in initial_calls]},
-        )
+        ).exists()
+        if call_type == CallType.AFTER_START or (call_type == CallType.START and not any_records_exist):
+            # Default all checkboxes to checked
+            form = VacancyCallForm(
+                queryset=users_queryset,
+                call_type=call_type,
+                initial={"users": list(users_queryset)},
+            )
+        else:
+            initial_calls = VacancyUserCall.objects.filter(
+                vacancy_user__in=users_queryset,
+                status=CallStatus.CONFIRM,
+                call_type=call_type,
+            )
+            form = VacancyCallForm(
+                queryset=users_queryset,
+                call_type=call_type,
+                initial={"users": [user_call.vacancy_user for user_call in initial_calls]},
+            )
 
     return render(
         request,

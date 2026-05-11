@@ -141,6 +141,17 @@ def get_renewal_worker_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     return markup
 
 
+def get_admin_check_rollcall_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        ButtonStorage.web_app(
+            label="Перевірити перекличку",
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:call", args=[vacancy.id, CallType.AFTER_START.value]),
+        )
+    )
+    return markup
+
+
 def get_worker_join_confirm_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     """Confirm / Reject buttons sent to worker after joining the group."""
     markup = InlineKeyboardMarkup()

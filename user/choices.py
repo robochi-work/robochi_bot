@@ -21,4 +21,5 @@ class BlockReason(models.TextChoices):
     EMPLOYER_UNCHECK = "employer_uncheck", _("Зняття галочки замовником")
     UNPAID = "unpaid", _("Неоплачений рахунок")
     EMPLOYER_NO_GROUP = "employer_no_group", _("Замовник не зайшов у групу вакансії")
+    EMPLOYER_ROLLCALL_FAIL = "employer_rollcall_fail", _("Замовник не пройшов перекличку")
     OTHER = "other", _("Інше")
