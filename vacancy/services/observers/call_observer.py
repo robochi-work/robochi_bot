@@ -141,9 +141,13 @@ class VacancyStartCallFailObserver(Observer):
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy: Vacancy = data["vacancy"]
 
+        from vacancy.services.call_markup import get_admin_check_rollcall_markup
+
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
-            text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_start_call_fail(),
+            text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_start_call_fail_detailed(),
+            parse_mode="HTML",
+            reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
         )
 
         users_call_reject = VacancyUserCall.objects.filter(

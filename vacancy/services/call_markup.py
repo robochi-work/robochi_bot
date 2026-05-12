@@ -141,12 +141,14 @@ def get_renewal_worker_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
     return markup
 
 
-def get_admin_check_rollcall_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
+def get_admin_check_rollcall_markup(
+    vacancy: Vacancy, call_type: CallType = CallType.AFTER_START
+) -> InlineKeyboardMarkup:
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
             label="Перевірити перекличку",
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:call", args=[vacancy.id, CallType.AFTER_START.value]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:call", args=[vacancy.id, call_type.value]),
         )
     )
     return markup

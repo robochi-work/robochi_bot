@@ -58,6 +58,15 @@ class CallVacancyTelegramTextFormatter:
             call_type=call_type,
         )
         with override("uk"):
+            owner = self.vacancy.owner
+            owner_phone = self._get_owner_contact_phone() or "\u2014"
+            employer_block = f"<b>ID:</b> <code>{owner.pk}</code>" + "\n"
+            employer_block += f"<b>\u0406\u043c\u2019\u044f:</b> {owner.full_name or chr(8212)}" + "\n"
+            if owner.username:
+                employer_block += f"<b>Username:</b> @{owner.username}" + "\n"
+            else:
+                employer_block += "<b>Username:</b> \u2014" + "\n"
+            employer_block += f"<b>\u0422\u0435\u043b\u0435\u0444\u043e\u043d:</b> {owner_phone}" + "\n"
             from vacancy.models import VacancyContactPhone
 
             contact_phones = dict(
@@ -78,7 +87,40 @@ class CallVacancyTelegramTextFormatter:
             return (
                 f"Спірна ситуація по заявці {self.vacancy.address}. "
                 f"Замовник зняв відмітки з деяких працівників.\n"
+                f"{employer_block}\n"
                 f"{user_lines}{invite}"
+            )
+
+    def admin_start_call_fail_detailed(self) -> str:
+        """Admin notification with employer data for failed first rollcall."""
+        owner = self.vacancy.owner
+        phone = self._get_owner_contact_phone() or chr(8212)
+        with override("uk"):
+            user_block = f"<b>ID:</b> <code>{owner.pk}</code>" + chr(10)
+            user_block += f"<b>{chr(1030)}{chr(1084)}{chr(8217)}{chr(1103)}:</b> {owner.full_name or chr(8212)}" + chr(
+                10
+            )
+            if owner.username:
+                user_block += f"<b>Username:</b> @{owner.username}" + chr(10)
+            else:
+                user_block += "<b>Username:</b> " + chr(8212) + chr(10)
+            user_block += (
+                f"<b>{chr(1058)}{chr(1077)}{chr(1083)}{chr(1077)}{chr(1092)}{chr(1086)}{chr(1085)}:</b> {phone}"
+                + chr(10)
+            )
+            invite = ""
+            if self.vacancy.group and self.vacancy.group.invite_link:
+                invite = chr(10) + self.vacancy.group.invite_link
+            return (
+                f"{chr(9888)}{chr(65039)} 1 {chr(1087)}{chr(1077)}{chr(1088)}{chr(1077)}{chr(1082)}{chr(1083)}{chr(1080)}{chr(1095)}{chr(1082)}{chr(1072)}{chr(8212)} "
+                f"{chr(1085)}{chr(1077)}{chr(1076)}{chr(1086)}{chr(1089)}{chr(1090)}{chr(1072)}{chr(1090)}{chr(1085)}{chr(1100)}{chr(1086)} "
+                f"{chr(1088)}{chr(1086)}{chr(1073)}{chr(1110)}{chr(1090)}{chr(1085)}{chr(1080)}{chr(1082)}{chr(1110)}{chr(1074)}"
+                + chr(10)
+                + chr(10)
+                + f"{chr(1042)}{chr(1072)}{chr(1082)}{chr(1072)}{chr(1085)}{chr(1089)}{chr(1110)}{chr(1103)}: {self.vacancy.address}"
+                + chr(10)
+                + f"{user_block}"
+                + f"{invite}"
             )
 
     def admin_start_call_fail(self) -> str:

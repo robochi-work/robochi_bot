@@ -223,6 +223,8 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             else:
                 # START: kick employer + notify admin (existing behavior)
                 from service.broadcast_service import TelegramBroadcastService
+                from vacancy.models import VacancyContactPhone
+                from vacancy.services.call_markup import get_admin_check_rollcall_markup
 
                 if vacancy.group:
                     try:
@@ -233,16 +235,31 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                         import sentry_sdk
 
                         sentry_sdk.capture_exception()
+                owner = vacancy.owner
+                cp = VacancyContactPhone.objects.filter(vacancy=vacancy, user=owner).first()
+                owner_phone = cp.phone if cp else "—"
+                username_line = f"<b>Username:</b> @{owner.username}\n" if owner.username else "<b>Username:</b> —\n"
+                employer_block = (
+                    f"<b>ID:</b> <code>{owner.pk}</code>\n"
+                    f"<b>Ім'я:</b> {owner.full_name or '—'}\n" + username_line + f"<b>Телефон:</b> {owner_phone}\n"
+                )
+                invite_line = (
+                    f"\nГрупа вакансії: {vacancy.group.invite_link}"
+                    if vacancy.group and vacancy.group.invite_link
+                    else ""
+                )
                 admin_text = (
                     f"ЗАКРИТИ ВАКАНСІЮ\n"
                     f"Замовник зняв усі відмітки на перекличці\n"
-                    f"Вакансія: {vacancy.address}\n"
-                    f"Замовник: {vacancy.owner.full_name or str(vacancy.owner.id)}"
+                    f"Вакансія: {vacancy.address}\n\n"
+                    f"{employer_block}{invite_line}"
                 )
-                if vacancy.group and vacancy.group.invite_link:
-                    admin_text += f"\nГрупа вакансії: {vacancy.group.invite_link}"
                 broadcast = TelegramBroadcastService()
-                broadcast.admin_broadcast(text=admin_text)
+                broadcast.admin_broadcast(
+                    text=admin_text,
+                    parse_mode="HTML",
+                    reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
+                )
                 vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
         elif rejected_users > 0:
             if call_type == CallType.START:
