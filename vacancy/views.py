@@ -624,7 +624,7 @@ def vacancy_detail(request, pk):
     _now = _tz.now()
     _start_naive = _dt.combine(vacancy.date, vacancy.start_time)
     _start_aware = _tz.make_aware(_start_naive, _tz.get_current_timezone())
-    rollcall_time_reached = _now >= _start_aware
+    rollcall_time_reached = _now >= _start_aware or vacancy.extra.get("sent_start_call", False)
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)
     show_payment = vacancy.second_rollcall_passed and not is_paid
