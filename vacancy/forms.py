@@ -213,12 +213,37 @@ class VacancyForm(forms.Form):
                 self.fields["city"].queryset = City.objects.none()
 
         today = date.today()
-        tomorrow_str = (today + timedelta(days=1)).strftime("%d.%m.%Y")
+        tomorrow = today + timedelta(days=1)
+        day_after = today + timedelta(days=2)
         self.fields["date_choice"].choices = [
             (DATE_TODAY, mark_safe(f"<div>{_('Today')}</div> <div>{today.strftime('%d.%m.%Y')}</div>")),
-            (DATE_TOMORROW, mark_safe(f"<div>{_('Tomorrow')}</div> <div>{tomorrow_str}</div>")),
+            (DATE_TOMORROW, mark_safe(f"<div>{_('Tomorrow')}</div> <div>{tomorrow.strftime('%d.%m.%Y')}</div>")),
         ]
         self.fields["date_choice"].initial = DATE_TODAY
+
+        start_time_init = self.initial.get("start_time")
+        end_time_init = self.initial.get("end_time")
+        if (
+            isinstance(start_time_init, d.time)
+            and isinstance(end_time_init, d.time)
+            and end_time_init < start_time_init
+        ):
+            self.fields["date_choice"].choices = [
+                (
+                    DATE_TODAY,
+                    mark_safe(
+                        f"<div>Сьогодні</div> <div>(ніч {today.strftime('%d')}&rarr;{tomorrow.strftime('%d.%m')})</div>"
+                    ),
+                ),
+                (
+                    DATE_TOMORROW,
+                    mark_safe(
+                        f"<div>Завтра</div> <div>(ніч {tomorrow.strftime('%d')}&rarr;{day_after.strftime('%d.%m')})</div>"
+                    ),
+                ),
+            ]
+            if datetime.now().hour < 12:
+                self.fields["date_choice"].initial = DATE_TOMORROW
 
     def clean_contact_phone(self):
         import re

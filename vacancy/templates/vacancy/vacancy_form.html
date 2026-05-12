@@ -213,3 +213,41 @@ document.querySelector('form').addEventListener('submit', function(e) {
     }, true);
 })();
 </script>
+<script>
+(function () {
+    function pad(n) { return String(n).padStart(2, '0'); }
+    var d0 = new Date();
+    var d1 = new Date(d0); d1.setDate(d0.getDate() + 1);
+    var d2 = new Date(d0); d2.setDate(d0.getDate() + 2);
+
+    function fmtFull(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear(); }
+    function fmtDD(d) { return pad(d.getDate()); }
+    function fmtDDMM(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
+
+    function updateDateLabels() {
+        var sh = document.querySelector('select[name="start_time_0"]');
+        var sm = document.querySelector('select[name="start_time_1"]');
+        var eh = document.querySelector('select[name="end_time_0"]');
+        var em = document.querySelector('select[name="end_time_1"]');
+        if (!sh || !sm || !eh || !em) return;
+        var sTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
+        var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
+        var lbls = document.querySelectorAll('.date-choice .option label');
+        if (lbls.length < 2) return;
+        if (eTotal < sTotal) {
+            lbls[0].innerHTML = '<div>Сьогодні</div> <div>(ніч ' + fmtDD(d0) + '&rarr;' + fmtDDMM(d1) + ')</div>';
+            lbls[1].innerHTML = '<div>Завтра</div> <div>(ніч ' + fmtDD(d1) + '&rarr;' + fmtDDMM(d2) + ')</div>';
+        } else {
+            lbls[0].innerHTML = '<div>Сьогодні</div> <div>' + fmtFull(d0) + '</div>';
+            lbls[1].innerHTML = '<div>Завтра</div> <div>' + fmtFull(d1) + '</div>';
+        }
+    }
+
+    ['start_time_0', 'start_time_1', 'end_time_0', 'end_time_1'].forEach(function (name) {
+        var el = document.querySelector('select[name="' + name + '"]');
+        if (el) el.addEventListener('change', updateDateLabels);
+    });
+
+    updateDateLabels();
+})();
+</script>
