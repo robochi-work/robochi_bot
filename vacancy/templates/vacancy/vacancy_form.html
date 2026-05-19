@@ -1,253 +1,253 @@
 {% load i18n %}
 <form method="post" action="{% url 'vacancy:create' %}">
-    {% csrf_token %}
+ {% csrf_token %}
 
-    {# City selector — shown for multi-city employers #}
-    {% if work_profile.multi_city_enabled %}
-    <div class="column city-selector-wrap">
-        <label for="{{ form.city.id_for_label }}">{% trans "City" %}:</label>
-        {{ form.city }}
-        {{ form.city.errors }}
-    </div>
-    {% else %}
-    {# Single city — show as text, hidden input #}
-    <div class="column city-current-wrap">
-        <span class="city-current-label">📍 {{ work_profile.city }}</span>
-    </div>
-    {{ form.city }}
-    {% endif %}
+ {# City selector — shown for multi-city employers #}
+ {% if work_profile.multi_city_enabled %}
+ <div class="column city-selector-wrap">
+ <label for="{{ form.city.id_for_label }}">{% trans "City" %}:</label>
+ {{ form.city }}
+ {{ form.city.errors }}
+ </div>
+ {% else %}
+ {# Single city — show as text, hidden input #}
+ <div class="column city-current-wrap">
+ <span class="city-current-label">{{ work_profile.city }}</span>
+ </div>
+ {{ form.city }}
+ {% endif %}
 
-    <div class="column">
-        <label for="{{ form.date_choice.id_for_label }}">{% trans "When are employees needed?" %}:</label>
-        <div class="date-choice">
-            {% for radio in form.date_choice %}
-                <div class="option option-{{ forloop.counter }}">
-                    {{ radio.tag }}
-                    <label for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
-                </div>
-            {% endfor %}
-        </div>
-        {{ form.date_choice.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.date_choice.id_for_label }}">{% trans "When are employees needed?" %}:</label>
+ <div class="date-choice">
+ {% for radio in form.date_choice %}
+ <div class="option option-{{ forloop.counter }}">
+ {{ radio.tag }}
+ <label for="{{ radio.id_for_label }}">{{ radio.choice_label }}</label>
+ </div>
+ {% endfor %}
+ </div>
+ {{ form.date_choice.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.gender.id_for_label }}">{% trans "Preferred gender of employee" %}:</label>
-        {{ form.gender }}
-        {{ form.gender.errors }}
-    </div>
-    <div class="column">
-        <label for="{{ form.start_time.id_for_label }}">{% trans "Start Time" %}:</label>
-        {{ form.start_time }}
-    </div>
+ <div class="column">
+ <label for="{{ form.gender.id_for_label }}">{% trans "Preferred gender of employee" %}:</label>
+ {{ form.gender }}
+ {{ form.gender.errors }}
+ </div>
+ <div class="column">
+ <label for="{{ form.start_time.id_for_label }}">{% trans "Start Time" %}:</label>
+ {{ form.start_time }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.end_time.id_for_label }}">{% trans "End Time" %}:</label>
-        {{ form.end_time }}
-    </div>
-    <div class="column">
-        <label for="{{ form.people_count.id_for_label }}">{% trans "Number of People" %}:</label>
-        {{ form.people_count }}
-        {{ form.people_count.errors }}
-    </div>
-    <div class="column">
-        <label for="{{ form.skills.id_for_label }}">{% trans "What will they do" %}:</label>
-        {{ form.skills }}
-        {{ form.skills.errors }}
-    </div>
-    <div class="column" style="align-items: start;">
-        <label for="{{ form.has_passport.id_for_label }}">{% trans "Has Passport" %}:</label>
-        {{ form.has_passport }}
-        {{ form.has_passport.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.end_time.id_for_label }}">{% trans "End Time" %}:</label>
+ {{ form.end_time }}
+ </div>
+ <div class="column">
+ <label for="{{ form.people_count.id_for_label }}">{% trans "Number of People" %}:</label>
+ {{ form.people_count }}
+ {{ form.people_count.errors }}
+ </div>
+ <div class="column">
+ <label for="{{ form.skills.id_for_label }}">{% trans "What will they do" %}:</label>
+ {{ form.skills }}
+ {{ form.skills.errors }}
+ </div>
+ <div class="column" style="align-items: start;">
+ <label for="{{ form.has_passport.id_for_label }}">{% trans "Has Passport" %}:</label>
+ {{ form.has_passport }}
+ {{ form.has_passport.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.address.id_for_label }}">{% trans "Address" %}:</label>
-        {{ form.address }}
-        {{ form.address.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.address.id_for_label }}">{% trans "Address" %}:</label>
+ {{ form.address }}
+ {{ form.address.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.map_link.id_for_label }}">{% trans "Address on Google maps (is not required)" %}:</label>
-        {{ form.map_link }}
-        {{ form.map_link.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.map_link.id_for_label }}">{% trans "Address on Google maps (is not required)" %}:</label>
+ {{ form.map_link }}
+ {{ form.map_link.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.payment_amount.id_for_label }}">{% trans "Payment Amount" %} (грн):</label>
-        {{ form.payment_amount }}
-        {{ form.payment_amount.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.payment_amount.id_for_label }}">{% trans "Payment Amount" %} (грн):</label>
+ {{ form.payment_amount }}
+ {{ form.payment_amount.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.payment_unit.id_for_label }}">{% trans "Payment Type" %}:</label>
-        {{ form.payment_unit }}
-        {{ form.payment_unit.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.payment_unit.id_for_label }}">{% trans "Payment Type" %}:</label>
+ {{ form.payment_unit }}
+ {{ form.payment_unit.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.payment_method.id_for_label }}">{% trans "Payment method" %}:</label>
-        {{ form.payment_method }}
-        {{ form.payment_method.errors }}
-    </div>
+ <div class="column">
+ <label for="{{ form.payment_method.id_for_label }}">{% trans "Payment method" %}:</label>
+ {{ form.payment_method }}
+ {{ form.payment_method.errors }}
+ </div>
 
-    <div class="column">
-        <label for="{{ form.contact_phone.id_for_label }}">{% trans "Contact phone" %}:</label>
-        {{ form.contact_phone }}
-    </div>
+ <div class="column">
+ <label for="{{ form.contact_phone.id_for_label }}">{% trans "Contact phone" %}:</label>
+ {{ form.contact_phone }}
+ </div>
 
-    <button type="submit">{% trans "Create vacancy" %}</button>
+ <button type="submit">{% trans "Create vacancy" %}</button>
 </form>
 <script>
 document.querySelector('form').addEventListener('submit', function(e) {
-    const btn = this.querySelector('button[type="submit"]');
-    if (btn.disabled) {
-        e.preventDefault();
-        return;
-    }
-    btn.disabled = true;
-    btn.textContent = 'Зачекайте...';
+ const btn = this.querySelector('button[type="submit"]');
+ if (btn.disabled) {
+ e.preventDefault();
+ return;
+ }
+ btn.disabled = true;
+ btn.textContent = 'Зачекайте...';
 });
 </script>
 
 <div id="time-modal" class="modal-overlay">
-  <div class="modal-card">
-    <p class="modal-text">Оберіть час початку роботи не раніше ніж через годину.</p>
-    <button type="button" class="btn-primary" onclick="document.getElementById('time-modal').style.display='none'">ЗРОЗУМІЛО</button>
-  </div>
+ <div class="modal-card">
+ <p class="modal-text">Оберіть час початку роботи не раніше ніж через годину.</p>
+ <button type="button" class="btn-primary" onclick="document.getElementById('time-modal').style.display='none'">ЗРОЗУМІЛО</button>
+ </div>
 </div>
 
 <div id="phone-modal" class="modal-overlay">
-  <div class="modal-card">
-    <p class="modal-text">Введіть коректний номер телефону!</p>
-    <button type="button" class="btn-primary" onclick="document.getElementById('phone-modal').style.display='none'">ЗРОЗУМІЛО</button>
-  </div>
+ <div class="modal-card">
+ <p class="modal-text">Введіть коректний номер телефону!</p>
+ <button type="button" class="btn-primary" onclick="document.getElementById('phone-modal').style.display='none'">ЗРОЗУМІЛО</button>
+ </div>
 </div>
 
 <div id="time-min-modal" class="modal-overlay">
-  <div class="modal-card">
-    <p class="modal-text">Мінімальний робочий час — 3 години.</p>
-    <button type="button" class="btn-primary" onclick="document.getElementById('time-min-modal').style.display='none'">ЗРОЗУМІЛО</button>
-  </div>
+ <div class="modal-card">
+ <p class="modal-text">Мінімальний робочий час — 3 години.</p>
+ <button type="button" class="btn-primary" onclick="document.getElementById('time-min-modal').style.display='none'">ЗРОЗУМІЛО</button>
+ </div>
 </div>
 
 <div id="time-max-modal" class="modal-overlay">
-  <div class="modal-card">
-    <p class="modal-text">Максимальний робочий час — 12 годин.</p>
-    <button type="button" class="btn-primary" onclick="document.getElementById('time-max-modal').style.display='none'">ЗРОЗУМІЛО</button>
-  </div>
+ <div class="modal-card">
+ <p class="modal-text">Максимальний робочий час — 12 годин.</p>
+ <button type="button" class="btn-primary" onclick="document.getElementById('time-max-modal').style.display='none'">ЗРОЗУМІЛО</button>
+ </div>
 </div>
 
 <script>
 (function() {
-    var radios = document.querySelectorAll('input[name="date_choice"]');
-    radios.forEach(function(r) {
-        r.addEventListener('change', function() {
-            var url = new URL(window.location.href);
-            url.searchParams.set('date', this.value);
-            window.location.href = url.toString();
-        });
-    });
+ var radios = document.querySelectorAll('input[name="date_choice"]');
+ radios.forEach(function(r) {
+ r.addEventListener('change', function() {
+ var url = new URL(window.location.href);
+ url.searchParams.set('date', this.value);
+ window.location.href = url.toString();
+ });
+ });
 
-    // Submit validation: phone + time
-    document.querySelector('form').addEventListener('submit', function(e) {
-        // Phone validation
-        var phoneInput = document.querySelector('input[name="contact_phone"]');
-        if (phoneInput && phoneInput.value.trim() !== '') {
-            var cleaned = phoneInput.value.replace(/[\s\-\(\)]/g, '');
-            var phoneRe = /^(\+380\d{9}|380\d{9}|0\d{9})$/;
-            if (!phoneRe.test(cleaned)) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                var btn = this.querySelector('button[type="submit"]');
-                if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
-                document.getElementById('phone-modal').style.display = 'flex';
-                return false;
-            }
-        }
-        // Start time validation for today
-        var dateEl = document.querySelector('input[name="date_choice"]:checked');
-        if (dateEl && dateEl.value === 'now') {
-            var sh = document.querySelector('select[name="start_time_0"]');
-            var sm = document.querySelector('select[name="start_time_1"]');
-            if (sh && sm) {
-                var now = new Date();
-                var minTotal = Math.ceil(((now.getHours() * 60 + now.getMinutes()) + 60) / 15) * 15;
-                var selTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
-                if (isNaN(selTotal) || selTotal < minTotal) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    var btn2 = this.querySelector('button[type="submit"]');
-                    if (btn2) { btn2.disabled = false; btn2.textContent = 'Створити вакансію'; }
-                    document.getElementById('time-modal').style.display = 'flex';
-                    return false;
-                }
-            }
-        }
-        // End time validation (both today and tomorrow): min 3h, max 12h
-        var sh2 = document.querySelector('select[name="start_time_0"]');
-        var sm2 = document.querySelector('select[name="start_time_1"]');
-        var eh = document.querySelector('select[name="end_time_0"]');
-        var em = document.querySelector('select[name="end_time_1"]');
-        if (sh2 && sm2 && eh && em) {
-            var sTotal = parseInt(sh2.value) * 60 + parseInt(sm2.value);
-            var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
-            if (eTotal <= sTotal) eTotal += 1440;
-            var diff = eTotal - sTotal;
-            if (diff < 180) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                var btn3 = this.querySelector('button[type="submit"]');
-                if (btn3) { btn3.disabled = false; btn3.textContent = 'Створити вакансію'; }
-                document.getElementById('time-min-modal').style.display = 'flex';
-                return false;
-            }
-            if (diff > 720) {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                var btn4 = this.querySelector('button[type="submit"]');
-                if (btn4) { btn4.disabled = false; btn4.textContent = 'Створити вакансію'; }
-                document.getElementById('time-max-modal').style.display = 'flex';
-                return false;
-            }
-        }
-    }, true);
+ // Submit validation: phone + time
+ document.querySelector('form').addEventListener('submit', function(e) {
+ // Phone validation
+ var phoneInput = document.querySelector('input[name="contact_phone"]');
+ if (phoneInput && phoneInput.value.trim() !== '') {
+ var cleaned = phoneInput.value.replace(/[\s\-\(\)]/g, '');
+ var phoneRe = /^(\+380\d{9}|380\d{9}|0\d{9})$/;
+ if (!phoneRe.test(cleaned)) {
+ e.preventDefault();
+ e.stopImmediatePropagation();
+ var btn = this.querySelector('button[type="submit"]');
+ if (btn) { btn.disabled = false; btn.textContent = 'Створити вакансію'; }
+ document.getElementById('phone-modal').style.display = 'flex';
+ return false;
+ }
+ }
+ // Start time validation for today
+ var dateEl = document.querySelector('input[name="date_choice"]:checked');
+ if (dateEl && dateEl.value === 'now') {
+ var sh = document.querySelector('select[name="start_time_0"]');
+ var sm = document.querySelector('select[name="start_time_1"]');
+ if (sh && sm) {
+ var now = new Date();
+ var minTotal = Math.ceil(((now.getHours() * 60 + now.getMinutes()) + 60) / 15) * 15;
+ var selTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
+ if (isNaN(selTotal) || selTotal < minTotal) {
+ e.preventDefault();
+ e.stopImmediatePropagation();
+ var btn2 = this.querySelector('button[type="submit"]');
+ if (btn2) { btn2.disabled = false; btn2.textContent = 'Створити вакансію'; }
+ document.getElementById('time-modal').style.display = 'flex';
+ return false;
+ }
+ }
+ }
+ // End time validation (both today and tomorrow): min 3h, max 12h
+ var sh2 = document.querySelector('select[name="start_time_0"]');
+ var sm2 = document.querySelector('select[name="start_time_1"]');
+ var eh = document.querySelector('select[name="end_time_0"]');
+ var em = document.querySelector('select[name="end_time_1"]');
+ if (sh2 && sm2 && eh && em) {
+ var sTotal = parseInt(sh2.value) * 60 + parseInt(sm2.value);
+ var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
+ if (eTotal <= sTotal) eTotal += 1440;
+ var diff = eTotal - sTotal;
+ if (diff < 180) {
+ e.preventDefault();
+ e.stopImmediatePropagation();
+ var btn3 = this.querySelector('button[type="submit"]');
+ if (btn3) { btn3.disabled = false; btn3.textContent = 'Створити вакансію'; }
+ document.getElementById('time-min-modal').style.display = 'flex';
+ return false;
+ }
+ if (diff > 720) {
+ e.preventDefault();
+ e.stopImmediatePropagation();
+ var btn4 = this.querySelector('button[type="submit"]');
+ if (btn4) { btn4.disabled = false; btn4.textContent = 'Створити вакансію'; }
+ document.getElementById('time-max-modal').style.display = 'flex';
+ return false;
+ }
+ }
+ }, true);
 })();
 </script>
 <script>
 (function () {
-    function pad(n) { return String(n).padStart(2, '0'); }
-    var d0 = new Date();
-    var d1 = new Date(d0); d1.setDate(d0.getDate() + 1);
-    var d2 = new Date(d0); d2.setDate(d0.getDate() + 2);
+ function pad(n) { return String(n).padStart(2, '0'); }
+ var d0 = new Date();
+ var d1 = new Date(d0); d1.setDate(d0.getDate() + 1);
+ var d2 = new Date(d0); d2.setDate(d0.getDate() + 2);
 
-    function fmtFull(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear(); }
-    function fmtDD(d) { return pad(d.getDate()); }
-    function fmtDDMM(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
+ function fmtFull(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + '.' + d.getFullYear(); }
+ function fmtDD(d) { return pad(d.getDate()); }
+ function fmtDDMM(d) { return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
 
-    function updateDateLabels() {
-        var sh = document.querySelector('select[name="start_time_0"]');
-        var sm = document.querySelector('select[name="start_time_1"]');
-        var eh = document.querySelector('select[name="end_time_0"]');
-        var em = document.querySelector('select[name="end_time_1"]');
-        if (!sh || !sm || !eh || !em) return;
-        var sTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
-        var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
-        var lbls = document.querySelectorAll('.date-choice .option label');
-        if (lbls.length < 2) return;
-        if (eTotal < sTotal) {
-            lbls[0].innerHTML = '<div>Сьогодні</div> <div>(ніч ' + fmtDD(d0) + '&rarr;' + fmtDDMM(d1) + ')</div>';
-            lbls[1].innerHTML = '<div>Завтра</div> <div>(ніч ' + fmtDD(d1) + '&rarr;' + fmtDDMM(d2) + ')</div>';
-        } else {
-            lbls[0].innerHTML = '<div>Сьогодні</div> <div>' + fmtFull(d0) + '</div>';
-            lbls[1].innerHTML = '<div>Завтра</div> <div>' + fmtFull(d1) + '</div>';
-        }
-    }
+ function updateDateLabels() {
+ var sh = document.querySelector('select[name="start_time_0"]');
+ var sm = document.querySelector('select[name="start_time_1"]');
+ var eh = document.querySelector('select[name="end_time_0"]');
+ var em = document.querySelector('select[name="end_time_1"]');
+ if (!sh || !sm || !eh || !em) return;
+ var sTotal = parseInt(sh.value) * 60 + parseInt(sm.value);
+ var eTotal = parseInt(eh.value) * 60 + parseInt(em.value);
+ var lbls = document.querySelectorAll('.date-choice .option label');
+ if (lbls.length < 2) return;
+ if (eTotal < sTotal) {
+ lbls[0].innerHTML = '<div>Сьогодні</div> <div>(ніч ' + fmtDD(d0) + '&rarr;' + fmtDDMM(d1) + ')</div>';
+ lbls[1].innerHTML = '<div>Завтра</div> <div>(ніч ' + fmtDD(d1) + '&rarr;' + fmtDDMM(d2) + ')</div>';
+ } else {
+ lbls[0].innerHTML = '<div>Сьогодні</div> <div>' + fmtFull(d0) + '</div>';
+ lbls[1].innerHTML = '<div>Завтра</div> <div>' + fmtFull(d1) + '</div>';
+ }
+ }
 
-    ['start_time_0', 'start_time_1', 'end_time_0', 'end_time_1'].forEach(function (name) {
-        var el = document.querySelector('select[name="' + name + '"]');
-        if (el) el.addEventListener('change', updateDateLabels);
-    });
+ ['start_time_0', 'start_time_1', 'end_time_0', 'end_time_1'].forEach(function (name) {
+ var el = document.querySelector('select[name="' + name + '"]');
+ if (el) el.addEventListener('change', updateDateLabels);
+ });
 
-    updateDateLabels();
+ updateDateLabels();
 })();
 </script>

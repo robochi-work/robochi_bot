@@ -5,235 +5,235 @@
 
 {% block body %}
 <main class="page page--members">
-    <div class="members-container">
+ <div class="members-container">
 
-        <div class="vacancy-list-header">
-            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Заявка</a>
-            <h1>Учасники</h1>
-        </div>
+ <div class="vacancy-list-header">
+ <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Заявка</a>
+ <h1>Учасники</h1>
+ </div>
 
-        {% if members_list %}
-        <div class="members-cards">
-            {% for item in members_list %}
-            <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
-                <div class="member-card__top">
-                    <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
-                    <button class="member-card__feedback-btn" onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">Відгуки</button>
-                    <span class="member-card__status">{{ item.status }}</span>
-                    {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;margin-left:6px;">🔒 Заблоковано</span>{% endif %}
-                </div>
-                <div class="member-card__info">
-                    {% if item.contact_phone %}
-                    <a href="tel:{{ item.contact_phone }}" class="member-card__phone">📞 {{ item.contact_phone }}</a>
-                    {% endif %}
-                    {% if item.feedbacks_count %}
-                    <span>⭐ {{ item.feedbacks_count }} відгук{{ item.feedbacks_count|pluralize:"ів,и,ів" }}</span>
-                    {% endif %}
-                </div>
-                {% if item.is_member %}
-                <div class="member-card__actions">
-                    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Видалити з групи?')">Видалити з групи</button>
-                    </form>
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="vacancy-list-empty">
-            <p>Ще немає учасників</p>
-        </div>
-        {% endif %}
+ {% if members_list %}
+ <div class="members-cards">
+ {% for item in members_list %}
+ <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
+ <div class="member-card__top">
+ <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
+ <button class="member-card__feedback-btn" onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">Відгуки</button>
+ <span class="member-card__status">{{ item.status }}</span>
+ {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;margin-left:6px;">Заблоковано</span>{% endif %}
+ </div>
+ <div class="member-card__info">
+ {% if item.contact_phone %}
+ <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
+ {% endif %}
+ {% if item.feedbacks_count %}
+ <span>{{ item.feedbacks_count }} відгук{{ item.feedbacks_count|pluralize:"ів,и,ів" }}</span>
+ {% endif %}
+ </div>
+ {% if item.is_member %}
+ <div class="member-card__actions">
+ <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="display:inline;">
+ {% csrf_token %}
+ <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Видалити з групи?')">Видалити з групи</button>
+ </form>
+ </div>
+ {% endif %}
+ </div>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="vacancy-list-empty">
+ <p>Ще немає учасників</p>
+ </div>
+ {% endif %}
 
-    </div>
+ </div>
 </main>
 
 <style>
 .page--members {
-    padding: 20px 14px;
-    justify-content: flex-start;
-    min-height: 100vh;
+ padding: 20px 14px;
+ justify-content: flex-start;
+ min-height: 100vh;
 }
 .members-container {
-    width: 100%;
-    max-width: 520px;
-    margin: 0 auto;
+ width: 100%;
+ max-width: 520px;
+ margin: 0 auto;
 }
 .members-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+ display: flex;
+ flex-direction: column;
+ gap: 12px;
 }
 .member-card {
-    padding: 16px;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
+ padding: 16px;
+ border-radius: var(--btn-radius);
+ background: var(--btn-bg);
+ box-shadow: var(--btn-shadow);
 }
 .member-card--inactive {
-    opacity: 0.6;
+ opacity: 0.6;
 }
 .member-card__top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ margin-bottom: 8px;
 }
 .member-card__name {
-    font-size: 15px;
-    font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
+ font-size: 15px;
+ font-weight: 700;
+ text-shadow: var(--btn-text-shadow);
 }
 .member-card__status {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 8px;
-    background: rgba(0,0,0,0.08);
+ font-size: 12px;
+ font-weight: 600;
+ padding: 2px 8px;
+ border-radius: 8px;
+ background: rgba(0,0,0,0.08);
 }
 .member-card__info {
-    display: flex;
-    gap: 12px;
-    font-size: 13px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
+ display: flex;
+ gap: 12px;
+ font-size: 13px;
+ margin-bottom: 8px;
+ flex-wrap: wrap;
 }
 .member-card__phone {
-    color: var(--accent-dark);
-    text-decoration: none;
-    font-weight: 600;
+ color: var(--accent-dark);
+ text-decoration: none;
+ font-weight: 600;
 }
 .member-card__actions {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(0,0,0,0.08);
+ margin-top: 8px;
+ padding-top: 8px;
+ border-top: 1px solid rgba(0,0,0,0.08);
 }
 .btn-kick {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 12px;
-    background: var(--message-error-bg);
-    color: #b71c1c;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
+ padding: 8px 16px;
+ border: none;
+ border-radius: 12px;
+ background: var(--message-error-bg);
+ color: #b71c1c;
+ font-size: 13px;
+ font-weight: 600;
+ cursor: pointer;
 }
 .member-card__feedback-btn {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--primary);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 3px 10px;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+ background: none;
+ border: 1px solid var(--border);
+ border-radius: var(--radius);
+ color: var(--primary);
+ font-size: 12px;
+ font-weight: 600;
+ padding: 3px 10px;
+ cursor: pointer;
+ -webkit-tap-highlight-color: transparent;
 }
 .feedback-modal-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-    z-index: 1000;
-    align-items: flex-end;
-    justify-content: center;
+ display: none;
+ position: fixed;
+ inset: 0;
+ background: rgba(0,0,0,0.4);
+ backdrop-filter: blur(4px);
+ -webkit-backdrop-filter: blur(4px);
+ z-index: 1000;
+ align-items: flex-end;
+ justify-content: center;
 }
 .feedback-modal-overlay.open {
-    display: flex;
+ display: flex;
 }
 .feedback-modal-box {
-    background: var(--card);
-    border-radius: var(--radius) var(--radius) 0 0;
-    border: 1px solid var(--border);
-    padding: 20px 16px 32px;
-    width: 100%;
-    max-width: 520px;
-    box-shadow: var(--shadow-lg);
+ background: var(--card);
+ border-radius: var(--radius) var(--radius) 0 0;
+ border: 1px solid var(--border);
+ padding: 20px 16px 32px;
+ width: 100%;
+ max-width: 520px;
+ box-shadow: var(--shadow-lg);
 }
 .feedback-modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ margin-bottom: 20px;
 }
 .feedback-modal-title {
-    font-size: 17px;
-    font-weight: 700;
+ font-size: 17px;
+ font-weight: 700;
 }
 .feedback-modal-close {
-    background: none;
-    border: none;
-    font-size: 18px;
-    opacity: 0.5;
-    cursor: pointer;
-    padding: 4px 8px;
-    color: inherit;
+ background: none;
+ border: none;
+ font-size: 18px;
+ opacity: 0.5;
+ cursor: pointer;
+ padding: 4px 8px;
+ color: inherit;
 }
 .feedback-modal-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
 }
 .feedback-modal-btn {
-    display: block;
-    text-align: center;
-    text-decoration: none;
-    padding: 14px;
-    border-radius: var(--radius);
-    font-size: 15px;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+ display: block;
+ text-align: center;
+ text-decoration: none;
+ padding: 14px;
+ border-radius: var(--radius);
+ font-size: 15px;
+ font-weight: 600;
+ border: none;
+ cursor: pointer;
+ -webkit-tap-highlight-color: transparent;
 }
 .feedback-modal-btn--primary {
-    background: var(--primary);
-    color: var(--primary-foreground);
-    box-shadow: var(--shadow);
+ background: var(--primary);
+ color: var(--primary-foreground);
+ box-shadow: var(--shadow);
 }
 .feedback-modal-btn--secondary {
-    background: var(--card);
-    box-shadow: var(--shadow);
-    color: inherit;
+ background: var(--card);
+ box-shadow: var(--shadow);
+ color: inherit;
 }
 </style>
 
 <!-- Feedback Modal -->
 <div id="feedback-modal" class="feedback-modal-overlay" onclick="closeFeedbackModalOutside(event)">
-    <div class="feedback-modal-box">
-        <div class="feedback-modal-header">
-            <span id="feedback-modal-name" class="feedback-modal-title"></span>
-            <button class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
-        </div>
-        <div class="feedback-modal-actions">
-            <a id="btn-leave-feedback" href="#" class="feedback-modal-btn feedback-modal-btn--primary">Залишити відгук</a>
-            <a id="btn-see-reviews" href="#" class="feedback-modal-btn feedback-modal-btn--secondary">Подивитися відгуки</a>
-        </div>
-    </div>
+ <div class="feedback-modal-box">
+ <div class="feedback-modal-header">
+ <span id="feedback-modal-name" class="feedback-modal-title"></span>
+ <button class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
+ </div>
+ <div class="feedback-modal-actions">
+ <a id="btn-leave-feedback" href="#" class="feedback-modal-btn feedback-modal-btn--primary">Залишити відгук</a>
+ <a id="btn-see-reviews" href="#" class="feedback-modal-btn feedback-modal-btn--secondary">Подивитися відгуки</a>
+ </div>
+ </div>
 </div>
 
 <script>
 var vacancyPk = {{ vacancy.pk }};
 
 function openFeedbackModal(userId, userName) {
-    document.getElementById('feedback-modal-name').textContent = userName;
-    document.getElementById('btn-leave-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
-    document.getElementById('btn-see-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
-    document.getElementById('feedback-modal').classList.add('open');
+ document.getElementById('feedback-modal-name').textContent = userName;
+ document.getElementById('btn-leave-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
+ document.getElementById('btn-see-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
+ document.getElementById('feedback-modal').classList.add('open');
 }
 
 function closeFeedbackModal() {
-    document.getElementById('feedback-modal').classList.remove('open');
+ document.getElementById('feedback-modal').classList.remove('open');
 }
 
 function closeFeedbackModalOutside(event) {
-    if (event.target === document.getElementById('feedback-modal')) {
-        closeFeedbackModal();
-    }
+ if (event.target === document.getElementById('feedback-modal')) {
+ closeFeedbackModal();
+ }
 }
 </script>
 {% endblock %}
