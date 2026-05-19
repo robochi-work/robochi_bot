@@ -71,7 +71,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     except Exception as e:
         logger.error(f"RESET_MENU_BUTTON FAILED: {e}")
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True))
+    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True, style="constructive"))
     logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
     try:
         bot.send_message(
@@ -261,6 +261,7 @@ def _send_cabinet_message(message):
         InlineKeyboardButton(
             text="Перейти",
             web_app=WebAppInfo(url=url),
+            style="constructive",
         )
     )
     get_bot().send_message(
@@ -275,14 +276,7 @@ def process_start_payload(payload: str, message) -> bool:
     try:
         data = decode_start_param(payload)
 
-        if data.get("type") == "feedback":
-            url = settings.BASE_URL.rstrip("/") + reverse("vacancy:user_list", kwargs={"pk": data.get("vacancy_id")})
-            markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton(text=_("Open"), web_app=WebAppInfo(url=url)))
-            get_bot().send_message(message.chat.id, text=_("Надіслати відгук"), reply_markup=markup)
-            return True
-
-        elif data.get("type") == "apply":
+        if data.get("type") == "apply":
             return _process_apply_payload(data, message)
 
         elif data.get("type") == "already_in_vacancy":

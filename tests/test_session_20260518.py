@@ -198,14 +198,21 @@ class TestMarkupFactoryStyles:
         assert button.style == "danger"
 
     def test_group_url_feedback_markup_uses_primary_style(self):
-        """'Надіслати відгук' URL button must have style='primary'."""
+        """'Відгуки/Контакти' WebApp button must have style='primary' and point to feedback-entry."""
         vacancy = MagicMock()
         vacancy.pk = 42
 
-        with patch("service.telegram_markup_factory.get_payload_url", return_value="https://example.com/feedback"):
+        with (
+            patch("service.telegram_markup_factory.settings") as mock_settings,
+            patch("service.telegram_markup_factory.reverse", return_value="/vacancy/42/feedback-entry/"),
+        ):
+            mock_settings.BASE_URL = "https://example.com"
             from service.telegram_markup_factory import group_url_feedback_reply_markup
 
             markup = group_url_feedback_reply_markup(vacancy)
 
         button = markup.keyboard[0][0]
         assert button.style == "primary"
+        assert button.text == "Відгуки/Контакти"
+        assert button.web_app is not None
+        assert "/feedback-entry/" in button.web_app.url
