@@ -1678,6 +1678,24 @@ class Meta:
 ### Тести
 - tests/test_session_20260519_lifecycle.py — 11 тестів
 
+## Удаление иконок из мини-приложения (19.05.2026)
+
+Из 15 HTML-шаблонов мини-приложения (WebApp) удалены все декоративные emoji-иконки.
+Иконки в сообщениях бота, админ-панели Django и системных отчётах НЕ затронуты.
+
+Затронутые файлы:
+- work/templates/work/: worker_dashboard.html, employer_dashboard.html, admin_dashboard.html, employer_cities.html, admin_search_results.html, employer_reviews.html, worker_my_work.html
+- vacancy/templates/vacancy/: vacancy_detail.html, vacancy_my_list.html, vacancy_payment.html, vacancy_members.html, vacancy_feedback.html, vacancy_user_reviews.html, pre_call.html, vacancy_form.html
+
+Символ ✕ (кнопка закрытия модалок) оставлен — это функциональный элемент, не декоративная иконка.
+
+## Удаление іконок з міні-додатку (19.05.2026)
+
+З 16 HTML-шаблонів міні-додатку (WebApp) видалено всі декоративні emoji-іконки.
+Іконки в повідомленнях бота, адмін-панелі Django та системних звітах НЕ змінювались.
+Символ ✕ (кнопка закриття модалок) залишено.
+Регресійний тест: tests/test_session_20260519_no_emojis.py (16 файлів).
+
 ## Сесія 19.05.2026 — Модерація вакансій з ЛК Адміністратора
 
 ### Проблема:
