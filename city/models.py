@@ -8,6 +8,8 @@ class City(TranslatableModel):
         name=models.CharField(_("City name"), max_length=255, null=True, blank=True),
     )
 
+    order = models.PositiveIntegerField(default=0, verbose_name=_("Порядок"), unique=True)
+
     def __str__(self):
         try:
             return f"{self.name}" if self.name else f"City #{self.pk}"
@@ -17,3 +19,4 @@ class City(TranslatableModel):
     class Meta:
         verbose_name = _("City")
         verbose_name_plural = _("Cities")
+        ordering = ["order", "pk"]

@@ -10,7 +10,9 @@ from .models import City
 
 @admin.register(City)
 class CityAdmin(TranslatableAdmin):
-    list_display = ("name",)
+    list_display = ("name", "order")
+    list_editable = ("order",)
+    ordering = ("order", "pk")
 
 
 class ChannelProxy(Channel):
