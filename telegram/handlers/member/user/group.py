@@ -116,6 +116,11 @@ def auto_approve(req: ChatJoinRequest):
                 user_id=req.from_user.id,
                 custom_title="Роботодавець",
             )
+            GroupService.set_member_tag(
+                chat_id=req.chat.id,
+                user_id=req.from_user.id,
+                tag="Роботодавець",
+            )
             return
 
         # Employer cannot join another employer's vacancy group
@@ -335,6 +340,11 @@ def handle_user_status_change(event: ChatMemberUpdated):
                 user_id=user.id,
                 custom_title="Адміністратор",
             )
+            GroupService.set_member_tag(
+                chat_id=event.chat.id,
+                user_id=user.id,
+                tag="Адміністратор",
+            )
         except Exception:
             sentry_sdk.capture_exception()
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": Status.ADMINISTRATOR.value})
@@ -354,6 +364,11 @@ def handle_user_status_change(event: ChatMemberUpdated):
                 user_id=event.new_chat_member.user.id,
                 custom_title="Роботодавець",
             )
+            GroupService.set_member_tag(
+                chat_id=event.chat.id,
+                user_id=event.new_chat_member.user.id,
+                tag="Роботодавець",
+            )
         elif user.is_staff:
             status = Status.ADMINISTRATOR.value
         else:
@@ -367,6 +382,11 @@ def handle_user_status_change(event: ChatMemberUpdated):
                 chat_id=event.chat.id,
                 user_id=event.new_chat_member.user.id,
                 custom_title="Працівник",
+            )
+            GroupService.set_member_tag(
+                chat_id=event.chat.id,
+                user_id=event.new_chat_member.user.id,
+                tag="Працівник",
             )
 
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})

@@ -7,4 +7,10 @@
     {% for ctx in rendered_blocks %}
         {% include ctx.block.template_name with ctx=ctx %}
     {% endfor %}
+
+    <div style="text-align:center; margin: 16px 0;">
+        <button id="add-home-btn" class="how-btn" style="display:none;">
+            Додати на головний екран
+        </button>
+    </div>
 {% endblock %}
