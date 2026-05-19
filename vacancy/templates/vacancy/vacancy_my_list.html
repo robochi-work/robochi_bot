@@ -47,7 +47,11 @@
     {% if vacancy_list %}
     <div class="vacancy-cards">
         {% for item in vacancy_list %}
+        {% if is_admin_view and item.vacancy.status == 'pending' %}
+        <a href="{% url 'work:admin_moderate_vacancy' vacancy_id=item.vacancy.pk %}" class="vacancy-card">
+        {% else %}
         <a href="{% url 'vacancy:detail' pk=item.vacancy.pk %}" class="vacancy-card">
+        {% endif %}
             <div class="vacancy-card__top">
                 <span class="vacancy-card__address">📍 {% if item.vacancy.channel and item.vacancy.channel.city %}{{ item.vacancy.channel.city }} · {% endif %}{{ item.vacancy.address|truncatechars:50 }}</span>
                 <span class="vacancy-card__status vacancy-card__status--{{ item.vacancy.status }}">

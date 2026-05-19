@@ -1659,4 +1659,36 @@ class Meta:
 ### Патерн:
 - Повторює підхід `FaqItem.order` (також `unique=True`, `list_editable` в адміні).
 - `CityAdmin` використовує `list_editable = ["order"]` для inline-редагування порядку безпосередньо зі списку.
-- `unique=True` гарантує відсутність дублікатів порядку — Django піднімає помилку при спробі зберегти два міста з однаковим `order`.
+
+## Сесія 19.05.2026 — Session fix + Lifecycle v7
+
+### Проблема 1: Розлогінювання адмінки
+- **Причина:** production.py мав SameSite="None" (браузери видаляють як трекінгове) і SESSION_COOKIE_AGE=86400 (24г замість 2 тижнів)
+- **Виправлено:** SameSite="Lax", AGE=1209600 (2 тижні), SESSION_SAVE_EVERY_REQUEST=True, CSRF_COOKIE_HTTPONLY=False
+- **Файл:** config/django/production.py
+
+### Проблема 2: Зависання міні-застосунку після згортання
+- **Причина:** lifecycle.js v6 робив reload() одразу — мережа ще не прокинулась → ERR_CONNECTION_ABORTED
+- **Виправлено:** lifecycle.js v7 — спочатку ping (fetch HEAD), потім reload. Overlay "Завантаження..." замість напівпрозорості. 6 спроб. Додані focus/pageshow події
+- **Файл:** telegram/static/js/lifecycle.js
+
+### Видалений мертвий код
+- telegram.js: блок alpine:init + getCookie (Alpine.js не підключена, getCookie не визначена)
+
+### Тести
+- tests/test_session_20260519_lifecycle.py — 11 тестів
+
+## Сесія 19.05.2026 — Модерація вакансій з ЛК Адміністратора
+
+### Проблема:
+Фільтр «На модерації» в ЛК Адміністратора (вкладка Вакансії) показував список заказчиків з вакансіями на модерації, але натиснувши на вакансію зі статусом "pending" — відкривалась сторінка деталей (vacancy_detail), де всі кнопки управління були заховані для pending-статусу. Модерація з ЛК була неможлива — лише через повідомлення бота в Телеграмі.
+
+### Рішення:
+В шаблоні `vacancy/templates/vacancy/vacancy_my_list.html` (рядок 50) — для адмін-перегляду (`is_admin_view`) вакансії зі статусом `pending` картка тепер веде на форму модерації (`work:admin_moderate_vacancy`), а не на сторінку деталей. Для інших статусів та для самого заказчика — все працює як раніше.
+
+### Повний шлях модерації з ЛК:
+Фільтр «На модерації» → ПОШУК → картка заказчика → «Карта вакансій» → натиснути вакансію «Очікує модерації» → **форма модерації** (редагування + підтвердження).
+
+### Файли змінені:
+- `vacancy/templates/vacancy/vacancy_my_list.html` — умовна ссилка: pending + is_admin_view → admin_moderate_vacancy; інакше → vacancy:detail
+- `tests/test_session_20260519_moderation.py` — 3 регресійні тести (admin бачить ссилку на модерацію для pending; admin бачить detail для approved; employer завжди бачить detail)
