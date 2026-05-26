@@ -192,9 +192,9 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
         # --- Standard roll-call flow ---
         user_call_data, created = VacancyUserCall.objects.update_or_create(
             vacancy_user=vacancy_user,
+            call_type=data["call_type"],
             defaults={
                 "status": data["status"],
-                "call_type": data["call_type"],
             },
         )
         if data["status"] == CallStatus.CONFIRM.value:

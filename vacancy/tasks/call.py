@@ -446,6 +446,11 @@ def close_lifecycle_timer_task():
         status=STATUS_SEARCH_STOPPED,
         closed_at__isnull=True,
     ):
+        # Skip if workers exist and lifecycle not finished (rollcalls/payment pending)
+        has_members = vacancy.members.exists()
+        if has_members and not vacancy.extra.get("payment_checked", False):
+            logger.info(f"close_lifecycle_timer_task: skipping vacancy {vacancy.pk} (has members, lifecycle active)")
+            continue
         logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (search_stopped_at timer)")
         vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
         processed += 1

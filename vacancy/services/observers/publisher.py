@@ -21,7 +21,12 @@ class BasePublisher:
 
     def notify(self, event: str, data: dict[str, Any]) -> None:
         for observer in self._subscribers.get(event, []):
-            observer.update(event, data)
+            try:
+                observer.update(event, data)
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Observer {observer.__class__.__name__} failed on {event}: {e}", exc_info=True)
 
 
 class VacancyEventPublisher(BasePublisher): ...
