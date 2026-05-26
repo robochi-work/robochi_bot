@@ -36,14 +36,14 @@ def admin_vacancy_feedback_reply_markup(feedback: UserFeedback) -> InlineKeyboar
 
 
 def group_url_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
-    url = settings.BASE_URL.rstrip("/") + reverse("vacancy:feedback_entry", kwargs={"pk": vacancy.pk})
+    url = f"https://t.me/riznorobochi_ua_bot?startapp=fb_{vacancy.pk}"
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_("Відгуки/Контакти"), web_app=WebAppInfo(url=url), style="primary"))
+    markup.add(InlineKeyboardButton(text=_("Відгуки/Контакти"), url=url))
     return markup
 
 
 def group_webapp_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
-    url = settings.BASE_URL.rstrip("/") + reverse("vacancy:feedback_entry", kwargs={"pk": vacancy.pk})
+    url = f"https://t.me/riznorobochi_ua_bot?startapp=fb_{vacancy.pk}"
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_("Відгуки/Контакти"), web_app=WebAppInfo(url=url), style="primary"))
+    markup.add(InlineKeyboardButton(text=_("Відгуки/Контакти"), url=url))
     return markup
