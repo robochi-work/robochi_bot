@@ -12,7 +12,7 @@ Covers:
 
 import base64
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from django.urls import NoReverseMatch, reverse
@@ -214,54 +214,34 @@ class TestVacancyMembersContactPhone:
 
 
 class TestGroupFeedbackButton:
-    """group_url_feedback_reply_markup returns a primary-style WebApp button."""
+    """group_url_feedback_reply_markup returns a startapp url button for groups."""
 
     def _make_markup(self):
-        """Build the markup with settings patched so reverse() works."""
+        from unittest.mock import MagicMock
 
         vacancy = MagicMock()
         vacancy.pk = 42
+        from service.telegram_markup_factory import group_url_feedback_reply_markup
 
-        with (
-            patch("service.telegram_markup_factory.settings") as mock_settings,
-            patch(
-                "service.telegram_markup_factory.reverse",
-                return_value="/vacancy/42/feedback-entry/",
-            ),
-        ):
-            mock_settings.BASE_URL = "https://example.com"
-            from service.telegram_markup_factory import group_url_feedback_reply_markup
-
-            markup = group_url_feedback_reply_markup(vacancy)
-
-        return markup
+        return group_url_feedback_reply_markup(vacancy)
 
     def test_button_text_is_feedback_kontakty(self):
-        """Button text must be «Відгуки/Контакти»."""
         markup = self._make_markup()
         button = markup.keyboard[0][0]
-        assert button.text == "Відгуки/Контакти"
+        assert (
+            button.text == "\u0412\u0456\u0434\u0433\u0443\u043a\u0438/\u041a\u043e\u043d\u0442\u0430\u043a\u0442\u0438"
+        )
 
-    def test_button_is_webapp_not_url(self):
-        """Button must carry a web_app attribute (WebAppInfo), not a plain url string."""
-        from telebot.types import WebAppInfo
-
+    def test_button_is_startapp_url(self):
         markup = self._make_markup()
         button = markup.keyboard[0][0]
-        assert isinstance(button.web_app, WebAppInfo), "Button must be a WebApp button, not a URL/callback button"
+        assert button.url is not None
+        assert "startapp=fb_" in button.url
 
-    def test_webapp_url_points_to_feedback_entry(self):
-        """The web_app.url must contain '/feedback-entry/' and the vacancy pk."""
+    def test_startapp_url_contains_vacancy_id(self):
         markup = self._make_markup()
         button = markup.keyboard[0][0]
-        assert "/feedback-entry/" in button.web_app.url
-        assert "42" in button.web_app.url
-
-    def test_button_style_is_primary(self):
-        """Button style must be 'primary' for the group pinned message."""
-        markup = self._make_markup()
-        button = markup.keyboard[0][0]
-        assert button.style == "primary"
+        assert "fb_42" in button.url
 
 
 # ===========================================================================
