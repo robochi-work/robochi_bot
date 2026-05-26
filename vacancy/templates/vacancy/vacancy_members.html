@@ -12,6 +12,15 @@
  <h1>Учасники</h1>
  </div>
 
+ {% if vacancy.group and vacancy.group.invite_link %}
+ <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn" style="margin-bottom:12px;">
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Повернутися в групу</span>
+ <span class="worker-btn__sub">Перейти в Telegram</span>
+ </span>
+ </a>
+ {% endif %}
+
  {% if members_list %}
  <div class="members-cards">
  {% for item in members_list %}
