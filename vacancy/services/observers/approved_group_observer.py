@@ -34,8 +34,7 @@ class VacancyApprovedGroupObserver(Observer):
                         )
                     except Exception as e:
                         logging.warning(f"Failed to pin message in group {vacancy.group.id}: {e}")
+                    vacancy.extra["sent_in_group"] = True
+                    vacancy.save(update_fields=["extra"])
             except Exception as e:
                 logging.warning(f"Failed to send message to group {vacancy.group.id}: {e}")
-
-            vacancy.extra["sent_in_group"] = True
-            vacancy.save(update_fields=["extra"])
