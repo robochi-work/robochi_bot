@@ -1802,3 +1802,37 @@ class Meta:
 - `vacancy/templates/vacancy/vacancy_user_list.html` — прибрано контакти
 - `work/templates/work/employer_dashboard.html` — кнопка оплати в блокуванні
 - `tests/test_session_20260527.py` — 16 тестів (10 функціональних + 6 регресійних)
+
+## Сесія 27.05.2026 (частина 2) — Фікс рахунку + засчитування оплати адміном
+
+### Баг: «0 працівників» у рахунку після автопідтвердження переклички
+
+**Проблема:** Коли замовник ігнорує 2-гу перекличку і система автоматично підтверджує (`_escalate_rollcall`), список робочих НЕ записувався в `vacancy.extra["calls"]["after_start"]`. Рахунок формується з цих даних (`invoice.py` рядок 25), тому показував 0 працівників і 0 грн.
+
+**Причина:** `_escalate_rollcall` у `vacancy/tasks/call.py` створювала `VacancyUserCall` записи і ставила прапорці `first/second_rollcall_passed`, але пропускала запис у `extra["calls"]`. Ручна перекличка через форму (`views.py` рядок 179) цей запис робила.
+
+**Виправлення:** Додано запис `extra["calls"][ct] = list(members.values_list("user_id", flat=True))` в обидві гілки (1-а і 2-а перекличка) функції `_escalate_rollcall`.
+
+### Засчитування оплати адміністратором
+
+**Проблема:** Адмін міг розблокувати замовника в ЛК, але вакансія залишалась у статусі «Очікує оплати», `is_paid=False`, група не звільнялась. Єдиний шлях — Django shell.
+
+**Рішення:** Створено спільну функцію `admin_mark_vacancies_paid(user, admin_user)` в `user/services.py`, яку використовують обидва шляхи:
+
+1. **ЛК Адміністратора** — при натисканні «Розблокувати» на замовнику з блокуванням за неоплату система автоматично викликає `admin_mark_vacancies_paid`
+2. **Django-адмінка** — нове дію «Зарахувати оплату (адмін)» у списку вакансій
+
+**Функція `admin_mark_vacancies_paid` виконує:**
+- Знаходить всі вакансії зі статусом `AWAITING_PAYMENT`
+- Ставить `is_paid=True`, `admin_marked_paid=True`, статус `PAID`
+- Знімає блокування за неоплату (`reason=unpaid`)
+- Видаляє повідомлення з рахунком у боті
+- Надсилає замовнику «Оплату зараховано адміністратором»
+- Логує дію з `admin_id` та `vacancy_id`
+
+### Файли змінені:
+- `vacancy/tasks/call.py` — `_escalate_rollcall` записує `extra["calls"]`
+- `user/services.py` — нова функція `admin_mark_vacancies_paid`
+- `work/views/admin_panel.py` — розблокування з засчитуванням оплати
+- `vacancy/admin.py` — дію «Зарахувати оплату (адмін)»
+- `tests/test_session_20260527_invoice_fix.py` — 4 тести
