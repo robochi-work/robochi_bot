@@ -1710,3 +1710,54 @@ class Meta:
 ### Файли змінені:
 - `vacancy/templates/vacancy/vacancy_my_list.html` — умовна ссилка: pending + is_admin_view → admin_moderate_vacancy; інакше → vacancy:detail
 - `tests/test_session_20260519_moderation.py` — 3 регресійні тести (admin бачить ссилку на модерацію для pending; admin бачить detail для approved; employer завжди бачить detail)
+
+## Сесія 26.05.2026 — Критичні баги ЖЦВ + закріп у групі
+
+### 3 критичні баги ЖЦВ виправлено:
+
+1. **Рабочий блокувався після підтвердження переклички «за 2 години».**
+   Причина: `callback/call.py` рядок 193 — `update_or_create` шукав запис тільки по `vacancy_user` (без `call_type`). Якщо у рабочого 2 записи (WORKER_JOIN_CONFIRM + BEFORE_START), Django кидав `MultipleObjectsReturned`, підтвердження не зберігалось, `check_before_20_start` бачив статус SENT → кік + блок.
+   Виправлення: додано `call_type=data["call_type"]` в lookup `update_or_create`.
+
+2. **Вакансія закривалась через ~3 години після початку роботи.**
+   Причина: `close_lifecycle_timer_task` (Case b) закривав будь-яку вакансію в статусі SEARCH_STOPPED через 3 години після `search_stopped_at`, не перевіряючи чи є рабочі і чи йде ЖЦВ.
+   Виправлення: додана перевірка `vacancy.members.exists()` + `payment_checked` — вакансії з рабочими і незавершеним ЖЦВ пропускаються.
+
+3. **Ланцюжок обробників ламався при помилці одного.**
+   Причина: `BasePublisher.notify()` не мав `try/except` — якщо observer кидав виняток, наступні не виконувались (наприклад, помилка каналу → закріп у групі не відправлявся).
+   Виправлення: кожен `observer.update()` обгорнутий в `try/except` з `logging.warning`.
+
+### Закріплене повідомлення в групі виправлено:
+
+4. **Прапорець `sent_in_group` ставився навіть при невдалій відправці.**
+   Причина: `approved_group_observer.py` — `vacancy.extra["sent_in_group"] = True` був за межами `try` блоку.
+   Виправлення: переміщено всередину `try`, після успішного `pin_chat_message`.
+
+5. **Кнопка `web_app=WebAppInfo()` не працює в групах — обмеження Telegram Bot API.**
+   Документація: «Available only in private chats between a user and the bot.»
+   Рішення: кнопка замінена на `url="https://t.me/riznorobochi_ua_bot?startapp=fb_{vacancy.pk}"`.
+   Telegram відкриває Main App (check-web-app/) з параметром `start_param`.
+
+6. **Роутинг через `check.html` для кнопки з групи.**
+   `check.html` тепер читає `Telegram.WebApp.initDataUnsafe.start_param` (або GET `tgWebAppStartParam`).
+   Якщо `start_param` починається з `fb_` → `next=/vacancy/ID/feedback-entry/` → view визначає роль → worker → "Моя робота", employer/admin → "Учасники".
+   Кнопка "ПОЧАТИ" (Menu Button) працює як раніше — без start_param → redirect на `/`.
+
+7. **Кнопка «Повернутися в групу» додана на сторінку vacancy_members** для заказчика/адміна.
+   У рабочого кнопка «Група моєї роботи» вже була на сторінці worker_my_work.
+
+### Важливе архітектурне рішення:
+- **`web_app=WebAppInfo()` на InlineKeyboardButton НЕ працює в групах** (Telegram API обмеження, станом на Bot API 10.0).
+- Альтернатива: `url="https://t.me/BOT?startapp=PARAM"` — відкриває Main Mini App з параметром, повна авторизація через initData.
+- Це стосується ВСІХ кнопок в групових повідомленнях — завжди використовувати `url=` з startapp, НЕ `web_app=`.
+
+### Файли змінені:
+- `telegram/handlers/callback/call.py` — call_type в update_or_create
+- `vacancy/tasks/call.py` — skip close для вакансій з рабочими
+- `vacancy/services/observers/publisher.py` — try/except в notify
+- `vacancy/services/observers/approved_group_observer.py` — sent_in_group всередині try
+- `service/telegram_markup_factory.py` — кнопка url= startapp замість web_app=
+- `telegram/templates/telegram/check.html` — обробка start_param
+- `vacancy/templates/vacancy/vacancy_members.html` — кнопка «Повернутися в групу»
+- `tests/test_session_20260526.py` — 12 регресійних тестів
+- `tests/test_feedback_contacts_merge.py` — оновлені тести кнопки

@@ -126,3 +126,91 @@ class TestPublisherErrorHandling:
         pub.notify("test", {})
 
         assert "good" in call_log, "GoodObserver must run even if FailingObserver crashes"
+
+
+@pytest.mark.django_db
+class TestGroupButtonStartappFormat:
+    """Fix: group button uses t.me startapp URL (web_app= not supported in groups)."""
+
+    def test_group_button_is_url_not_webapp(self):
+        """InlineKeyboardButton must use url=, not web_app=WebAppInfo."""
+        from unittest.mock import MagicMock
+
+        from service.telegram_markup_factory import group_url_feedback_reply_markup
+
+        vacancy = MagicMock()
+        vacancy.pk = 42
+        markup = group_url_feedback_reply_markup(vacancy)
+        button = markup.keyboard[0][0]
+        assert button.url is not None, "Must be url= button"
+        assert button.web_app is None, "web_app must not be set (not supported in groups)"
+
+    def test_group_button_contains_startapp_with_vacancy_id(self):
+        """URL must contain startapp=fb_<vacancy_pk>."""
+        from unittest.mock import MagicMock
+
+        from service.telegram_markup_factory import group_url_feedback_reply_markup
+
+        vacancy = MagicMock()
+        vacancy.pk = 99
+        markup = group_url_feedback_reply_markup(vacancy)
+        button = markup.keyboard[0][0]
+        assert "startapp=fb_99" in button.url
+
+    def test_group_button_points_to_bot(self):
+        """URL must point to t.me/riznorobochi_ua_bot."""
+        from unittest.mock import MagicMock
+
+        from service.telegram_markup_factory import group_url_feedback_reply_markup
+
+        vacancy = MagicMock()
+        vacancy.pk = 1
+        markup = group_url_feedback_reply_markup(vacancy)
+        button = markup.keyboard[0][0]
+        assert "t.me/riznorobochi_ua_bot" in button.url
+
+
+class TestCheckHtmlStartparamHandling:
+    """Fix: check.html reads start_param and sets next= for feedback redirect."""
+
+    def test_check_html_has_startparam_logic(self):
+        """check.html must read start_param and map fb_ prefix to feedback-entry URL."""
+        import pathlib
+
+        html = pathlib.Path("telegram/templates/telegram/check.html").read_text()
+        assert "start_param" in html, "check.html must handle start_param"
+        assert "fb_" in html, "check.html must parse fb_ prefix"
+        assert "feedback-entry" in html, "check.html must redirect to feedback-entry"
+
+    def test_check_html_uses_tgWebAppStartParam_fallback(self):
+        """check.html must also check GET param tgWebAppStartParam as fallback."""
+        import pathlib
+
+        html = pathlib.Path("telegram/templates/telegram/check.html").read_text()
+        assert "tgWebAppStartParam" in html
+
+
+class TestSentInGroupFlagInsideTry:
+    """Fix: sent_in_group=True must be inside try block (not set on failure)."""
+
+    def test_flag_inside_success_branch(self):
+        """In approved_group_observer, sent_in_group must be set inside outer try (send), not after it."""
+        import pathlib
+
+        code = pathlib.Path("vacancy/services/observers/approved_group_observer.py").read_text()
+        flag_pos = code.index('vacancy.extra["sent_in_group"] = True')
+        # Find the LAST except (outer = send failed) — flag must be before it
+        outer_except_pos = code.rindex('logging.warning(f"Failed to send message')
+        assert flag_pos < outer_except_pos, "sent_in_group=True must be inside outer try block"
+
+
+@pytest.mark.django_db
+class TestVacancyMembersBackToGroup:
+    """Vacancy members page has 'Повернутися в групу' button."""
+
+    def test_back_to_group_button_in_template(self):
+        import pathlib
+
+        html = pathlib.Path("vacancy/templates/vacancy/vacancy_members.html").read_text()
+        assert "Повернутися в групу" in html
+        assert "vacancy.group.invite_link" in html
