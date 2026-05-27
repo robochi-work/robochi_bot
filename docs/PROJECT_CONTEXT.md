@@ -1761,3 +1761,44 @@ class Meta:
 - `vacancy/templates/vacancy/vacancy_members.html` — кнопка «Повернутися в групу»
 - `tests/test_session_20260526.py` — 12 регресійних тестів
 - `tests/test_feedback_contacts_merge.py` — оновлені тести кнопки
+
+## Сесія 27.05.2026
+
+### Виконані задачі (8 пунктів):
+
+1. **Обнулення груп** — `reset_group` доповнено кроком 10: повторна перевірка та кік адмінів що залишились після основного скидання. `until_date` збільшено з +1с до +35с для надійного кіку. Вручну почищена група -1002882819252.
+
+2. **Перекличка робочих за 2 год** — таймаут змінено з 20 хв на 5 хв з нагадуваннями кожну хвилину (аналогічно `worker_join_confirm_check_task`). Метод перейменовано `check_before_20_start` → `check_before_5_start`.
+
+3. **Сторінка Учасники (vacancy_members.html)** — кнопка «Повернутися в групу» переміщена вище в стилі `btn-secondary`. Прибрано слово «Участник». Кнопка «Відгуки» → «Рейтинг/Відгуки» в стилі `btn-secondary btn-block`. Карточка: кнопка зверху, дані посередині, «Видалити з групи» знизу.
+
+4. **Закриття вакансії з оплатою (close_lifecycle)** — якщо після 1-ї переклички є робочі в групі, при натисканні «Закрити вакансію» виставляється рахунок (статус `AWAITING_PAYMENT`), замовник блокується до оплати. Без робочих — закривається як раніше.
+
+5. **Кнопка оплати в блокуванні** — додано кнопку «Сплатити рахунок» під текстом блокування на employer_dashboard, веде на «Поточні вакансії». Текст: «Сплатіть рахунок».
+
+6. **Підрахунок вакансій** — кнопка «Поточні вакансії» тепер рахує всі статуси (pending, approved, active, stopped, awaiting, paid, closed за 3г) замість тільки active/approved.
+
+7. **Автоперехід після переклички** — `call_confirm.html` автоматично перенаправляє на сторінку вакансії через 2 секунди. Додано `vacancy` в контекст view.
+
+8. **Редизайн 2-ї переклички** — `call.html` повністю переписано в стилі `pre_call.html`. Прибрано посилання «Повернутися до першої переклички» та старі кнопки «Меню».
+
+### Додатково:
+- **Перейменування**: «Оплатити рахунок» → «Сплатити рахунок» всюди (vacancy_detail.html, vacancy_payment.html)
+- **Кнопка «Подивитися контакти»** прибрана з модалки vacancy_user_list.html
+- **CSS статуси** в vacancy_my_list.html: додані стилі для stopped, awaiting (червоний #dc3545), closed, paid
+- **Фікс тестів**: test_retry_reload_in_lifecycle (MAX_RETRIES→pingAndReload), test_group_url_feedback_markup (style→url startapp)
+
+### Файли змінені:
+- `vacancy/views.py` — close_lifecycle з оплатою, vacancy в call_confirm контексті
+- `vacancy/services/observers/call_observer.py` — check_before_5_start з нагадуваннями
+- `telegram/service/group.py` — reset_group крок 10, until_date +35с
+- `work/views/index.py` — active_vacancies_count всі статуси
+- `vacancy/templates/vacancy/call.html` — повний редизайн
+- `vacancy/templates/vacancy/call_confirm.html` — автоперехід
+- `vacancy/templates/vacancy/vacancy_members.html` — новий layout
+- `vacancy/templates/vacancy/vacancy_detail.html` — Сплатити рахунок
+- `vacancy/templates/vacancy/vacancy_payment.html` — Сплатити рахунок
+- `vacancy/templates/vacancy/vacancy_my_list.html` — CSS статуси
+- `vacancy/templates/vacancy/vacancy_user_list.html` — прибрано контакти
+- `work/templates/work/employer_dashboard.html` — кнопка оплати в блокуванні
+- `tests/test_session_20260527.py` — 16 тестів (10 функціональних + 6 регресійних)
