@@ -5,7 +5,15 @@ from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
 from user.services import BlockService
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED, STATUS_SEARCH_STOPPED
+from vacancy.choices import (
+    STATUS_ACTIVE,
+    STATUS_APPROVED,
+    STATUS_AWAITING_PAYMENT,
+    STATUS_CLOSED,
+    STATUS_PAID,
+    STATUS_PENDING,
+    STATUS_SEARCH_STOPPED,
+)
 from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
 from work.choices import WorkProfileRole
@@ -90,10 +98,29 @@ def index(request: WSGIRequest):
             return redirect("vacancy:create")
 
         # Active vacancies count
-        active_vacancies_count = Vacancy.objects.filter(
-            owner=user,
-            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        ).count()
+        from datetime import timedelta
+
+        from django.db.models import Q
+        from django.utils import timezone as _tz
+
+        _threshold_3h = _tz.now() - timedelta(hours=3)
+        active_vacancies_count = (
+            Vacancy.objects.filter(owner=user)
+            .filter(
+                Q(
+                    status__in=[
+                        STATUS_PENDING,
+                        STATUS_APPROVED,
+                        STATUS_ACTIVE,
+                        STATUS_SEARCH_STOPPED,
+                        STATUS_AWAITING_PAYMENT,
+                        STATUS_PAID,
+                    ]
+                )
+                | Q(status=STATUS_CLOSED, closed_at__gte=_threshold_3h)
+            )
+            .count()
+        )
 
         # Reviews count
         reviews_count = UserFeedback.objects.filter(user=user).count()

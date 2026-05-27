@@ -297,7 +297,7 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             _bot.send_message(chat_id=vacancy.owner.id, text=_text)
         except Exception:
             pass
-        return render(request, "vacancy/call_confirm.html", context={"form": form})
+        return render(request, "vacancy/call_confirm.html", context={"form": form, "vacancy": vacancy})
     return None
 
 
@@ -545,7 +545,7 @@ def vacancy_my_list(request):
         STATUS_APPROVED: "Активна",
         STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
-        STATUS_AWAITING_PAYMENT: "Очікує оплати",
+        STATUS_AWAITING_PAYMENT: "Сплатити рахунок",
         STATUS_CLOSED: "Закрита",
         STATUS_PAID: "Сплачено",
     }
@@ -588,7 +588,7 @@ def vacancy_detail(request, pk):
         STATUS_APPROVED: "Активна",
         STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
-        STATUS_AWAITING_PAYMENT: "Очікує оплати",
+        STATUS_AWAITING_PAYMENT: "Сплатити рахунок",
         STATUS_CLOSED: "Закрита",
         STATUS_PAID: "Сплачено",
     }

@@ -4,7 +4,18 @@
 {% block header %}{% endblock %}
 
 {% block body %}
-<div class="call">
-    <h2>{% trans "Answers saved" %}</h2>
-</div>
+<main class="page page--vacancy-detail">
+ <div class="detail-container" style="text-align:center;padding-top:40px;">
+  <div class="detail-card">
+   <h2 style="font-size:17px;font-weight:700;margin-bottom:12px;">Відповіді збережено</h2>
+   <p style="color:var(--muted-foreground);font-size:14px;">Переходимо до вакансії...</p>
+  </div>
+ </div>
+</main>
+
+<script>
+setTimeout(function() {
+ window.location.href = '/vacancy/{{ vacancy.pk }}/detail/';
+}, 2000);
+</script>
 {% endblock %}

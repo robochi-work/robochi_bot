@@ -1,48 +1,102 @@
 {% extends 'base.html' %}
 {% load i18n %}
+
+{% block header %}{% endblock %}
+
 {% block body %}
-<div class="call">
-    {% if call_type == "start" %}
-    <h2>Перекличка: Початок роботи</h2>
-    {% elif call_type == "after_start" %}
-    <h2>Перекличка: Кінець роботи</h2>
-    {% else %}
-    <h2>{% trans "Confirm availability of workers" %}</h2>
-    {% endif %}
-    <form action="" method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">{% trans "Confirm" %}</button>
-    </form>
-    {% if call_type == "after_start" and not second_rollcall_passed and vacancy %}
-    <div style="margin-top: 20px; text-align: center;">
-        <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="link-back-rollcall">
-            ← Повернутися до першої переклички
-        </a>
+<main class="page page--vacancy-detail">
+ <div class="detail-container">
+
+  <div class="detail-header">
+   <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+  </div>
+
+  <div class="detail-card" style="text-align:center;">
+   {% if call_type == "start" %}
+   <h2 style="font-size:17px;font-weight:700;margin-bottom:12px;">Перекличка: Початок роботи</h2>
+   {% elif call_type == "after_start" %}
+   <h2 style="font-size:17px;font-weight:700;margin-bottom:12px;">Перекличка: Кінець роботи</h2>
+   {% else %}
+   <h2 style="font-size:17px;font-weight:700;margin-bottom:12px;">Перекличка</h2>
+   {% endif %}
+   <p style="margin-bottom:4px;">{{ vacancy.address }}</p>
+   <p style="color:var(--muted-foreground);font-size:14px;">
+    {{ vacancy.date|date:"d.m.Y" }}, {{ vacancy.start_time|time:"H:i" }} – {{ vacancy.end_time|time:"H:i" }}
+   </p>
+  </div>
+
+  <form method="post" action="">
+   {% csrf_token %}
+
+   <div class="detail-card" style="margin-top:12px;">
+    <p style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--muted-foreground);">Оберіть працівників:</p>
+    <div class="call-users-list">
+     {% for checkbox in form.users %}
+     <label class="call-user-item">
+      {{ checkbox.tag }}
+      <span class="call-user-name">{{ checkbox.choice_label }}</span>
+     </label>
+     {% endfor %}
     </div>
-    {% endif %}
-</div>
+   </div>
+
+   <div class="detail-actions" style="margin-top:12px;">
+    <button type="submit" class="worker-btn" style="width:100%;border:none;cursor:pointer;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити</span>
+     </span>
+    </button>
+   </div>
+  </form>
+
+ </div>
+</main>
+
+<style>
+.call-users-list {
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+}
+.call-user-item {
+ display: flex;
+ align-items: center;
+ gap: 10px;
+ font-size: 15px;
+ font-weight: 600;
+ cursor: pointer;
+ -webkit-tap-highlight-color: transparent;
+}
+.call-user-item input[type="checkbox"] {
+ width: 22px;
+ height: 22px;
+ accent-color: var(--primary);
+ flex-shrink: 0;
+}
+.call-user-name {
+ flex: 1;
+}
+</style>
 
 <script>
 (function() {
-    var pk = {{ vacancy.pk }};
-    var url = '/vacancy/' + pk + '/members-json/';
-    var knownCount = document.querySelectorAll('input[name="users"]').length;
-    setInterval(function() {
-        fetch(url)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.first_rollcall_passed || data.second_rollcall_passed) {
-                    window.location.href = '/vacancy/' + pk + '/detail/';
-                    return;
-                }
-                if (data.members.length > knownCount) {
-                    window.location.reload();
-                }
-            })
-            .catch(function(e) {});
-    }, 15000);
+ var pk = {{ vacancy.pk }};
+ var url = '/vacancy/' + pk + '/members-json/';
+ var knownCount = document.querySelectorAll('input[name="users"]').length;
+ setInterval(function() {
+  fetch(url)
+   .then(function(r) { return r.json(); })
+   .then(function(data) {
+    if (data.first_rollcall_passed || data.second_rollcall_passed) {
+     window.location.href = '/vacancy/' + pk + '/detail/';
+     return;
+    }
+    if (data.members.length > knownCount) {
+     window.location.reload();
+    }
+   })
+   .catch(function(e) {});
+ }, 15000);
 })();
 </script>
-
 {% endblock %}

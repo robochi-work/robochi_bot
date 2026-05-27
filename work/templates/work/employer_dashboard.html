@@ -32,7 +32,8 @@
  Вас тимчасово заблоковано{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}. Причина: {{ active_block.get_reason_display }}.
  {% endif %}
  {% if active_block.reason == 'unpaid' %}
- <br>Оплатіть рахунок щоб створювати нові вакансії.
+ <br>Сплатіть рахунок щоб створювати нові вакансії.
+     <a href="{% url 'vacancy:my_list' %}" class="btn-primary" style="display:block;margin-top:12px;text-align:center;text-decoration:none;">Сплатити рахунок</a>
  {% endif %}
  </div>
  {% endif %}

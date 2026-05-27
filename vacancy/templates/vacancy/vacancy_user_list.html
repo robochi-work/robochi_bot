@@ -40,12 +40,7 @@
         <div class="modal-actions">
             <a id="btn-feedback" href="#" class="modal-btn modal-btn--primary">Залишити відгук</a>
             <a id="btn-reviews" href="#" class="modal-btn modal-btn--secondary">Подивитись відгуки</a>
-            {% if user_role == 'employer' %}
-            <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="modal-btn modal-btn--ghost">Подивитися контакти</a>
-            {% elif user_role == 'worker' %}
-            <button class="modal-btn modal-btn--ghost" onclick="sendContact()">Подивитися контакти</button>
             {% else %}
-            <button class="modal-btn modal-btn--ghost" onclick="alert('Скоро буде доступно')">Подивитися контакти</button>
             {% endif %}
         </div>
     </div>
