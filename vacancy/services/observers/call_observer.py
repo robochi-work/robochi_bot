@@ -82,39 +82,57 @@ class VacancyBeforeCallObserver(Observer):
                 )
 
     @staticmethod
-    def check_before_20_start(vacancy: Vacancy):
-        for member in vacancy.members:
-            kick = False
+    def check_before_5_start(vacancy: Vacancy):
+        KICK_AFTER = 300  # 5 minutes in seconds
+        REMIND_MINUTES = {1, 2, 3, 4}
 
+        for member in vacancy.members:
             try:
-                twenty_minutes_ago = timezone.now() - timedelta(minutes=20)
                 user_answer = VacancyUserCall.objects.filter(
                     vacancy_user=member,
                     call_type=CallType.BEFORE_START,
-                    created_at__lte=twenty_minutes_ago,
                 ).first()
-                if user_answer and not user_answer.status == CallStatus.CONFIRM:
-                    kick = True
+                if not user_answer or user_answer.status == CallStatus.CONFIRM:
+                    continue
+
+                elapsed = (timezone.now() - user_answer.created_at).total_seconds()
+
+                if elapsed >= KICK_AFTER:
+                    if BlockService.is_blocked(member.user):
+                        continue
+                    GroupService.kick_user(chat_id=member.vacancy.group.id, user_id=member.user.id)
+                    BlockService.auto_block_rollcall_reject(user=member.user)
+                    try:
+                        get_bot().send_message(
+                            member.user.id,
+                            CallVacancyTelegramTextFormatter.auto_block_message(reason="ігнорування переклички"),
+                        )
+                    except Exception:
+                        sentry_sdk.capture_exception()
+                    continue
+
+                # Reminder at minutes 1, 2, 3, 4
+                elapsed_minute = int(elapsed // 60)
+                in_reminder_window = (elapsed % 60) < 30
+                if elapsed_minute in REMIND_MINUTES and in_reminder_window:
+                    try:
+                        from vacancy.services.call_markup import get_before_start_call_markup
+
+                        get_bot().send_message(
+                            member.user.id,
+                            CallVacancyTelegramTextFormatter(vacancy=vacancy).before_start_call()
+                            + "\n\nНагадування: підтвердіть участь!",
+                            reply_markup=get_before_start_call_markup(vacancy=vacancy),
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 sentry_sdk.capture_exception()
-
-            if kick:
-                if BlockService.is_blocked(member.user):
-                    continue
-                GroupService.kick_user(chat_id=member.vacancy.group.id, user_id=member.user.id)
-                BlockService.auto_block_rollcall_reject(user=member.user)
-                try:
-                    get_bot().send_message(
-                        member.user.id,
-                        CallVacancyTelegramTextFormatter.auto_block_message(reason="ігнорування переклички"),
-                    )
-                except Exception:
-                    sentry_sdk.capture_exception()
 
     def update(self, event: str, data: dict[str, Any]) -> None:
         vacancy: Vacancy = data["vacancy"]
         self.check_before_start(vacancy=vacancy)
-        self.check_before_20_start(vacancy=vacancy)
+        self.check_before_5_start(vacancy=vacancy)
 
 
 class VacancyStartCallObserver(Observer):
