@@ -100,6 +100,7 @@ class VacancyAdmin(admin.ModelAdmin):
         "close_vacancy_forcibly_action",
         "send_vacancy_invoice_action",
         "set_default_owner_group_permissions",
+        "mark_as_paid_action",
     ]
 
     list_filter = (StatusDefaultFilter,)
@@ -310,6 +311,65 @@ class VacancyAdmin(admin.ModelAdmin):
                 )
 
         self.message_user(request, gettext("sent."), messages.SUCCESS)
+
+    @admin.action(description=_("Mark as paid (admin override)"))
+    def mark_as_paid_action(self, request, queryset: QuerySet[Vacancy]):
+        from user.models import UserBlock
+        from user.services import BlockService
+
+        from .choices import STATUS_AWAITING_PAYMENT, STATUS_PAID
+
+        paid_count = 0
+        for vacancy in queryset:
+            if vacancy.status != STATUS_AWAITING_PAYMENT:
+                self.message_user(
+                    request,
+                    gettext("Vacancy #%(pk)s is not awaiting payment (status: %(status)s), skipped.")
+                    % {"pk": vacancy.pk, "status": vacancy.status},
+                    messages.WARNING,
+                )
+                continue
+
+            vacancy.extra["is_paid"] = True
+            vacancy.extra["admin_marked_paid"] = True
+            vacancy.extra["admin_marked_paid_by"] = request.user.id
+            vacancy.status = STATUS_PAID
+            vacancy.save(update_fields=["status", "extra"])
+
+            # Remove unpaid block from owner
+            unpaid_block = UserBlock.objects.filter(user=vacancy.owner, is_active=True, reason="unpaid").first()
+            if unpaid_block:
+                BlockService.unblock_user(unpaid_block.pk)
+
+            # Delete payment bot message
+            if vacancy.extra.get("payment_message_id"):
+                try:
+                    from telegram.handlers.bot_instance import get_bot
+
+                    get_bot().delete_message(
+                        chat_id=vacancy.owner.id,
+                        message_id=vacancy.extra["payment_message_id"],
+                    )
+                except Exception:
+                    pass
+
+            # Notify employer
+            try:
+                from telegram.handlers.bot_instance import get_bot
+
+                get_bot().send_message(
+                    vacancy.owner.id,
+                    f"Оплату за вакансію {vacancy.address} зараховано адміністратором. Дякуємо!",
+                )
+            except Exception:
+                pass
+
+            paid_count += 1
+
+        if paid_count:
+            self.message_user(
+                request, gettext("Marked %(count)s vacancy(s) as paid.") % {"count": paid_count}, messages.SUCCESS
+            )
 
 
 @admin.register(VacancyUser)
