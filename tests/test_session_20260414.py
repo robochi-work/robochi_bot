@@ -216,8 +216,8 @@ class TestLifecycleJS:
     def test_retry_reload_in_lifecycle(self):
         with open("telegram/static/js/lifecycle.js") as f:
             source = f.read()
-        assert "MAX_RETRIES" in source
-        assert "retryCount" in source
+        assert "pingAndReload" in source
+        assert "attempt" in source
 
 
 # === 9. Favicon ===
