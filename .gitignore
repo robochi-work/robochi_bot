@@ -41,3 +41,4 @@ gitignore.save
 fix-user-models.patch
 !static/css/styles.css
 .env
+celerybeat-schedule.*
