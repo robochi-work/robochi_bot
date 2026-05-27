@@ -474,8 +474,8 @@ def admin_block_user(request, user_id):
                     sentry_sdk.capture_exception()
 
         elif action == "unblock":
-            # Check if employer has unpaid block - mark vacancies as paid
             from user.models import UserBlock
+            from user.services import admin_mark_vacancies_paid
 
             had_unpaid_block = UserBlock.objects.filter(user=target_user, is_active=True, reason="unpaid").exists()
 
@@ -483,30 +483,8 @@ def admin_block_user(request, user_id):
             logger.info("user_unblocked", extra={"admin_id": request.user.id, "target_user_id": target_user.id})
 
             if had_unpaid_block:
-                from vacancy.choices import STATUS_AWAITING_PAYMENT, STATUS_PAID
-                from vacancy.models import Vacancy
-
-                unpaid_vacancies = Vacancy.objects.filter(owner=target_user, status=STATUS_AWAITING_PAYMENT)
-                for vac in unpaid_vacancies:
-                    vac.extra["is_paid"] = True
-                    vac.extra["admin_marked_paid"] = True
-                    vac.extra["admin_marked_paid_by"] = request.user.id
-                    vac.status = STATUS_PAID
-                    vac.save(update_fields=["status", "extra"])
-                    logger.info(
-                        "vacancy_admin_marked_paid",
-                        extra={"admin_id": request.user.id, "vacancy_id": vac.pk, "source": "unblock"},
-                    )
-                    if vac.extra.get("payment_message_id"):
-                        try:
-                            from telegram.handlers.bot_instance import get_bot as _get_bot
-
-                            _get_bot().delete_message(
-                                chat_id=target_user.id,
-                                message_id=vac.extra["payment_message_id"],
-                            )
-                        except Exception:
-                            pass
+                paid = admin_mark_vacancies_paid(user=target_user, admin_user=request.user)
+                logger.info("unblock_marked_paid", extra={"count": paid, "user_id": target_user.id})
 
             try:
                 from telegram.handlers.bot_instance import get_bot
