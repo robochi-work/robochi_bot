@@ -212,7 +212,7 @@ class TestMarkupFactoryStyles:
             markup = group_url_feedback_reply_markup(vacancy)
 
         button = markup.keyboard[0][0]
-        assert button.style == "primary"
+        # style not supported for url buttons in Telegram API
         assert button.text == "Відгуки/Контакти"
-        assert button.web_app is not None
-        assert "/feedback-entry/" in button.web_app.url
+        assert button.url is not None
+        assert "startapp=fb_" in button.url
