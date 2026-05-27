@@ -57,7 +57,7 @@ class GroupService:
                 chat_id=chat_id,
                 user_id=user_id,
                 revoke_messages=False,
-                until_date=int(time.time()) + 1,
+                until_date=int(time.time()) + 35,
             )
             logger.info("user_kicked", extra={"user_id": user_id, "group_id": chat_id})
             try:
@@ -324,7 +324,7 @@ class GroupService:
                     chat_id=chat_id,
                     user_id=uid,
                     revoke_messages=False,
-                    until_date=int(time.time()) + 1,
+                    until_date=int(time.time()) + 35,
                 )
             except Exception as e:
                 logger.warning(f"reset_group: ban admin {uid} failed: {e}")
@@ -345,7 +345,7 @@ class GroupService:
                     chat_id=chat_id,
                     user_id=uig.user_id,
                     revoke_messages=False,
-                    until_date=int(time.time()) + 1,
+                    until_date=int(time.time()) + 35,
                 )
             except Exception as e:
                 logger.warning(f"reset_group: kick user {uig.user_id} failed: {e}")
@@ -368,10 +368,55 @@ class GroupService:
         # 9. Clean GroupMessage DB records
         GroupMessage.objects.filter(group=group).delete()
 
-        # 10. Detect untracked users (joined outside bot flow)
+        # 10. Re-check admins and kick any remaining (could appear during reset)
+        try:
+            admins_after = bot.get_chat_administrators(chat_id)
+            for admin in admins_after:
+                if admin.user.is_bot:
+                    continue
+                if admin.status == "creator":
+                    continue
+                uid = admin.user.id
+                try:
+                    bot.promote_chat_member(
+                        chat_id=chat_id,
+                        user_id=uid,
+                        can_promote_members=False,
+                        can_edit_messages=False,
+                        can_delete_messages=False,
+                        can_pin_messages=False,
+                        can_change_info=False,
+                        can_post_messages=False,
+                        can_invite_users=False,
+                        can_restrict_members=False,
+                        is_anonymous=False,
+                        can_manage_chat=False,
+                        can_manage_video_chats=False,
+                        can_manage_voice_chats=False,
+                        can_manage_topics=False,
+                        can_post_stories=False,
+                        can_edit_stories=False,
+                        can_delete_stories=False,
+                    )
+                except Exception:
+                    pass
+                try:
+                    bot.ban_chat_member(
+                        chat_id=chat_id, user_id=uid, revoke_messages=False, until_date=int(time.time()) + 35
+                    )
+                except Exception:
+                    pass
+                try:
+                    bot.unban_chat_member(chat_id=chat_id, user_id=uid, only_if_banned=True)
+                except Exception:
+                    pass
+                logger.info(f"reset_group: kicked remaining admin {uid}", extra={"group_id": chat_id})
+        except Exception as e:
+            logger.warning(f"reset_group: re-check admins failed: {e}")
+
+        # 11. Detect untracked regular users
         try:
             telegram_count = bot.get_chat_member_count(chat_id)
-            # Expected: bot + creator (if exists) = 2 max
             tracked = 1  # bot
             if creator_id:
                 tracked += 1
@@ -380,7 +425,7 @@ class GroupService:
                 logger.warning(
                     f"reset_group: {untracked} untracked users remain in group {chat_id} "
                     f"(telegram_count={telegram_count}, tracked={tracked}). "
-                    f"They joined outside bot flow and need manual cleanup.",
+                    f"They joined outside bot flow — cannot kick without user_id.",
                     extra={"group_id": chat_id, "untracked_count": untracked},
                 )
         except Exception as e:

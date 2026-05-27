@@ -950,30 +950,72 @@ def vacancy_close_lifecycle(request, pk):
 
                     logging.warning(f"Failed to update channel message on close: {e}")
 
-        vacancy.status = STATUS_CLOSED
-        vacancy.closed_at = timezone.now()
-        vacancy.search_active = False
-        vacancy.extra["cancel_requested"] = True
-        vacancy.save(update_fields=["status", "closed_at", "search_active", "extra"])
+        # Check if rollcall passed and workers exist — force payment instead of close
+        members_in_group = list(vacancy.members.values_list("user_id", flat=True))
+        if vacancy.first_rollcall_passed and len(members_in_group) > 0:
+            # Save workers as after_start call data for invoice calculation
+            if "calls" not in vacancy.extra:
+                vacancy.extra["calls"] = {}
+            vacancy.extra["calls"]["after_start"] = members_in_group
+            vacancy.extra["cancel_requested"] = True
+            vacancy.status = STATUS_AWAITING_PAYMENT
+            vacancy.search_active = False
+            vacancy.save(update_fields=["status", "search_active", "extra"])
 
-        # Notify admins about manual close
-        try:
-            notifier = TelegramNotifier(bot)
-            broadcast = TelegramBroadcastService(notifier=notifier)
-            group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
-            broadcast.admin_broadcast(
-                text=(
-                    f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk}\n"
-                    f"\U0001f4cd {vacancy.address}\n"
-                    f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
-                    f"\U0001f4ac Група: {group_link}\n"
-                    f"\u23f3 Групу буде розпущено через 3 години."
-                ),
-            )
-        except Exception as e:
-            import logging
+            # Send invoice and block employer
+            try:
+                from vacancy.services.invoice import send_vacancy_invoice
 
-            logging.warning(f"Failed to notify admins on vacancy close: {e}")
+                notifier = TelegramNotifier(bot)
+                send_vacancy_invoice(notifier=notifier, vacancy=vacancy)
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Failed to send invoice on close: {e}")
+
+            # Notify admins
+            try:
+                notifier = TelegramNotifier(bot)
+                broadcast = TelegramBroadcastService(notifier=notifier)
+                group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
+                broadcast.admin_broadcast(
+                    text=(
+                        f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk} (виставлено рахунок)\n"
+                        f"\U0001f4cd {vacancy.address}\n"
+                        f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
+                        f"\U0001f4ac Група: {group_link}\n"
+                        f"\U0001f4b0 Працівників: {len(members_in_group)}"
+                    ),
+                )
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Failed to notify admins on vacancy close: {e}")
+        else:
+            vacancy.status = STATUS_CLOSED
+            vacancy.closed_at = timezone.now()
+            vacancy.search_active = False
+            vacancy.extra["cancel_requested"] = True
+            vacancy.save(update_fields=["status", "closed_at", "search_active", "extra"])
+
+            # Notify admins about manual close
+            try:
+                notifier = TelegramNotifier(bot)
+                broadcast = TelegramBroadcastService(notifier=notifier)
+                group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
+                broadcast.admin_broadcast(
+                    text=(
+                        f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk}\n"
+                        f"\U0001f4cd {vacancy.address}\n"
+                        f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
+                        f"\U0001f4ac Група: {group_link}\n"
+                        f"\u23f3 Групу буде розпущено через 3 години."
+                    ),
+                )
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Failed to notify admins on vacancy close: {e}")
 
     return redirect("vacancy:detail", pk=pk)
 
