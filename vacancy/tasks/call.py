@@ -124,14 +124,22 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
             ct = CallType.START
             create_vacancy_call(vacancy=vacancy, call_type=ct, status=CallStatus.CREATED)
             VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=ct).update(status=CallStatus.CONFIRM)
+            # Save confirmed workers to extra for invoice calculation
+            extra_calls = vacancy.extra.get("calls", {})
+            extra_calls[ct] = list(members.values_list("user_id", flat=True))
+            vacancy.extra["calls"] = extra_calls
             vacancy.first_rollcall_passed = True
-            vacancy.save(update_fields=["first_rollcall_passed"])
+            vacancy.save(update_fields=["first_rollcall_passed", "extra"])
         elif not vacancy.second_rollcall_passed:
             ct = CallType.AFTER_START
             create_vacancy_call(vacancy=vacancy, call_type=ct, status=CallStatus.CREATED)
             VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=ct).update(status=CallStatus.CONFIRM)
+            # Save confirmed workers to extra for invoice calculation
+            extra_calls = vacancy.extra.get("calls", {})
+            extra_calls[ct] = list(members.values_list("user_id", flat=True))
+            vacancy.extra["calls"] = extra_calls
             vacancy.second_rollcall_passed = True
-            vacancy.save(update_fields=["second_rollcall_passed"])
+            vacancy.save(update_fields=["second_rollcall_passed", "extra"])
         from telegram.handlers.bot_instance import bot as _bot
 
         try:
