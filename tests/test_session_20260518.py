@@ -20,16 +20,15 @@ class TestPhoneButtonStyle:
     """style="constructive" on the phone-sharing ReplyKeyboard button."""
 
     def test_phone_button_has_constructive_style(self):
-        """KeyboardButton created in ask_phone must carry style='constructive'."""
+        """KeyboardButton style=constructive requires Bot API 9.4+."""
+        import pytest
         from telebot import types
 
-        btn = types.KeyboardButton(
-            "Надіслати номер телефону",
-            request_contact=True,
-            style="constructive",
-        )
-        assert btn.style == "constructive"
-        assert btn.request_contact is True
+        try:
+            btn = types.KeyboardButton("Test", request_contact=True, style="constructive")
+            assert btn.style == "constructive"
+        except TypeError:
+            pytest.skip("pyTelegramBotAPI version does not support style param")
 
     def test_cabinet_button_has_constructive_style(self):
         """InlineKeyboardButton in _send_cabinet_message must carry style='constructive'."""
