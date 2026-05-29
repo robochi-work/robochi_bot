@@ -7,7 +7,6 @@ import sentry_sdk
 from django.utils import timezone
 
 from service.broadcast_service import TelegramBroadcastService
-from service.notifications import NotificationMethod
 from service.notifications_impl import TelegramNotifier
 from telegram.choices import CallStatus, CallType
 from telegram.handlers.bot_instance import get_bot
@@ -23,6 +22,7 @@ from vacancy.services.call_markup import (
 )
 from vacancy.services.invoice import send_vacancy_invoice
 from vacancy.services.observers.publisher import Observer
+from vacancy.services.reminder_utils import delete_bot_message, send_and_track
 
 logger = logging.getLogger(__name__)
 
@@ -74,12 +74,18 @@ class VacancyBeforeCallObserver(Observer):
                     },
                 )
                 text = CallVacancyTelegramTextFormatter(vacancy=vacancy).before_start_call()
-                self.notifier.notify(
-                    recipient=SimpleNamespace(chat_id=member.user.id),
+                new_msg_id = send_and_track(
+                    chat_id=member.user.id,
                     text=text,
-                    method=NotificationMethod.TEXT,
                     reply_markup=get_before_start_call_markup(vacancy=vacancy),
                 )
+                if new_msg_id:
+                    if not vacancy.extra:
+                        vacancy.extra = {}
+                    bs_msgs = vacancy.extra.get("before_start_msg_ids", {})
+                    bs_msgs[str(member.user.id)] = new_msg_id
+                    vacancy.extra["before_start_msg_ids"] = bs_msgs
+                    vacancy.save(update_fields=["extra"])
 
     @staticmethod
     def check_before_5_start(vacancy: Vacancy):
@@ -100,6 +106,9 @@ class VacancyBeforeCallObserver(Observer):
                 if elapsed >= KICK_AFTER:
                     if BlockService.is_blocked(member.user):
                         continue
+                    # Delete last reminder before kicking
+                    prev_msg_id = (vacancy.extra or {}).get("before_start_msg_ids", {}).get(str(member.user.id))
+                    delete_bot_message(member.user.id, prev_msg_id)
                     GroupService.kick_user(chat_id=member.vacancy.group.id, user_id=member.user.id)
                     BlockService.auto_block_rollcall_reject(user=member.user)
                     try:
@@ -115,17 +124,22 @@ class VacancyBeforeCallObserver(Observer):
                 elapsed_minute = int(elapsed // 60)
                 in_reminder_window = (elapsed % 60) < 30
                 if elapsed_minute in REMIND_MINUTES and in_reminder_window:
-                    try:
-                        from vacancy.services.call_markup import get_before_start_call_markup
+                    from vacancy.services.call_markup import get_before_start_call_markup
 
-                        get_bot().send_message(
-                            member.user.id,
-                            CallVacancyTelegramTextFormatter(vacancy=vacancy).before_start_call()
-                            + "\n\nНагадування: підтвердіть участь!",
-                            reply_markup=get_before_start_call_markup(vacancy=vacancy),
-                        )
-                    except Exception:
-                        pass
+                    prev_msg_id = (vacancy.extra or {}).get("before_start_msg_ids", {}).get(str(member.user.id))
+                    new_msg_id = send_and_track(
+                        chat_id=member.user.id,
+                        text=CallVacancyTelegramTextFormatter(vacancy=vacancy).before_start_call(),
+                        reply_markup=get_before_start_call_markup(vacancy=vacancy),
+                        previous_message_id=prev_msg_id,
+                    )
+                    if new_msg_id:
+                        if not vacancy.extra:
+                            vacancy.extra = {}
+                        bs_msgs = vacancy.extra.get("before_start_msg_ids", {})
+                        bs_msgs[str(member.user.id)] = new_msg_id
+                        vacancy.extra["before_start_msg_ids"] = bs_msgs
+                        vacancy.save(update_fields=["extra"])
             except Exception:
                 sentry_sdk.capture_exception()
 
@@ -144,12 +158,16 @@ class VacancyStartCallObserver(Observer):
         workers = vacancy.members.count()
         logger.info("rollcall_started", extra={"vacancy_id": vacancy.id, "call_type": "start", "workers": workers})
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).start_call()
-        self.notifier.notify(
-            recipient=SimpleNamespace(chat_id=vacancy.owner.id),
+        new_msg_id = send_and_track(
+            chat_id=vacancy.owner.id,
             text=text,
-            method=NotificationMethod.TEXT,
             reply_markup=get_start_call_markup(vacancy=vacancy),
         )
+        if new_msg_id:
+            if not vacancy.extra:
+                vacancy.extra = {}
+            vacancy.extra["start_call_msg_id"] = new_msg_id
+            vacancy.save(update_fields=["extra"])
 
 
 class VacancyStartCallFailObserver(Observer):
@@ -217,12 +235,16 @@ class VacancyAfterStartCallObserver(Observer):
             "rollcall_started", extra={"vacancy_id": vacancy.id, "call_type": "after_start", "workers": workers}
         )
         text = CallVacancyTelegramTextFormatter(vacancy=vacancy).final_call()
-        self.notifier.notify(
-            recipient=SimpleNamespace(chat_id=vacancy.owner.id),
+        new_msg_id = send_and_track(
+            chat_id=vacancy.owner.id,
             text=text,
-            method=NotificationMethod.TEXT,
             reply_markup=get_final_call_markup(vacancy=vacancy),
         )
+        if new_msg_id:
+            if not vacancy.extra:
+                vacancy.extra = {}
+            vacancy.extra["final_call_msg_id"] = new_msg_id
+            vacancy.save(update_fields=["extra"])
 
 
 class VacancyAfterStartCallSuccessObserver(Observer):

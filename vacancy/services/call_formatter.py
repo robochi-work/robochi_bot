@@ -150,10 +150,6 @@ class CallVacancyTelegramTextFormatter:
             vacancy_text = VacancyTelegramTextFormatter(self.vacancy).for_channel()
             return f"Ви обрали вакансію:\n{vacancy_text}\n\nПідтвердіть, що ви дійсно готові працювати."
 
-    def worker_join_reminder(self) -> str:
-        with override("uk"):
-            return f"Нагадуємо: підтвердіть, будь ласка, свою участь у вакансії за адресою {self.vacancy.address}."
-
     # ─── Static: auto-block notifications ────────────────────────────────────
 
     @staticmethod
@@ -213,10 +209,6 @@ class CallVacancyTelegramTextFormatter:
         with override("uk"):
             vacancy_text = VacancyTelegramTextFormatter(self.vacancy).for_channel()
             return f"Завтра будете працювати там же де сьогодні?\n\n{vacancy_text}"
-
-    def renewal_worker_reminder(self) -> str:
-        with override("uk"):
-            return f"Нагадуємо: підтвердіть участь на завтра за адресою {self.vacancy.address}."
 
     def renewal_too_many_workers(self, excess: int) -> str:
         with override("uk"):

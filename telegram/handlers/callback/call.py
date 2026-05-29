@@ -32,6 +32,10 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
             chat_id=callback.message.chat.id,
             message_id=callback.message.message_id,
         )
+        # Clean up tracked renewal message id
+        if vacancy.extra and "renewal_msg_id" in vacancy.extra:
+            vacancy.extra.pop("renewal_msg_id", None)
+            vacancy.save(update_fields=["extra"])
         if data["status"] == CallStatus.CONFIRM.value:
             logger.info(
                 "call_confirmed", extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]}
@@ -169,10 +173,13 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     vacancy_user=vacancy_user,
                     call_type=CallType.RENEWAL_WORKER.value,
                 ).update(status=CallStatus.CONFIRM.value)
-                bot.send_message(
-                    chat_id=callback.message.chat.id,
-                    text=_("Answer saved"),
-                )
+                # Delete last renewal reminder for this worker
+
+                _renewal_msgs = (vacancy.extra or {}).get("renewal_worker_msg_ids", {})
+                _prev = _renewal_msgs.pop(str(user.id), None)
+                if _prev:
+                    vacancy.extra["renewal_worker_msg_ids"] = _renewal_msgs
+                    vacancy.save(update_fields=["extra"])
             else:  # REJECT
                 VacancyUserCall.objects.filter(
                     vacancy_user=vacancy_user,
@@ -211,10 +218,13 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
         )
         if data["call_type"] == CallType.BEFORE_START.value:
             if data["status"] == CallStatus.CONFIRM.value:
-                bot.send_message(
-                    chat_id=callback.message.chat.id,
-                    text=_("Answer saved"),
-                )
+                # Delete last before_start reminder
+
+                _bs_msgs = (vacancy.extra or {}).get("before_start_msg_ids", {})
+                _bs_prev = _bs_msgs.pop(str(user.id), None)
+                if _bs_prev:
+                    vacancy.extra["before_start_msg_ids"] = _bs_msgs
+                    vacancy.save(update_fields=["extra"])
                 # Контакт замовника після підтвердження переклички за 2 години
                 try:
                     from vacancy.models import VacancyContactPhone
@@ -242,6 +252,6 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                 )
                 return
 
-        bot.send_message(chat_id=callback.message.chat.id, text=_("Answer saved"))
+        pass  # No "Answer saved" — message with buttons already deleted above
     except ObjectDoesNotExist:
         bot.send_message(chat_id=callback.message.chat.id, text=_("You are no longer a participant in this vacancy."))

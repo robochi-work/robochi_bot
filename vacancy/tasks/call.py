@@ -19,6 +19,7 @@ from vacancy.services.observers.events import (
     VACANCY_START_CALL,
 )
 from vacancy.services.observers.subscriber_setup import telegram_notifier, vacancy_publisher
+from vacancy.services.reminder_utils import delete_bot_message, send_and_track
 
 Minutes = int
 logger = logging.getLogger(__name__)
@@ -47,24 +48,43 @@ def _get_owner_contact_phone(vacancy) -> str | None:
 
 
 def _send_rollcall_reminder(vacancy: Vacancy, call_type: CallType) -> None:
-    """Send rollcall reminder to vacancy owner."""
-    from telegram.handlers.bot_instance import bot
-    from vacancy.services.call_markup import get_rollcall_reminder_markup
+    """Send rollcall reminder to vacancy owner (full text, deletes previous)."""
+    from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+    from vacancy.services.call_markup import get_final_call_markup, get_start_call_markup
 
-    text = "Підтвердіть явку робочих на роботу" if call_type == CallType.START else "Підтвердіть наявність робочих"
-    try:
-        bot.send_message(
-            chat_id=vacancy.owner.id,
-            text=text,
-            reply_markup=get_rollcall_reminder_markup(vacancy, call_type),
-        )
-    except Exception as e:
-        logger.warning(f"_send_rollcall_reminder: vacancy {vacancy.pk}: {e}")
+    if call_type == CallType.START:
+        text = CallVacancyTelegramTextFormatter(vacancy=vacancy).start_call()
+        markup = get_start_call_markup(vacancy=vacancy)
+        msg_key = "start_call_msg_id"
+    else:
+        text = CallVacancyTelegramTextFormatter(vacancy=vacancy).final_call()
+        markup = get_final_call_markup(vacancy=vacancy)
+        msg_key = "final_call_msg_id"
+
+    prev_msg_id = (vacancy.extra or {}).get(msg_key)
+    new_msg_id = send_and_track(
+        chat_id=vacancy.owner.id,
+        text=text,
+        reply_markup=markup,
+        previous_message_id=prev_msg_id,
+    )
+    if new_msg_id:
+        if not vacancy.extra:
+            vacancy.extra = {}
+        vacancy.extra[msg_key] = new_msg_id
 
 
 def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
     """Notify admins and kick owner after max reminders exceeded."""
     from service.broadcast_service import TelegramBroadcastService
+
+    # Delete last reminder message
+    for msg_key in ("start_call_msg_id", "final_call_msg_id"):
+        prev_msg_id = (vacancy.extra or {}).get(msg_key)
+        if prev_msg_id:
+            delete_bot_message(vacancy.owner.id, prev_msg_id)
+            vacancy.extra.pop(msg_key, None)
+    vacancy.save(update_fields=["extra"])
 
     owner = vacancy.owner
     phone = _get_owner_contact_phone(vacancy) or chr(8212)
@@ -568,13 +588,22 @@ def worker_join_confirm_check_task():
         elapsed_minute = int(elapsed // 60)
         in_reminder_window = (elapsed % 60) < 30
         if elapsed_minute in REMIND_MINUTES and in_reminder_window:
-            try:
-                bot.send_message(
-                    chat_id=user.id,
-                    text=CallVacancyTelegramTextFormatter(vacancy).worker_join_reminder(),
-                )
-            except Exception as e:
-                logger.warning(f"worker_join_confirm: reminder failed for user {user.id}: {e}")
+            from vacancy.services.call_markup import get_worker_join_confirm_markup
+
+            prev_msg_id = (vacancy.extra or {}).get("confirm_msg_ids", {}).get(str(user.id))
+            new_msg_id = send_and_track(
+                chat_id=user.id,
+                text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
+                reply_markup=get_worker_join_confirm_markup(vacancy),
+                previous_message_id=prev_msg_id,
+            )
+            if new_msg_id:
+                if not vacancy.extra:
+                    vacancy.extra = {}
+                confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
+                confirm_msgs[str(user.id)] = new_msg_id
+                vacancy.extra["confirm_msg_ids"] = confirm_msgs
+                vacancy.save(update_fields=["extra"])
     logger.info("task_completed", extra={"task": "worker_join_confirm_check_task", "processed": None})
 
 
@@ -595,7 +624,6 @@ def renewal_offer_task():
     connection.close()
     from django.db.models import Q
 
-    from telegram.handlers.bot_instance import bot
     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
     from vacancy.services.call_markup import get_renewal_offer_markup
 
@@ -620,18 +648,18 @@ def renewal_offer_task():
 
         if not extra.get("renewal_started"):
             # Initial send
-            try:
-                bot.send_message(
-                    chat_id=vacancy.owner.id,
-                    text=CallVacancyTelegramTextFormatter(vacancy).renewal_offer(),
-                    reply_markup=get_renewal_offer_markup(vacancy),
-                )
-            except Exception as e:
-                logger.warning(f"renewal_offer_task: initial send failed for vacancy {vacancy.pk}: {e}")
+            new_msg_id = send_and_track(
+                chat_id=vacancy.owner.id,
+                text=CallVacancyTelegramTextFormatter(vacancy).renewal_offer(),
+                reply_markup=get_renewal_offer_markup(vacancy),
+            )
+            if not new_msg_id:
+                logger.warning(f"renewal_offer_task: initial send failed for vacancy {vacancy.pk}")
                 continue
             extra["renewal_started"] = True
             extra["renewal_sent_at"] = timezone.now().timestamp()
             extra["renewal_reminders"] = 0
+            extra["renewal_msg_id"] = new_msg_id
             vacancy.save(update_fields=["extra"])
 
         elif not extra.get("renewal_expired"):
@@ -641,22 +669,27 @@ def renewal_offer_task():
 
             reminders = extra.get("renewal_reminders", 0)
             if reminders >= _RENEWAL_MAX_REMINDERS:
+                # Delete last reminder on expiry
+                delete_bot_message(vacancy.owner.id, extra.get("renewal_msg_id"))
                 extra["renewal_expired"] = True
                 extra["renewal_offered"] = True
+                extra.pop("renewal_msg_id", None)
                 vacancy.save(update_fields=["extra"])
                 logger.info(f"renewal_offer_task: offer expired for vacancy {vacancy.pk}")
             else:
-                try:
-                    bot.send_message(
-                        chat_id=vacancy.owner.id,
-                        text=CallVacancyTelegramTextFormatter(vacancy).renewal_offer(),
-                        reply_markup=get_renewal_offer_markup(vacancy),
-                    )
-                except Exception as e:
-                    logger.warning(f"renewal_offer_task: reminder failed for vacancy {vacancy.pk}: {e}")
+                prev_msg_id = extra.get("renewal_msg_id")
+                new_msg_id = send_and_track(
+                    chat_id=vacancy.owner.id,
+                    text=CallVacancyTelegramTextFormatter(vacancy).renewal_offer(),
+                    reply_markup=get_renewal_offer_markup(vacancy),
+                    previous_message_id=prev_msg_id,
+                )
+                if not new_msg_id:
+                    logger.warning(f"renewal_offer_task: reminder failed for vacancy {vacancy.pk}")
                     continue
                 extra["renewal_reminders"] = reminders + 1
                 extra["renewal_sent_at"] = timezone.now().timestamp()
+                extra["renewal_msg_id"] = new_msg_id
                 vacancy.save(update_fields=["extra"])
     logger.info("task_completed", extra={"task": "renewal_offer_task", "processed": None})
 
@@ -687,6 +720,18 @@ def renewal_worker_check_task():
         vacancy_ids_with_pending.add(vacancy.pk)
 
         if elapsed >= _RENEWAL_WORKER_INTERVAL * _RENEWAL_WORKER_MAX_REMINDERS:
+            # Delete last reminder before kicking
+            renewal_msgs = (vacancy.extra or {}).get("renewal_worker_msg_ids", {})
+            prev_msg_id = renewal_msgs.get(str(user.id))
+            delete_bot_message(user.id, prev_msg_id)
+            # Send final message (stays permanently)
+            try:
+                bot.send_message(
+                    chat_id=user.id,
+                    text="Час вичерпано. Вас видалено з групи вакансії.",
+                )
+            except Exception:
+                pass
             # Kick and mark reject
             if vacancy.group:
                 try:
@@ -702,13 +747,23 @@ def renewal_worker_check_task():
         elapsed_slot = int(elapsed // _RENEWAL_WORKER_INTERVAL)
         in_window = (elapsed % _RENEWAL_WORKER_INTERVAL) < 30
         if elapsed_slot >= 1 and in_window:
-            try:
-                bot.send_message(
-                    chat_id=user.id,
-                    text=CallVacancyTelegramTextFormatter(vacancy).renewal_worker_reminder(),
-                )
-            except Exception as e:
-                logger.warning(f"renewal_worker_check: reminder failed for user {user.id}: {e}")
+            from vacancy.services.call_markup import get_renewal_worker_markup
+
+            renewal_msgs = (vacancy.extra or {}).get("renewal_worker_msg_ids", {})
+            prev_msg_id = renewal_msgs.get(str(user.id))
+            new_msg_id = send_and_track(
+                chat_id=user.id,
+                text=CallVacancyTelegramTextFormatter(vacancy).renewal_worker_ask(),
+                reply_markup=get_renewal_worker_markup(vacancy),
+                previous_message_id=prev_msg_id,
+            )
+            if new_msg_id:
+                if not vacancy.extra:
+                    vacancy.extra = {}
+                renewal_msgs = vacancy.extra.get("renewal_worker_msg_ids", {})
+                renewal_msgs[str(user.id)] = new_msg_id
+                vacancy.extra["renewal_worker_msg_ids"] = renewal_msgs
+                vacancy.save(update_fields=["extra"])
 
     # Check vacancies where poll may have just completed (all responded)
     handled_vacancies = set()
