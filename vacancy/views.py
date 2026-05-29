@@ -627,7 +627,7 @@ def vacancy_detail(request, pk):
     rollcall_time_reached = _now >= _start_aware or vacancy.extra.get("sent_start_call", False)
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)
-    show_payment = vacancy.second_rollcall_passed and not is_paid
+    show_payment = vacancy.second_rollcall_passed and not is_paid and vacancy.status != STATUS_PAID
 
     return render(
         request,
