@@ -168,6 +168,25 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
         except Exception:
             pass
 
+        # After auto-confirm of 2nd rollcall: issue invoice and block employer
+        if vacancy.second_rollcall_passed and vacancy.first_rollcall_passed:
+            from vacancy.choices import STATUS_AWAITING_PAYMENT
+            from vacancy.services.invoice import send_vacancy_invoice
+
+            vacancy.status = STATUS_AWAITING_PAYMENT
+            vacancy.search_active = False
+            vacancy.save(update_fields=["status", "search_active"])
+            try:
+                send_vacancy_invoice(notifier=telegram_notifier, vacancy=vacancy)
+            except Exception:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
+            logger.info(
+                "escalate_rollcall_invoice",
+                extra={"vacancy_id": vacancy.pk, "workers": members_count},
+            )
+
 
 def _update_channel_search_stopped(vacancy: Vacancy) -> None:
     """Edit channel message to 'Пошук завершено' (no join button)."""
@@ -489,8 +508,16 @@ def close_lifecycle_timer_task():
         status="paid",
         group__isnull=False,
     )
-
     for vacancy in paid_vacancies:
+        # Admin-marked paid: use search_stopped_at or closed_at as reference
+        if vacancy.extra.get("admin_marked_paid"):
+            ref_time = vacancy.search_stopped_at or vacancy.closed_at
+            if ref_time and ref_time <= threshold:
+                logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (admin paid, 3h passed)")
+                vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+                processed += 1
+            continue
+        # Monobank paid: 3h after last successful payment
         last_payment = (
             MonobankPayment.objects.filter(
                 vacancy=vacancy,
@@ -503,7 +530,6 @@ def close_lifecycle_timer_task():
             logger.info(f"close_lifecycle_timer_task: closing vacancy {vacancy.pk} (3h after payment)")
             vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
             processed += 1
-
     logger.info("task_completed", extra={"task": "close_lifecycle_timer_task", "processed": processed})
 
 

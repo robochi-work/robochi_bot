@@ -45,6 +45,7 @@ class TestRegressionInvoiceAfterAutoConfirm(TestCase):
             patch("vacancy.tasks.call.telegram_notifier"),
             patch("telegram.handlers.bot_instance.bot", MagicMock()),
             patch("telegram.handlers.bot_instance.get_bot", return_value=MagicMock()),
+            patch("vacancy.services.invoice.send_vacancy_invoice"),
         ):
             from vacancy.tasks.call import _escalate_rollcall
 
