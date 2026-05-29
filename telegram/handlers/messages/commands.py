@@ -137,7 +137,7 @@ def _process_apply_payload(data: dict, message) -> bool:
     # Owner (employer) — redirect to cabinet, not worker flow
     work_profile = getattr(user, "work_profile", None)
     if work_profile and work_profile.role == "employer":
-        _send_cabinet_message(message)
+        _send_employer_cabinet_message(message)
         return True
 
     try:
@@ -252,6 +252,26 @@ def _process_apply_payload(data: dict, message) -> bool:
     return True
 
 
+def _send_employer_cabinet_message(message):
+    """Send 'go to cabinet' message for employer."""
+    check_url = reverse("telegram:telegram_check_web_app")
+    url = settings.BASE_URL.rstrip("/") + check_url
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton(
+            text="Перейти",
+            web_app=WebAppInfo(url=url),
+            style="constructive",
+        )
+    )
+    get_bot().send_message(
+        chat_id=message.chat.id,
+        text="Перейдіть у Власний кабінет— тут ви зможете керувати вакансією, "
+        "знайти групу Вашої вакансії та отримати підказки користування сервісом.",
+        reply_markup=markup,
+    )
+
+
 def _send_cabinet_message(message):
     """Send 'go to cabinet' message with WebApp button."""
     check_url = reverse("telegram:telegram_check_web_app")
@@ -280,6 +300,10 @@ def process_start_payload(payload: str, message) -> bool:
             return _process_apply_payload(data, message)
 
         elif data.get("type") == "already_in_vacancy":
+            _send_cabinet_message(message)
+            return True
+
+        elif data.get("type") == "admin_apply":
             _send_cabinet_message(message)
             return True
 

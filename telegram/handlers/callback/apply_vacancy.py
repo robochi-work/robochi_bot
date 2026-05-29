@@ -37,9 +37,14 @@ def handle_apply_vacancy(call: CallbackQuery):
 
         work_profile = getattr(user, "work_profile", None)
 
-        # 1. Admin — пропускаем все проверки
+        # 1. Admin — перенаправление в бот через deep link
         if user.is_staff:
-            _send_invite(call, vacancy_id, user, role_text="Адміністратор")
+            payload = _encode_start_payload({"type": "admin_apply", "vacancy_id": vacancy_id})
+            deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
+            try:
+                bot.answer_callback_query(call.id, url=deep_link)
+            except Exception:
+                bot.answer_callback_query(call.id, text="Перейдіть у бота для продовження.", show_alert=True)
             return
 
         # 2. Постоянная блокировка
