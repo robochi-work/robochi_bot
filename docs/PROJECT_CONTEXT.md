@@ -645,7 +645,7 @@ AuthIdentity модель (user/models.py) — связывает User с про
    - bare except замінено на except Exception as e з logging.warning
    - **Важливо:** бот повинен мати право 'Додавати нових адміністраторів' (can_promote_members) у кожній групі пулу — налаштовується вручну в Telegram
 
-2. **Фільтр admin_vacancy_card** — додано status__in=[STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]:
+2. **Фільтр admin_vacancy_card** — додано status__in=[STATUS_PENDING, STATUS_APPROVED, STATUS_APPROVED]:
    - Раніше показувались ВСІ вакансії (включаючи closed/deleted)
    - Тепер адміністратор бачить тільки актуальні вакансії (як заказчик)
 
@@ -1864,11 +1864,11 @@ class Meta:
 - `awaiting` — Очікує оплати (замовник заблокований)
 - `paid` — Сплачено (через 3г група звільняється)
 - `rejected` — Скасована модератором
-- `active` — мертвий код, ніколи не ставиться (задача на видалення)
+- `active` — ВИДАЛЕНО 29.05.2026 (був мертвий код, ніколи не ставився)
 - `created` — тільки для імені події `VACANCY_CREATED`, не статус БД
 
 ### На горизонті (додано):
-- Рефакторинг: видалити `STATUS_ACTIVE` з 20+ фільтрів (замінити на `STATUS_APPROVED`)
+- ✅ ВИКОНАНО 29.05.2026: `STATUS_ACTIVE` повністю видалено з 16 файлів (~48 правок). Всі фільтри `status__in=[APPROVED, ACTIVE]` замінено на `status=APPROVED`. В admin_panel.py фільтр «до сплати» — `ACTIVE` замінено на `AWAITING_PAYMENT`. Константа видалена з choices.py. Тест: test_session_20260529_status_active.py (7 тестів).
 
 ### Файли змінені:
 - `vacancy/tasks/call.py` — `_escalate_rollcall` виставляє рахунок + `close_lifecycle_timer_task` Case c для admin-paid
