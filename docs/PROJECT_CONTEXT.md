@@ -1874,3 +1874,46 @@ class Meta:
 - `vacancy/tasks/call.py` — `_escalate_rollcall` виставляє рахунок + `close_lifecycle_timer_task` Case c для admin-paid
 - `vacancy/views.py` — `show_payment` перевіряє `STATUS_PAID`
 - `tests/test_session_20260518.py` — фікс CI тесту style param
+
+## История изменений
+
+### 2026-05-30 — Apply button (Я ГОТОВИЙ ПРАЦЮВАТИ) message routing fix
+
+Проблема: после нажатия «Я ГОТОВИЙ ПРАЦЮВАТИ» в канале заказчик/админ
+попадали в бота, но получали стандартное приветствие "Вітаємо у нашому
+сервісі!" вместо нужного сообщения.
+
+Корневая причина: в `_send_cabinet_message` и `_send_employer_cabinet_message`
+у `InlineKeyboardButton` был параметр `style="constructive"` — Telegram Bot API
+такого параметра не поддерживает и возвращает 400 Bad Request:
+"can't parse inline keyboard button: invalid button style specified".
+Исключение проглатывалось в `process_start_payload`
+(`except Exception: return False`), поэтому payload терялся и шёл
+`default_start`.
+
+Исправлено в `telegram/handlers/messages/commands.py`:
+1. Убран невалидный `style="constructive"` из InlineKeyboardButton (2 места).
+2. Добавлена функция `_send_admin_invite_message(message, vacancy_id)` —
+   шлёт админу ссылку на группу вакансии с текстом
+   «Перейдіть у групу даної вакансії за посиланням нижче:» и кнопкой
+   «Перейти в групу вакансії».
+3. Обработчик `type=admin_apply` теперь вызывает `_send_admin_invite_message`
+   вместо `_send_cabinet_message`.
+
+Поведение трёх сценариев нажатия «Я ГОТОВИЙ ПРАЦЮВАТИ»:
+- Рабочий (уже в этой вакансии) → текст «...тут ви зможете обрати роботу...»
+  + кнопка «Перейти» (WebApp/ЛК)
+- Заказчик (свою вакансию) → текст «...тут ви зможете керувати вакансією...»
+  + кнопка «Перейти» (WebApp/ЛК)
+- Админ → текст «Перейдіть у групу даної вакансії за посиланням нижче:»
+  + кнопка «Перейти в групу вакансії» (invite_link)
+
+Регрессионный тест: `tests/test_session_20260530_apply_button_messages.py`
+(4 теста). Ключевой защитный тест —
+`test_no_invalid_button_style_in_inline_buttons` — проверяет что
+`style="constructive"` отсутствует в исходниках трёх функций.
+
+Важное правило на будущее: `InlineKeyboardButton` в pyTelegramBotAPI НЕ
+поддерживает `style="..."`. Этот параметр существует только в
+`ReplyKeyboardMarkup`. При добавлении кнопок всегда проверять через
+минимальный smoke-тест.

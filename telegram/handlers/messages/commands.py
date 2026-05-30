@@ -220,11 +220,30 @@ def _send_employer_cabinet_message(message):
     check_url = reverse("telegram:telegram_check_web_app")
     url = settings.BASE_URL.rstrip("/") + check_url
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url), style="constructive"))
+    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
     get_bot().send_message(
         chat_id=message.chat.id,
         text="Перейдіть у Власний кабінет— тут ви зможете керувати вакансією, "
         "знайти групу Вашої вакансії та отримати підказки користування сервісом.",
+        reply_markup=markup,
+    )
+
+
+def _send_admin_invite_message(message, vacancy_id):
+    """Админ получает ссылку на группу вакансии."""
+    try:
+        vacancy = Vacancy.objects.select_related("group").get(id=vacancy_id)
+    except Vacancy.DoesNotExist:
+        get_bot().send_message(message.chat.id, "Вакансію не знайдено.")
+        return
+    if not vacancy.group or not vacancy.group.invite_link:
+        get_bot().send_message(message.chat.id, "Групу вакансії не знайдено.")
+        return
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=vacancy.group.invite_link))
+    get_bot().send_message(
+        chat_id=message.chat.id,
+        text="✅ Перейдіть у групу даної вакансії за посиланням нижче:",
         reply_markup=markup,
     )
 
@@ -234,7 +253,7 @@ def _send_cabinet_message(message):
     check_url = reverse("telegram:telegram_check_web_app")
     url = settings.BASE_URL.rstrip("/") + check_url
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url), style="constructive"))
+    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
     get_bot().send_message(
         chat_id=message.chat.id,
         text="Перейдіть у Власний кабінет— тут ви зможете обрати роботу, "
@@ -255,7 +274,7 @@ def process_start_payload(payload: str, message) -> bool:
             return True
 
         elif data.get("type") == "admin_apply":
-            _send_cabinet_message(message)
+            _send_admin_invite_message(message, data.get("vacancy_id"))
             return True
 
         elif data.get("type") == "info":
