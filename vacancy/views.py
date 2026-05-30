@@ -10,7 +10,6 @@ from django.utils.translation import gettext as _
 from telegram.choices import CallStatus, CallType
 from user.models import User, UserFeedback
 from vacancy.choices import (
-    STATUS_ACTIVE,
     STATUS_APPROVED,
     STATUS_AWAITING_PAYMENT,
     STATUS_CLOSED,
@@ -39,10 +38,7 @@ def vacancy_create(request):
         return redirect("index")
 
     # Block new vacancy creation if employer has an unpaid completed vacancy
-    for v in Vacancy.objects.filter(
-        owner=request.user,
-        second_rollcall_passed=True,
-    ).exclude(status=STATUS_CLOSED):
+    for v in Vacancy.objects.filter(owner=request.user, second_rollcall_passed=True).exclude(status=STATUS_CLOSED):
         if not v.extra.get("is_paid"):
             messages.warning(request, "Спершу оплатіть попередню вакансію.")
             return redirect("vacancy:payment", pk=v.pk)
@@ -152,29 +148,21 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             and VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=CallType.AFTER_START).exists()
         )
 
-        create_vacancy_call(
-            vacancy=vacancy,
-            call_type=call_type,
-            status=CallStatus.CREATED,
-        )
+        create_vacancy_call(vacancy=vacancy, call_type=call_type, status=CallStatus.CREATED)
         selected_users = list(form.cleaned_data.get("users", []))
         vacancy_users_call = VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=call_type)
-        vacancy_users_call.filter(vacancy_user__in=selected_users).update(
-            status=CallStatus.CONFIRM,
-        )
+        vacancy_users_call.filter(vacancy_user__in=selected_users).update(status=CallStatus.CONFIRM)
 
         if call_type == CallType.START:
             vacancy.extra["start_pre_call"] = "continue"
             (
                 VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=CallType.BEFORE_START)
                 .filter(vacancy_user__in=selected_users)
-                .update(
-                    status=CallStatus.CONFIRM,
-                )
+                .update(status=CallStatus.CONFIRM)
             )
 
         rejected_users: int = vacancy_users_call.exclude(vacancy_user__in=selected_users).update(
-            status=CallStatus.REJECT,
+            status=CallStatus.REJECT
         )
         extra_calls = vacancy.extra.get("calls", defaultdict(dict))
         extra_calls[call_type] = [i.user.id for i in selected_users]
@@ -379,21 +367,16 @@ def vacancy_call(request: WSGIRequest, pk: int, call_type: CallType) -> HttpResp
             return call_answer
     else:
         any_records_exist = VacancyUserCall.objects.filter(
-            vacancy_user__in=users_queryset,
-            call_type=call_type,
+            vacancy_user__in=users_queryset, call_type=call_type
         ).exists()
         if call_type == CallType.AFTER_START or (call_type == CallType.START and not any_records_exist):
             # Default all checkboxes to checked
             form = VacancyCallForm(
-                queryset=users_queryset,
-                call_type=call_type,
-                initial={"users": list(users_queryset)},
+                queryset=users_queryset, call_type=call_type, initial={"users": list(users_queryset)}
             )
         else:
             initial_calls = VacancyUserCall.objects.filter(
-                vacancy_user__in=users_queryset,
-                status=CallStatus.CONFIRM,
-                call_type=call_type,
+                vacancy_user__in=users_queryset, status=CallStatus.CONFIRM, call_type=call_type
             )
             form = VacancyCallForm(
                 queryset=users_queryset,
@@ -423,11 +406,7 @@ def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpRe
             rating = form.cleaned_data.get("rating") or "none"
             text = form.cleaned_data.get("text", "")
             feedback = UserFeedback.objects.create(
-                owner=request.user,
-                user=target_user,
-                text=text,
-                rating=rating,
-                extra={"vacancy_id": vacancy.pk},
+                owner=request.user, user=target_user, text=text, rating=rating, extra={"vacancy_id": vacancy.pk}
             )
             vacancy_publisher.notify(VACANCY_NEW_FEEDBACK, data={"vacancy": vacancy, "feedback": feedback})
             messages.success(request, _("Feedback has been sent."))
@@ -522,7 +501,6 @@ def vacancy_my_list(request):
     statuses = [
         STATUS_PENDING,
         STATUS_APPROVED,
-        STATUS_ACTIVE,
         STATUS_SEARCH_STOPPED,
         STATUS_AWAITING_PAYMENT,
         STATUS_PAID,
@@ -543,7 +521,6 @@ def vacancy_my_list(request):
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
         STATUS_APPROVED: "Активна",
-        STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
         STATUS_AWAITING_PAYMENT: "Сплатити рахунок",
         STATUS_CLOSED: "Закрита",
@@ -586,7 +563,6 @@ def vacancy_detail(request, pk):
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
         STATUS_APPROVED: "Активна",
-        STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
         STATUS_AWAITING_PAYMENT: "Сплатити рахунок",
         STATUS_CLOSED: "Закрита",
@@ -604,9 +580,7 @@ def vacancy_detail(request, pk):
     )
     has_workers = members.count() > 0
     show_start_rollcall = (
-        not vacancy.first_rollcall_passed
-        and vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED]
-        and has_workers
+        not vacancy.first_rollcall_passed and vacancy.status in [STATUS_APPROVED, STATUS_SEARCH_STOPPED] and has_workers
     )
     show_end_rollcall = (
         vacancy.first_rollcall_passed
@@ -665,7 +639,7 @@ def vacancy_stop_search(request, pk):
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
-    if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
+    if vacancy.status == STATUS_APPROVED:
         from django.utils import timezone
 
         from service.notifications import NotificationMethod
@@ -678,10 +652,7 @@ def vacancy_stop_search(request, pk):
         if vacancy.channel:
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
-                ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                )
+                ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                 .order_by("-id")
                 .first()
             )
@@ -769,10 +740,7 @@ def vacancy_continue_search(request, pk):
     try:
         from telegram.handlers.bot_instance import bot
 
-        bot.send_message(
-            chat_id=vacancy.owner.id,
-            text=f"Повторний пошук розпочато. Адреса: {vacancy.address}",
-        )
+        bot.send_message(chat_id=vacancy.owner.id, text=f"Повторний пошук розпочато. Адреса: {vacancy.address}")
     except Exception:
         pass
 
@@ -840,9 +808,7 @@ def vacancy_resume_search(request, pk):
                 from vacancy.models import VacancyContactPhone
 
                 VacancyContactPhone.objects.update_or_create(
-                    vacancy=vacancy,
-                    user=request.user,
-                    defaults={"phone": _edit_phone},
+                    vacancy=vacancy, user=request.user, defaults={"phone": _edit_phone}
                 )
             print(f"RESUME_SEARCH: saving vacancy pk={vacancy.pk} id={vacancy.id} status={vacancy.status}")
             vacancy.status = STATUS_PENDING
@@ -934,10 +900,7 @@ def vacancy_close_lifecycle(request, pk):
         if vacancy.channel:
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
-                ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                )
+                ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                 .order_by("-id")
                 .first()
             )
@@ -985,7 +948,7 @@ def vacancy_close_lifecycle(request, pk):
                         f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
                         f"\U0001f4ac Група: {group_link}\n"
                         f"\U0001f4b0 Працівників: {len(members_in_group)}"
-                    ),
+                    )
                 )
             except Exception as e:
                 import logging
@@ -1010,7 +973,7 @@ def vacancy_close_lifecycle(request, pk):
                         f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
                         f"\U0001f4ac Група: {group_link}\n"
                         f"\u23f3 Групу буде розпущено через 3 години."
-                    ),
+                    )
                 )
             except Exception as e:
                 import logging
@@ -1035,10 +998,7 @@ def vacancy_payment(request, pk):
 
     is_paid = (
         vacancy.extra.get("is_paid")
-        or MonobankPayment.objects.filter(
-            vacancy=vacancy,
-            status=MonobankPayment.Status.SUCCESS,
-        ).exists()
+        or MonobankPayment.objects.filter(vacancy=vacancy, status=MonobankPayment.Status.SUCCESS).exists()
     )
 
     if request.method == "POST" and not is_paid:

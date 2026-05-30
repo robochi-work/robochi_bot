@@ -40,10 +40,7 @@ class VacancyIsFullObserver(Observer):
 
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
-                ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                )
+                ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                 .order_by("-id")
                 .first()
             )
@@ -81,9 +78,9 @@ class VacancySlotFreedObserver(Observer):
         vacancy: Vacancy = data["vacancy"]
 
         # Only republish if vacancy is not closed
-        from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+        from vacancy.choices import STATUS_APPROVED
 
-        if vacancy.status not in [STATUS_APPROVED, STATUS_ACTIVE]:
+        if vacancy.status != STATUS_APPROVED:
             return
 
         current_count = vacancy.members.count()
@@ -96,10 +93,7 @@ class VacancySlotFreedObserver(Observer):
             # Immediate republish with button
             try:
                 channel_message = (
-                    ChannelMessage.objects.filter(
-                        channel_id=vacancy.channel.id,
-                        extra__vacancy_id=vacancy.id,
-                    )
+                    ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                     .order_by("-id")
                     .first()
                 )

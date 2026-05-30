@@ -10,8 +10,8 @@ from django.views.decorators.http import require_POST
 from city.models import City
 from user.models import User
 from vacancy.choices import (
-    STATUS_ACTIVE,
     STATUS_APPROVED,
+    STATUS_AWAITING_PAYMENT,
     STATUS_CLOSED,
     STATUS_PENDING,
     STATUS_SEARCH_STOPPED,
@@ -118,12 +118,12 @@ def admin_search_vacancies(request):
         has_status_filter = True
 
     if request.GET.get("in_work"):
-        status_filters |= Q(vacancies__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
+        status_filters |= Q(vacancies__status=STATUS_APPROVED)
         has_status_filter = True
 
     if request.GET.get("to_pay"):
         status_filters |= Q(
-            vacancies__status__in=[STATUS_ACTIVE, STATUS_CLOSED],
+            vacancies__status__in=[STATUS_AWAITING_PAYMENT, STATUS_CLOSED],
             vacancies__extra__sent_final_call=True,
             vacancies__extra__is_paid=False,
         )
@@ -136,8 +136,7 @@ def admin_search_vacancies(request):
 
         threshold_3h = _tz.now() - timedelta(hours=3)
         status_filters |= Q(vacancies__status=STATUS_SEARCH_STOPPED) | Q(
-            vacancies__status=STATUS_CLOSED,
-            vacancies__closed_at__gte=threshold_3h,
+            vacancies__status=STATUS_CLOSED, vacancies__closed_at__gte=threshold_3h
         )
         has_status_filter = True
 
@@ -179,10 +178,7 @@ def admin_vacancy_card(request, user_id):
     profile = getattr(target_user, "work_profile", None)
 
     vacancies = (
-        Vacancy.objects.filter(
-            owner=target_user,
-            status__in=[STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE],
-        )
+        Vacancy.objects.filter(owner=target_user, status__in=[STATUS_PENDING, STATUS_APPROVED])
         .select_related("group", "channel", "channel__city")
         .order_by("-date", "-start_time")
     )
@@ -451,9 +447,7 @@ def admin_block_user(request, user_id):
                     profile = getattr(target_user, "work_profile", None)
 
                     # Кикаем из всех групп где состоит
-                    active_groups = Group.objects.filter(
-                        useringroup__user=target_user,
-                    ).distinct()
+                    active_groups = Group.objects.filter(useringroup__user=target_user).distinct()
                     for group in active_groups:
                         try:
                             _bot.ban_chat_member(group.id, target_user.id)

@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from telegram.choices import CallStatus, CallType
 from telegram.service.group import GroupService
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED, STATUS_CLOSED, STATUS_SEARCH_STOPPED
+from vacancy.choices import STATUS_APPROVED, STATUS_CLOSED, STATUS_SEARCH_STOPPED
 from vacancy.models import Vacancy, VacancyUserCall
 from vacancy.services.observers.events import (
     VACANCY_AFTER_START_CALL,
@@ -63,10 +63,7 @@ def _send_rollcall_reminder(vacancy: Vacancy, call_type: CallType) -> None:
 
     prev_msg_id = (vacancy.extra or {}).get(msg_key)
     new_msg_id = send_and_track(
-        chat_id=vacancy.owner.id,
-        text=text,
-        reply_markup=markup,
-        previous_message_id=prev_msg_id,
+        chat_id=vacancy.owner.id, text=text, reply_markup=markup, previous_message_id=prev_msg_id
     )
     if new_msg_id:
         if not vacancy.extra:
@@ -182,10 +179,7 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
                 import sentry_sdk
 
                 sentry_sdk.capture_exception()
-            logger.info(
-                "escalate_rollcall_invoice",
-                extra={"vacancy_id": vacancy.pk, "workers": members_count},
-            )
+            logger.info("escalate_rollcall_invoice", extra={"vacancy_id": vacancy.pk, "workers": members_count})
 
 
 def _update_channel_search_stopped(vacancy: Vacancy) -> None:
@@ -200,10 +194,7 @@ def _update_channel_search_stopped(vacancy: Vacancy) -> None:
         from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
         channel_message = (
-            ChannelMessage.objects.filter(
-                channel_id=vacancy.channel.id,
-                extra__vacancy_id=vacancy.id,
-            )
+            ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
             .order_by("-id")
             .first()
         )
@@ -216,10 +207,7 @@ def _update_channel_search_stopped(vacancy: Vacancy) -> None:
 
 
 def get_before_start_vacancies(delay: Minutes = 120) -> Iterable[Vacancy]:
-    vacancies = Vacancy.objects.filter(
-        status__in=[STATUS_ACTIVE, STATUS_APPROVED],
-        date=date.today(),
-    )
+    vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, date=date.today())
 
     naive_now = datetime.now()
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
@@ -234,10 +222,7 @@ def get_before_start_vacancies(delay: Minutes = 120) -> Iterable[Vacancy]:
 
 
 def get_start_vacancies(delay: Minutes = 10) -> Iterable[Vacancy]:
-    vacancies = Vacancy.objects.filter(
-        status__in=[STATUS_ACTIVE, STATUS_APPROVED],
-        date=date.today(),
-    )
+    vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, date=date.today())
 
     naive_now = datetime.now()
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
@@ -252,10 +237,7 @@ def get_start_vacancies(delay: Minutes = 10) -> Iterable[Vacancy]:
 
 
 def get_final_vacancies() -> Iterable[Vacancy]:
-    vacancies = Vacancy.objects.filter(
-        status__in=[STATUS_ACTIVE, STATUS_APPROVED],
-        date=date.today(),
-    )
+    vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, date=date.today())
 
     naive_now = datetime.now()
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
@@ -270,10 +252,7 @@ def get_final_vacancies() -> Iterable[Vacancy]:
 
 def get_final_call_vacancies(before_end: Minutes = 60) -> Iterable[Vacancy]:
     """Vacancies where end_time is within `before_end` minutes from now (for final rollcall)."""
-    vacancies = Vacancy.objects.filter(
-        status__in=[STATUS_ACTIVE, STATUS_APPROVED],
-        date=date.today(),
-    )
+    vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, date=date.today())
 
     naive_now = datetime.now()
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
@@ -300,8 +279,7 @@ def after_first_call_check(vacancies: Iterable[Vacancy], delay: Minutes = 20):
                 if not call.status == CallStatus.CONFIRM:
                     try:
                         GroupService.kick_user(
-                            chat_id=call.vacancy_user.vacancy.group.id,
-                            user_id=call.vacancy_user.user.id,
+                            chat_id=call.vacancy_user.vacancy.group.id, user_id=call.vacancy_user.user.id
                         )
                     except Exception:
                         sentry_sdk.capture_exception()
@@ -416,9 +394,7 @@ def start_call_check_task():
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     reminder_candidates = []
     for v in Vacancy.objects.filter(
-        date=date.today(),
-        status__in=[STATUS_ACTIVE, STATUS_APPROVED, STATUS_SEARCH_STOPPED],
-        first_rollcall_passed=False,
+        date=date.today(), status__in=[STATUS_APPROVED, STATUS_SEARCH_STOPPED], first_rollcall_passed=False
     ):
         start_aware = _get_start_aware(v)
         if aware_now >= start_aware:
@@ -436,11 +412,7 @@ def final_call_check_task():
     # Reminder window: SEARCH_STOPPED vacancies past end_time (auto-stopped at start)
     aware_now = timezone.make_aware(datetime.now(), timezone.get_current_timezone())
     stopped_candidates = []
-    for v in Vacancy.objects.filter(
-        date=date.today(),
-        status=STATUS_SEARCH_STOPPED,
-        second_rollcall_passed=False,
-    ):
+    for v in Vacancy.objects.filter(date=date.today(), status=STATUS_SEARCH_STOPPED, second_rollcall_passed=False):
         end_aware = _get_end_aware(v)
         trigger_time = end_aware - timedelta(minutes=60)
         if aware_now > trigger_time:
@@ -477,11 +449,7 @@ def close_lifecycle_timer_task():
     threshold = timezone.now() - timedelta(hours=3)
 
     # Case a: employer pressed "Закрити вакансію" — closed_at timer, group still attached
-    for vacancy in Vacancy.objects.filter(
-        closed_at__isnull=False,
-        closed_at__lte=threshold,
-        group__isnull=False,
-    ):
+    for vacancy in Vacancy.objects.filter(closed_at__isnull=False, closed_at__lte=threshold, group__isnull=False):
         logger.info(f"close_lifecycle_timer_task: freeing group for vacancy {vacancy.pk} (closed_at timer)")
         vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
 
@@ -504,10 +472,7 @@ def close_lifecycle_timer_task():
     # Case c: paid vacancies — 3h after payment, free group
     from payment.models import MonobankPayment
 
-    paid_vacancies = Vacancy.objects.filter(
-        status="paid",
-        group__isnull=False,
-    )
+    paid_vacancies = Vacancy.objects.filter(status="paid", group__isnull=False)
     for vacancy in paid_vacancies:
         # Admin-marked paid: use search_stopped_at or closed_at as reference
         if vacancy.extra.get("admin_marked_paid"):
@@ -519,10 +484,7 @@ def close_lifecycle_timer_task():
             continue
         # Monobank paid: 3h after last successful payment
         last_payment = (
-            MonobankPayment.objects.filter(
-                vacancy=vacancy,
-                status=MonobankPayment.Status.SUCCESS,
-            )
+            MonobankPayment.objects.filter(vacancy=vacancy, status=MonobankPayment.Status.SUCCESS)
             .order_by("-updated_at")
             .first()
         )
@@ -549,8 +511,7 @@ def worker_join_confirm_check_task():
     REMIND_MINUTES = {1, 2, 3, 4}
 
     pending = VacancyUserCall.objects.filter(
-        call_type=CallType.WORKER_JOIN_CONFIRM.value,
-        status=CallStatus.SENT.value,
+        call_type=CallType.WORKER_JOIN_CONFIRM.value, status=CallStatus.SENT.value
     ).select_related("vacancy_user__user", "vacancy_user__vacancy__group")
 
     for call in pending:
@@ -654,13 +615,8 @@ def renewal_offer_task():
     from vacancy.services.call_markup import get_renewal_offer_markup
 
     candidates = (
-        Vacancy.objects.filter(
-            second_rollcall_passed=True,
-            closed_at__isnull=True,
-        )
-        .filter(
-            extra__is_paid=True,
-        )
+        Vacancy.objects.filter(second_rollcall_passed=True, closed_at__isnull=True)
+        .filter(extra__is_paid=True)
         .exclude(Q(extra__renewal_offered=True))
     )
 
@@ -732,8 +688,7 @@ def renewal_worker_check_task():
     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
     pending = VacancyUserCall.objects.filter(
-        call_type=CallType.RENEWAL_WORKER.value,
-        status=CallStatus.SENT.value,
+        call_type=CallType.RENEWAL_WORKER.value, status=CallStatus.SENT.value
     ).select_related("vacancy_user__user", "vacancy_user__vacancy__group", "vacancy_user__vacancy__owner")
 
     # Group by vacancy to detect "all answered" after kicks
@@ -752,10 +707,7 @@ def renewal_worker_check_task():
             delete_bot_message(user.id, prev_msg_id)
             # Send final message (stays permanently)
             try:
-                bot.send_message(
-                    chat_id=user.id,
-                    text="Час вичерпано. Вас видалено з групи вакансії.",
-                )
+                bot.send_message(chat_id=user.id, text="Час вичерпано. Вас видалено з групи вакансії.")
             except Exception:
                 pass
             # Kick and mark reject
@@ -794,12 +746,8 @@ def renewal_worker_check_task():
     # Check vacancies where poll may have just completed (all responded)
     handled_vacancies = set()
     answered_vacancies = (
-        VacancyUserCall.objects.filter(
-            call_type=CallType.RENEWAL_WORKER.value,
-        )
-        .exclude(
-            status=CallStatus.SENT.value,
-        )
+        VacancyUserCall.objects.filter(call_type=CallType.RENEWAL_WORKER.value)
+        .exclude(status=CallStatus.SENT.value)
         .values_list("vacancy_user__vacancy_id", flat=True)
         .distinct()
     )
@@ -812,9 +760,7 @@ def renewal_worker_check_task():
 
         # Check if all renewal worker calls for this vacancy are settled
         still_pending = VacancyUserCall.objects.filter(
-            call_type=CallType.RENEWAL_WORKER.value,
-            status=CallStatus.SENT.value,
-            vacancy_user__vacancy_id=vacancy_id,
+            call_type=CallType.RENEWAL_WORKER.value, status=CallStatus.SENT.value, vacancy_user__vacancy_id=vacancy_id
         ).exists()
         if still_pending:
             continue

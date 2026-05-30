@@ -33,7 +33,6 @@ PAYMENT_METHOD_CHOICES = [
 STATUS_CREATED = "created"
 STATUS_PENDING = "pending"
 STATUS_APPROVED = "approved"
-STATUS_ACTIVE = "active"
 STATUS_REJECTED = "rejected"
 STATUS_CLOSED = "closed"
 STATUS_SEARCH_STOPPED = "stopped"

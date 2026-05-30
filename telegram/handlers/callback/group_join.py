@@ -5,7 +5,7 @@ from telebot.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 
 from telegram.handlers.bot_instance import bot
 from user.models import User
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import STATUS_APPROVED
 from vacancy.models import Vacancy
 
 logger = logging.getLogger(__name__)
@@ -26,14 +26,7 @@ def handle_group_join(callback: CallbackQuery) -> None:
     if not user:
         return
 
-    vacancy = (
-        Vacancy.objects.filter(
-            id=data.get("v"),
-            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        )
-        .select_related("group")
-        .first()
-    )
+    vacancy = Vacancy.objects.filter(id=data.get("v"), status=STATUS_APPROVED).select_related("group").first()
 
     if not vacancy or not vacancy.group or not vacancy.group.invite_link:
         bot.answer_callback_query(callback.id, text="Вакансію не знайдено.", show_alert=True)
@@ -61,10 +54,6 @@ def handle_group_join(callback: CallbackQuery) -> None:
         # Fallback: send link as message
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton(text="Перейти в групу", url=vacancy.group.invite_link))
-        bot.send_message(
-            chat_id=callback.message.chat.id,
-            text="Перейдіть у групу:",
-            reply_markup=markup,
-        )
+        bot.send_message(chat_id=callback.message.chat.id, text="Перейдіть у групу:", reply_markup=markup)
         bot.answer_callback_query(callback.id)
     logger.info(f"group_join: user {user.id} joining vacancy {vacancy.id}")

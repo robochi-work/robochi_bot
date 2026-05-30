@@ -44,12 +44,7 @@ class TestPreCallScenarios:
         ch = channel_factory()
         gr = group_factory()
         v = vacancy_factory(
-            status="approved",
-            channel=ch,
-            group=gr,
-            people_count=2,
-            start_time=time(8, 0),
-            end_time=time(17, 0),
+            status="approved", channel=ch, group=gr, people_count=2, start_time=time(8, 0), end_time=time(17, 0)
         )
         from vacancy.views import vacancy_pre_call_check
 
@@ -68,12 +63,7 @@ class TestPreCallScenarios:
         ch = channel_factory()
         gr = group_factory()
         v = vacancy_factory(
-            status="approved",
-            channel=ch,
-            group=gr,
-            people_count=1,
-            start_time=time(8, 0),
-            end_time=time(17, 0),
+            status="approved", channel=ch, group=gr, people_count=1, start_time=time(8, 0), end_time=time(17, 0)
         )
         # Add worker
         from vacancy.models import VacancyUser
@@ -131,22 +121,12 @@ class TestSkipBeforeStartForConfirmed:
 
         ch = channel_factory()
         gr = group_factory()
-        v = vacancy_factory(
-            status="approved",
-            channel=ch,
-            group=gr,
-            start_time=time(10, 0),
-            end_time=time(18, 0),
-        )
+        v = vacancy_factory(status="approved", channel=ch, group=gr, start_time=time(10, 0), end_time=time(18, 0))
         w = worker_factory()
         vu = VacancyUser.objects.create(vacancy=v, user=w, status=Status.MEMBER)
 
         # Worker already confirmed at start rollcall
-        VacancyUserCall.objects.create(
-            vacancy_user=vu,
-            call_type=CallType.START,
-            status=CallStatus.CONFIRM,
-        )
+        VacancyUserCall.objects.create(vacancy_user=vu, call_type=CallType.START, status=CallStatus.CONFIRM)
 
         # before_start should skip this worker
         from vacancy.services.observers.call_observer import VacancyBeforeCallObserver
@@ -165,11 +145,7 @@ class TestBlockVacancyCreation:
 
     def test_has_pending_rollcall_flag(self, vacancy_factory, employer_factory):
         emp = employer_factory()
-        v = vacancy_factory(
-            owner=emp,
-            status="approved",
-            extra={"sent_start_call": True},
-        )
+        v = vacancy_factory(owner=emp, status="approved", extra={"sent_start_call": True})
         v.first_rollcall_passed = False
         v.save()
 
@@ -180,14 +156,11 @@ class TestBlockVacancyCreation:
 
         # The view should set has_pending_rollcall=True in context
         # We test by checking the variable exists in the view logic
-        from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED, STATUS_SEARCH_STOPPED
+        from vacancy.choices import STATUS_APPROVED, STATUS_SEARCH_STOPPED
         from vacancy.models import Vacancy
 
         has_pending = False
-        for _v in Vacancy.objects.filter(
-            owner=emp,
-            status__in=[STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED],
-        ):
+        for _v in Vacancy.objects.filter(owner=emp, status__in=[STATUS_APPROVED, STATUS_SEARCH_STOPPED]):
             if _v.extra.get("sent_start_call") and not _v.first_rollcall_passed:
                 has_pending = True
                 break

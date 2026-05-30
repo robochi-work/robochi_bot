@@ -19,7 +19,7 @@ def send_employer_group_invite_task(self, vacancy_id: int):
     Повторює кожну хвилину до 10 разів, поки заказчик не зайде в групу.
     """
     from telegram.choices import Status
-    from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+    from vacancy.choices import STATUS_APPROVED
     from vacancy.models import Vacancy, VacancyUser
 
     try:
@@ -29,16 +29,14 @@ def send_employer_group_invite_task(self, vacancy_id: int):
         return
 
     # Вакансія вже не активна — зупиняємо
-    if vacancy.status not in [STATUS_APPROVED, STATUS_ACTIVE]:
+    if vacancy.status != STATUS_APPROVED:
         logger.info("employer_invite_vacancy_closed", extra={"vacancy_id": vacancy_id})
         _delete_invite_message(vacancy)
         return
 
     # Заказчик вже в групі — зупиняємо
     owner_in_group = VacancyUser.objects.filter(
-        user=vacancy.owner,
-        vacancy=vacancy,
-        status__in=[Status.OWNER, Status.MEMBER],
+        user=vacancy.owner, vacancy=vacancy, status__in=[Status.OWNER, Status.MEMBER]
     ).exists()
 
     if owner_in_group:
@@ -56,12 +54,7 @@ def send_employer_group_invite_task(self, vacancy_id: int):
     # Надіслати нове
     try:
         markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton(
-                text="Перейти в групу вакансії",
-                url=vacancy.group.invite_link,
-            )
-        )
+        markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=vacancy.group.invite_link))
 
         sent = bot.send_message(
             chat_id=vacancy.owner.id,
@@ -73,10 +66,7 @@ def send_employer_group_invite_task(self, vacancy_id: int):
         vacancy.extra["employer_invite_msg_id"] = sent.message_id
         vacancy.save(update_fields=["extra"])
 
-        logger.info(
-            "employer_invite_sent",
-            extra={"vacancy_id": vacancy_id, "retry": self.request.retries},
-        )
+        logger.info("employer_invite_sent", extra={"vacancy_id": vacancy_id, "retry": self.request.retries})
     except Exception:
         sentry_sdk.capture_exception()
 
@@ -85,10 +75,7 @@ def send_employer_group_invite_task(self, vacancy_id: int):
         raise self.retry()
     else:
         # 10 спроб вичерпано — заказчик не зайшов у групу
-        logger.warning(
-            "employer_invite_max_retries",
-            extra={"vacancy_id": vacancy_id},
-        )
+        logger.warning("employer_invite_max_retries", extra={"vacancy_id": vacancy_id})
 
         # 1. Видалити повідомлення-запрошення
         _delete_invite_message(vacancy)
@@ -133,10 +120,7 @@ def send_employer_group_invite_task(self, vacancy_id: int):
         except Exception:
             sentry_sdk.capture_exception()
 
-        logger.info(
-            "employer_blocked_no_group",
-            extra={"vacancy_id": vacancy_id, "user_id": vacancy.owner.id},
-        )
+        logger.info("employer_blocked_no_group", extra={"vacancy_id": vacancy_id, "user_id": vacancy.owner.id})
 
 
 def _delete_invite_message(vacancy):

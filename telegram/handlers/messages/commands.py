@@ -26,7 +26,7 @@ from telegram.handlers.utils import user_required
 from telegram.models import Status
 from user.models import User
 from user.services import BlockService
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser, VacancyUserCall
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.call_markup import get_worker_join_confirm_markup
@@ -41,11 +41,7 @@ def choose_role(message: Message, **kwargs: dict[str, Any]) -> None:
     markup.add(ButtonStorage.work_role(label=str(WorkProfileRole.WORKER.label), role=WorkProfileRole.WORKER.value))
     markup.add(ButtonStorage.work_role(label=str(WorkProfileRole.EMPLOYER.label), role=WorkProfileRole.EMPLOYER.value))
 
-    get_bot().send_message(
-        message.chat.id,
-        _("Welcome to robochi.work! Choose your role below."),
-        reply_markup=markup,
-    )
+    get_bot().send_message(message.chat.id, _("Welcome to robochi.work! Choose your role below."), reply_markup=markup)
 
 
 @user_required
@@ -63,10 +59,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     bot = get_bot()
     # Remove WebApp MenuButton so user sees ReplyKeyboard for phone
     try:
-        bot.set_chat_menu_button(
-            chat_id=message.chat.id,
-            menu_button=types.MenuButtonDefault(type="default"),
-        )
+        bot.set_chat_menu_button(chat_id=message.chat.id, menu_button=types.MenuButtonDefault(type="default"))
         bot.delete_my_commands(scope=types.BotCommandScopeChat(chat_id=message.chat.id))
     except Exception as e:
         logger.error(f"RESET_MENU_BUTTON FAILED: {e}")
@@ -75,10 +68,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
     try:
         bot.send_message(
-            message.chat.id,
-            _("Для продовження надішліть ваш номер телефону:"),
-            reply_markup=markup,
-            parse_mode=None,
+            message.chat.id, _("Для продовження надішліть ваш номер телефону:"), reply_markup=markup, parse_mode=None
         )
         logger.warning("ASK_PHONE SENT OK")
     except Exception as e:
@@ -95,19 +85,12 @@ def default_start(message: Message, user: User, **kwargs):
     try:
         bot.set_chat_menu_button(
             chat_id=message.chat.id,
-            menu_button=MenuButtonWebApp(
-                type="web_app",
-                text="ПОЧАТИ",
-                web_app=types.WebAppInfo(url=url),
-            ),
+            menu_button=MenuButtonWebApp(type="web_app", text="ПОЧАТИ", web_app=types.WebAppInfo(url=url)),
         )
     except Exception as e:
         logger.error(f"SET_MENU_BUTTON FAILED: {e}", exc_info=True)
 
-    bot.send_message(
-        message.chat.id,
-        _("Вітаємо у нашому сервісі!\nНатискайте кнопку ПОЧАТИ нижче."),
-    )
+    bot.send_message(message.chat.id, _("Вітаємо у нашому сервісі!\nНатискайте кнопку ПОЧАТИ нижче."))
 
 
 def encode_start_param(data: dict) -> str:
@@ -141,10 +124,7 @@ def _process_apply_payload(data: dict, message) -> bool:
         return True
 
     try:
-        vacancy = Vacancy.objects.select_related("group", "owner").get(
-            id=vacancy_id,
-            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        )
+        vacancy = Vacancy.objects.select_related("group", "owner").get(id=vacancy_id, status=STATUS_APPROVED)
     except Vacancy.DoesNotExist:
         get_bot().send_message(message.chat.id, "Вакансію не знайдено або вона вже закрита.")
         return True
@@ -156,9 +136,7 @@ def _process_apply_payload(data: dict, message) -> bool:
     if existing_vu:
         # Check if already confirmed (has CONFIRM call)
         confirmed = VacancyUserCall.objects.filter(
-            vacancy_user=existing_vu,
-            call_type=CallType.WORKER_JOIN_CONFIRM.value,
-            status=CallStatus.CONFIRM.value,
+            vacancy_user=existing_vu, call_type=CallType.WORKER_JOIN_CONFIRM.value, status=CallStatus.CONFIRM.value
         ).exists()
         if confirmed:
             # Already confirmed — send cabinet link
@@ -166,9 +144,7 @@ def _process_apply_payload(data: dict, message) -> bool:
             return True
         # Not yet confirmed — re-send confirm message
         pending = VacancyUserCall.objects.filter(
-            vacancy_user=existing_vu,
-            call_type=CallType.WORKER_JOIN_CONFIRM.value,
-            status=CallStatus.SENT.value,
+            vacancy_user=existing_vu, call_type=CallType.WORKER_JOIN_CONFIRM.value, status=CallStatus.SENT.value
         ).first()
         if pending:
             try:
@@ -184,39 +160,26 @@ def _process_apply_payload(data: dict, message) -> bool:
     # Check: already in ANOTHER active vacancy
     if (
         VacancyUser.objects.filter(
-            user=user,
-            status__in=[Status.MEMBER, Status.PENDING_CONFIRM],
-            vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+            user=user, status__in=[Status.MEMBER, Status.PENDING_CONFIRM], vacancy__status=STATUS_APPROVED
         )
         .exclude(vacancy=vacancy)
         .exists()
     ):
-        get_bot().send_message(
-            message.chat.id,
-            "Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну.",
-        )
+        get_bot().send_message(message.chat.id, "Ви вже берете участь в іншій вакансії. Спочатку завершіть поточну.")
         return True
 
     # Check: vacancy is full (MEMBER + PENDING_CONFIRM both count)
-    occupied = VacancyUser.objects.filter(
-        vacancy=vacancy,
-        status__in=[Status.MEMBER, Status.PENDING_CONFIRM],
-    ).count()
+    occupied = VacancyUser.objects.filter(vacancy=vacancy, status__in=[Status.MEMBER, Status.PENDING_CONFIRM]).count()
     if occupied >= vacancy.people_count:
         try:
-            get_bot().send_message(
-                chat_id=message.chat.id,
-                text="На жаль, всі місця в цій вакансії вже зайняті.",
-            )
+            get_bot().send_message(chat_id=message.chat.id, text="На жаль, всі місця в цій вакансії вже зайняті.")
         except Exception as e:
             logger.warning(f"_process_apply_payload: send full-msg failed: {e}")
         return True
 
     # Create VacancyUser — awaiting confirmation before Telegram group entry
     vu, _ = VacancyUser.objects.update_or_create(
-        user=user,
-        vacancy=vacancy,
-        defaults={"status": Status.PENDING_CONFIRM.value},
+        user=user, vacancy=vacancy, defaults={"status": Status.PENDING_CONFIRM.value}
     )
 
     # Create join-confirm call
@@ -257,13 +220,7 @@ def _send_employer_cabinet_message(message):
     check_url = reverse("telegram:telegram_check_web_app")
     url = settings.BASE_URL.rstrip("/") + check_url
     markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton(
-            text="Перейти",
-            web_app=WebAppInfo(url=url),
-            style="constructive",
-        )
-    )
+    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url), style="constructive"))
     get_bot().send_message(
         chat_id=message.chat.id,
         text="Перейдіть у Власний кабінет— тут ви зможете керувати вакансією, "
@@ -277,13 +234,7 @@ def _send_cabinet_message(message):
     check_url = reverse("telegram:telegram_check_web_app")
     url = settings.BASE_URL.rstrip("/") + check_url
     markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton(
-            text="Перейти",
-            web_app=WebAppInfo(url=url),
-            style="constructive",
-        )
-    )
+    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url), style="constructive"))
     get_bot().send_message(
         chat_id=message.chat.id,
         text="Перейдіть у Власний кабінет— тут ви зможете обрати роботу, "
@@ -361,24 +312,16 @@ def admin_help(message):
     if message.chat.type in ["group", "supergroup"]:
         try:
             bot.send_message(
-                message.from_user.id,
-                "Натисніть кнопку нижче для зв'язку з адміністратором:",
-                reply_markup=markup,
+                message.from_user.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup
             )
             bot.delete_message(message.chat.id, message.message_id)
         except Exception:
             # User hasn't started bot privately — send in group
             bot.send_message(
-                message.chat.id,
-                "Натисніть кнопку нижче для зв'язку з адміністратором:",
-                reply_markup=markup,
+                message.chat.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup
             )
     else:
-        bot.send_message(
-            message.chat.id,
-            "Натисніть кнопку нижче для зв'язку з адміністратором:",
-            reply_markup=markup,
-        )
+        bot.send_message(message.chat.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup)
 
 
 @bot.message_handler(commands=["info"])
@@ -394,9 +337,6 @@ def send_info(message):
     for file_path in files:
         try:
             with open(file_path, "rb") as f:
-                bot.send_document(
-                    chat_id=message.chat.id,
-                    document=f,
-                )
+                bot.send_document(chat_id=message.chat.id, document=f)
         except Exception:
             sentry_sdk.capture_exception()

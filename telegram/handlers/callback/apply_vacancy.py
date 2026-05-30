@@ -9,7 +9,7 @@ from telegram.handlers.bot_instance import bot
 from telegram.models import Status
 from user.models import User
 from user.services import BlockService
-from vacancy.choices import GENDER_ANY, STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import GENDER_ANY, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
@@ -30,10 +30,7 @@ def handle_apply_vacancy(call: CallbackQuery):
         return
 
     try:
-        user, _ = User.objects.update_or_create(
-            id=call.from_user.id,
-            defaults={"username": call.from_user.username},
-        )
+        user, _ = User.objects.update_or_create(id=call.from_user.id, defaults={"username": call.from_user.username})
 
         work_profile = getattr(user, "work_profile", None)
 
@@ -81,10 +78,7 @@ def handle_apply_vacancy(call: CallbackQuery):
 
         # 6. Получаем вакансию
         try:
-            vacancy = Vacancy.objects.select_related("group", "owner").get(
-                id=vacancy_id,
-                status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-            )
+            vacancy = Vacancy.objects.select_related("group", "owner").get(id=vacancy_id, status=STATUS_APPROVED)
         except Vacancy.DoesNotExist:
             bot.answer_callback_query(call.id, show_alert=True, text="Вакансію не знайдено або вона вже закрита.")
             return
@@ -110,9 +104,7 @@ def handle_apply_vacancy(call: CallbackQuery):
         # 9. Уже в другой вакансии
         if (
             VacancyUser.objects.filter(
-                user=user,
-                status__in=[Status.MEMBER, Status.PENDING_CONFIRM],
-                vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
+                user=user, status__in=[Status.MEMBER, Status.PENDING_CONFIRM], vacancy__status=STATUS_APPROVED
             )
             .exclude(vacancy=vacancy)
             .exists()
@@ -175,12 +167,7 @@ def _send_invite(call: CallbackQuery, vacancy_id: int, user: User, role_text: st
                 pass
 
         markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton(
-                text="Перейти в групу вакансії",
-                url=vacancy.group.invite_link,
-            )
-        )
+        markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=vacancy.group.invite_link))
 
         sent = bot.send_message(
             chat_id=user.id,
