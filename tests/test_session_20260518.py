@@ -166,7 +166,7 @@ class TestGroupServiceSetMemberTag:
         from telegram.handlers.bot_instance import bot
         from telegram.service.group import GroupService
 
-        with patch.object(bot, "set_chat_member_tag", side_effect=Exception("API error")):
+        with patch.object(bot, "set_chat_member_tag", side_effect=Exception("API error"), create=True):
             # Must not raise
             GroupService.set_member_tag(chat_id=-100123456, user_id=789, tag="Працівник")
 
