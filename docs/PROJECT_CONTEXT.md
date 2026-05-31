@@ -1917,3 +1917,21 @@ class Meta:
 поддерживает `style="..."`. Этот параметр существует только в
 `ReplyKeyboardMarkup`. При добавлении кнопок всегда проверять через
 минимальный smoke-тест.
+
+## Сесія 31.05.2026 — Session fix + Lifecycle v8
+
+### Проблема 1: Розлогінювання адмінки
+- Причина: production.py мав SameSite="None" + SESSION_COOKIE_AGE=86400
+- Виправлено: SameSite="Lax", AGE=1209600, SESSION_SAVE_EVERY_REQUEST=True, CSRF_COOKIE_HTTPONLY=False
+- Файл: config/django/production.py
+
+### Проблема 2: Зависання міні-додатку після згортання
+- Причина: Android WebView заморожує JS при згортанні, events (visibilitychange, focus) можуть не спрацювати
+- lifecycle.js v8: touchstart detection (capture:true) — найнадійніший сигнал, спрацьовує ЗАВЖДИ коли користувач торкається екрану. Ping (fetch HEAD) перед reload. Overlay "Завантаження...". Не залежить від Telegram SDK
+- Файл: telegram/static/js/lifecycle.js
+
+### Видалено мертвий код
+- telegram.js: блок alpine:init + getCookie (Alpine.js не підключена, getCookie не визначена)
+
+### Тести
+- tests/test_session_20260519_lifecycle.py — 13 тестів
