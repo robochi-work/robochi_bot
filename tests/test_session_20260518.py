@@ -30,28 +30,22 @@ class TestPhoneButtonStyle:
         except TypeError:
             pytest.skip("pyTelegramBotAPI version does not support style param")
 
-    def test_cabinet_button_has_constructive_style(self):
-        """InlineKeyboardButton in _send_cabinet_message must carry style='constructive'."""
+    def test_cabinet_button_has_no_style(self):
+        """InlineKeyboardButton must NOT use style (causes Telegram 400)."""
+        from unittest.mock import MagicMock, patch
+
         message = MagicMock()
         message.chat.id = 99999
-
         with patch("telegram.handlers.messages.commands.get_bot") as mock_get_bot:
             mock_bot = MagicMock()
             mock_get_bot.return_value = mock_bot
-
             from telegram.handlers.messages.commands import _send_cabinet_message
 
             _send_cabinet_message(message)
-
-        _, kwargs = mock_bot.send_message.call_args
-        markup = kwargs["reply_markup"]
-        button = markup.keyboard[0][0]
-        assert button.style == "constructive"
-
-
-# ---------------------------------------------------------------------------
-# Tests 3-5: set_member_tag calls from handle_user_status_change
-# ---------------------------------------------------------------------------
+            call_args = mock_bot.send_message.call_args
+            markup = call_args.kwargs.get("reply_markup") or call_args[1].get("reply_markup")
+            button = markup.keyboard[0][0]
+            assert not getattr(button, "style", None), "style must not be set on InlineKeyboardButton"
 
 
 def _make_member_event(chat_id: int, user_id: int, username: str = "testuser") -> MagicMock:
