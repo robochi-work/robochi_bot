@@ -2,7 +2,7 @@
 Regression tests for session cookie and lifecycle fixes (2026-05-19).
 Covers:
   - Production session settings (SameSite=Lax, AGE=2weeks, SAVE_EVERY_REQUEST)
-  - lifecycle.js v7 (ping-before-reload, overlay)
+  - lifecycle.js v8 (ping-before-reload, overlay, touchstart detection)
   - Dead code removal from telegram.js (alpine:init block)
 """
 
@@ -45,7 +45,7 @@ class TestProductionSessionSettings(TestCase):
 
 
 class TestLifecycleJS(TestCase):
-    """lifecycle.js v7 must ping server before reloading."""
+    """lifecycle.js v8 must ping server before reloading and detect touch."""
 
     def _read_lifecycle(self):
         path = BASE_DIR / "telegram" / "static" / "js" / "lifecycle.js"
@@ -63,12 +63,27 @@ class TestLifecycleJS(TestCase):
         text = self._read_lifecycle()
         self.assertIn("BroadcastChannel", text, "Single-instance guard must be present")
 
+    def test_touchstart_detection(self):
+        """Touch-based freeze detection must be present (most reliable signal)."""
+        text = self._read_lifecycle()
+        self.assertIn("touchstart", text, "Must detect freeze via touchstart")
+        self.assertIn("capture: true", text, "touchstart must use capture phase")
+        self.assertIn("passive: true", text, "touchstart must be passive")
+
     def test_multiple_resume_events(self):
         text = self._read_lifecycle()
         self.assertIn("visibilitychange", text)
         self.assertIn("focus", text)
         self.assertIn("pageshow", text)
         self.assertIn("activated", text)
+
+    def test_works_without_telegram_sdk(self):
+        """lifecycle.js must not exit early if Telegram.WebApp is missing."""
+        text = self._read_lifecycle()
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            if "if (!tg) return" in line or "if(!tg)return" in line:
+                self.fail(f"Line {i + 1}: lifecycle.js must not exit if Telegram SDK is missing")
 
 
 class TestTelegramJSCleanup(TestCase):
