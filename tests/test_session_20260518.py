@@ -188,7 +188,7 @@ class TestMarkupFactoryStyles:
 
         markup = channel_vacancy_reply_markup(vacancy)
         button = markup.keyboard[0][0]
-        assert button.style == "danger"
+        assert getattr(button, "style", None) == "danger"
 
     def test_group_url_feedback_markup_uses_primary_style(self):
         """'Відгуки/Контакти' WebApp button must have style='primary' and point to feedback-entry."""
