@@ -52,10 +52,9 @@ class TestPreCallScenarios:
         request = factory.get(f"/vacancy/{v.pk}/pre-call/start/")
         request.user = v.owner
         response = vacancy_pre_call_check(request, v.pk, "start")
-        # Should render pre_call.html with scenario A
-        assert response.status_code == 200
-        content = response.content.decode()
-        assert "scenario" in content or "0" in content
+        # pre_call now redirects to members page
+        assert response.status_code == 302
+        assert "/members/" in response.url
 
     def test_scenario_c_enough_workers_redirects(self, vacancy_factory, channel_factory, group_factory, worker_factory):
         from telegram.choices import Status
