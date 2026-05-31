@@ -156,7 +156,7 @@ class TestGroupServiceSetMemberTag:
         from telegram.handlers.bot_instance import bot
         from telegram.service.group import GroupService
 
-        with patch.object(bot, "set_chat_member_tag") as mock_api:
+        with patch.object(bot, "set_chat_member_tag", create=True) as mock_api:
             GroupService.set_member_tag(chat_id=-100123456, user_id=789, tag="Працівник")
 
         mock_api.assert_called_once_with(chat_id=-100123456, user_id=789, tag="Працівник")
