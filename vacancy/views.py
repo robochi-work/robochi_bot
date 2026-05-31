@@ -1081,6 +1081,8 @@ def vacancy_members(request, pk):
         all_users_qs = (
             VacancyUser.objects.filter(vacancy=vacancy, status="member").select_related("user").order_by("-created_at")
         )
+        if not request.user.is_staff:
+            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
     else:
         all_users_qs = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
         if not request.user.is_staff:
