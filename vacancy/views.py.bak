@@ -290,7 +290,61 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
 
 
 def vacancy_pre_call_check(request: WSGIRequest, pk: int, call_type: CallType):
-    return redirect("vacancy:members", pk=pk)
+    vacancy: Vacancy = get_object_or_404(Vacancy, pk=pk)
+    members = vacancy.members
+    members_count = members.count()
+    people_count = vacancy.people_count
+
+    if call_type == CallType.START:
+        vacancy.extra["pre_call_start"] = True
+        vacancy.save(update_fields=["extra"])
+
+    # Check if continued search is still available (2h after start_time)
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from vacancy.tasks.call import _get_start_aware
+
+    start_aware = _get_start_aware(vacancy)
+    search_deadline = start_aware + timedelta(hours=2)
+    can_search = timezone.now() < search_deadline and call_type == CallType.START
+
+    # Scenario A: no workers at all
+    if members_count == 0 and call_type == CallType.START:
+        return render(
+            request,
+            "vacancy/pre_call.html",
+            context={
+                "pk": pk,
+                "call_type": call_type,
+                "scenario": "A",
+                "vacancy": vacancy,
+                "members_count": 0,
+                "can_search": can_search,
+            },
+        )
+
+    # Scenario B: workers exist but less than needed
+    if members_count < people_count and call_type == CallType.START:
+        form = VacancyCallForm(queryset=members, call_type=call_type, initial={"users": list(members)})
+        return render(
+            request,
+            "vacancy/pre_call.html",
+            context={
+                "pk": pk,
+                "call_type": call_type,
+                "scenario": "B",
+                "vacancy": vacancy,
+                "members_count": members_count,
+                "people_count": people_count,
+                "can_search": can_search,
+                "form": form,
+            },
+        )
+
+    # Scenario C: enough workers — go straight to rollcall
+    return redirect("vacancy:call", pk=pk, call_type=call_type)
 
 
 def vacancy_start_refind(request: WSGIRequest, pk: int):
@@ -630,6 +684,19 @@ def vacancy_continue_search(request, pk):
 
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
+    # Auto-confirm rollcall if requested
+    if request.GET.get("confirm_rollcall") == "1" and not vacancy.first_rollcall_passed:
+        members = vacancy.members
+        if members.exists():
+            from vacancy.services.call import create_vacancy_call
+
+            create_vacancy_call(vacancy=vacancy, call_type=CallType.START, status=CallStatus.CREATED)
+            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=CallType.START).update(
+                status=CallStatus.CONFIRM
+            )
+            vacancy.first_rollcall_passed = True
+            vacancy.save(update_fields=["first_rollcall_passed"])
+
     # 1. Auto-adjust start_time
     now = _tz.localtime(_tz.now())
     new_start = now + _td(hours=1)
@@ -655,46 +722,13 @@ def vacancy_continue_search(request, pk):
         )
         vacancy.end_time = _tz.localtime(new_end).time()
 
-    # 3. Re-activate search + reset rollcall flags for new cycle
+    # 3. Re-activate search
     from vacancy.choices import STATUS_APPROVED
 
     vacancy.status = STATUS_APPROVED
     vacancy.search_active = True
     vacancy.search_stopped_at = None
-    vacancy.first_rollcall_passed = False
-    vacancy.second_rollcall_passed = False
-
-    # Clean rollcall keys from extra so Celery starts fresh
-    for key in [
-        "sent_start_call",
-        "sent_final_call",
-        "start_call_sent_at",
-        "final_call_sent_at",
-        "start_call_reminders",
-        "final_call_reminders",
-        "start_call_escalated",
-        "final_call_escalated",
-        "start_call_msg_id",
-        "final_call_msg_id",
-    ]:
-        vacancy.extra.pop(key, None)
-
-    # Delete old rollcall records so new cycle starts clean
-    VacancyUserCall.objects.filter(vacancy_user__vacancy=vacancy).delete()
-
-    vacancy.save(
-        update_fields=[
-            "start_time",
-            "end_time",
-            "date",
-            "status",
-            "search_active",
-            "search_stopped_at",
-            "first_rollcall_passed",
-            "second_rollcall_passed",
-            "extra",
-        ]
-    )
+    vacancy.save(update_fields=["start_time", "end_time", "date", "status", "search_active", "search_stopped_at"])
 
     # 4. Republish in channel
     from vacancy.services.observers.events import VACANCY_APPROVED
@@ -784,26 +818,14 @@ def vacancy_resume_search(request, pk):
             vacancy_publisher.notify(events.VACANCY_CREATED, data={"vacancy": vacancy, "request": request})
             return redirect("vacancy:detail", pk=pk)
     else:
-        # Use original times if available, otherwise current
-        orig_start = vacancy.extra.get("original_start_time")
-        orig_end = vacancy.extra.get("original_end_time")
-        if orig_start:
-            import datetime as _dt
-
-            orig_start = _dt.time(*[int(x) for x in orig_start.split(":")])
-        if orig_end:
-            import datetime as _dt
-
-            orig_end = _dt.time(*[int(x) for x in orig_end.split(":")])
-
         initial = {
             "gender": vacancy.gender,
             "people_count": vacancy.people_count,
             "has_passport": vacancy.has_passport,
             "address": vacancy.address,
             "map_link": vacancy.map_link,
-            "start_time": orig_start or vacancy.start_time,
-            "end_time": orig_end or vacancy.end_time,
+            "start_time": vacancy.start_time,
+            "end_time": vacancy.end_time,
             "payment_amount": vacancy.payment_amount,
             "payment_unit": vacancy.payment_unit,
             "payment_method": vacancy.payment_method,
@@ -1020,76 +1042,26 @@ def vacancy_payment(request, pk):
 
 @login_required
 def vacancy_members(request, pk):
-    """Members page - also handles rollcall (start / end of work)."""
-    from datetime import timedelta
+    """Page showing all users who joined the vacancy group."""
+    if request.user.is_staff:
+        vacancy = get_object_or_404(Vacancy, pk=pk)
+    else:
+        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
-    from django.utils import timezone
+    all_users = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
+    if not request.user.is_staff:
+        all_users = all_users.exclude(user=vacancy.owner)
+
+    user_role = "admin" if request.user.is_staff else ("employer" if request.user == vacancy.owner else None)
 
     from user.services import BlockService
     from vacancy.models import VacancyContactPhone
-    from vacancy.tasks.call import _get_start_aware
 
-    vacancy = get_object_or_404(Vacancy, pk=pk)
-    user_role = "admin" if request.user.is_staff else ("employer" if request.user == vacancy.owner else None)
-
-    now = timezone.now()
-    start_aware = _get_start_aware(vacancy)
-    rollcall_time_reached = now >= start_aware or vacancy.extra.get("sent_start_call", False)
-
-    is_start_rollcall = (
-        not vacancy.first_rollcall_passed
-        and vacancy.status in [STATUS_APPROVED, STATUS_SEARCH_STOPPED]
-        and rollcall_time_reached
-    )
-    is_end_rollcall = (
-        vacancy.first_rollcall_passed
-        and not vacancy.second_rollcall_passed
-        and vacancy.status != STATUS_CLOSED
-        and vacancy.extra.get("sent_final_call", False)
-    )
-    is_rollcall_mode = is_start_rollcall or is_end_rollcall
-
-    call_type = None
-    if is_start_rollcall:
-        call_type = CallType.START
-    elif is_end_rollcall:
-        call_type = CallType.AFTER_START
-
-    members_qs = vacancy.members
-    members_count = members_qs.count()
-    people_count = vacancy.people_count
-
-    if request.method == "POST" and is_rollcall_mode and call_type:
-        form = VacancyCallForm(request.POST, queryset=members_qs, call_type=call_type)
-        call_answer = vacancy_check_call(request=request, form=form, vacancy=vacancy, call_type=call_type)
-        if call_answer:
-            return call_answer
-
-    scenario = None
-    can_search = False
-    if is_start_rollcall:
-        search_deadline = start_aware + timedelta(hours=2)
-        can_search = now < search_deadline
-        if members_count == 0:
-            scenario = "A"
-        elif members_count < people_count:
-            scenario = "B"
-        else:
-            scenario = "C"
-
-    if is_rollcall_mode:
-        all_users_qs = (
-            VacancyUser.objects.filter(vacancy=vacancy, status="member").select_related("user").order_by("-created_at")
-        )
-    else:
-        all_users_qs = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
-        if not request.user.is_staff:
-            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
-
+    # Build contact phone lookup for this vacancy
     contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
 
     members_list = []
-    for vu in all_users_qs:
+    for vu in all_users:
         feedbacks = UserFeedback.objects.filter(user=vu.user).count()
         is_user_blocked = BlockService.is_blocked(vu.user)
         members_list.append(
@@ -1104,21 +1076,6 @@ def vacancy_members(request, pk):
             }
         )
 
-    rollcall_form = None
-    if is_rollcall_mode and scenario in ("B", "C", None) and call_type:
-        any_records_exist = VacancyUserCall.objects.filter(vacancy_user__in=members_qs, call_type=call_type).exists()
-        if call_type == CallType.AFTER_START or not any_records_exist:
-            rollcall_form = VacancyCallForm(
-                queryset=members_qs, call_type=call_type, initial={"users": list(members_qs)}
-            )
-        else:
-            initial_calls = VacancyUserCall.objects.filter(
-                vacancy_user__in=members_qs, status=CallStatus.CONFIRM, call_type=call_type
-            )
-            rollcall_form = VacancyCallForm(
-                queryset=members_qs, call_type=call_type, initial={"users": list(initial_calls)}
-            )
-
     return render(
         request,
         "vacancy/vacancy_members.html",
@@ -1127,15 +1084,6 @@ def vacancy_members(request, pk):
             "members_list": members_list,
             "work_profile": getattr(request.user, "work_profile", None),
             "user_role": user_role,
-            "is_rollcall_mode": is_rollcall_mode,
-            "is_start_rollcall": is_start_rollcall,
-            "is_end_rollcall": is_end_rollcall,
-            "call_type": call_type.value if call_type else None,
-            "scenario": scenario,
-            "can_search": can_search,
-            "rollcall_form": rollcall_form,
-            "members_count": members_count,
-            "people_count": people_count,
         },
     )
 

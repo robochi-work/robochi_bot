@@ -48,7 +48,7 @@ def get_start_call_markup(vacancy: Vacancy, **kwargs):
     markup.row(
         ButtonStorage.web_app(
             label="Підтвердити перше опитування",
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:pre_call", args=[vacancy.id, CallType.START.value]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:members", args=[vacancy.id]),
         )
     )
     return markup
@@ -59,8 +59,7 @@ def get_final_call_markup(vacancy: Vacancy, **kwargs):
     markup.row(
         ButtonStorage.web_app(
             label="Підтвердити друге опитування",
-            url=settings.BASE_URL.rstrip("/")
-            + reverse("vacancy:pre_call", args=[vacancy.id, CallType.AFTER_START.value]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:members", args=[vacancy.id]),
         )
     )
     return markup
@@ -87,7 +86,7 @@ def get_rollcall_reminder_markup(vacancy: Vacancy, call_type: CallType) -> Inlin
     markup.row(
         ButtonStorage.web_app(
             label="Перейти до переклички",
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:pre_call", args=[vacancy.id, call_type.value]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:members", args=[vacancy.id]),
         )
     )
     return markup

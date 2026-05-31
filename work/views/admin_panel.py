@@ -214,7 +214,7 @@ def admin_moderate_vacancy(request, vacancy_id):
 
     if request.method == "POST":
         owner_profile = getattr(vacancy.owner, "work_profile", None)
-        form = VacancyForm(request.POST, work_profile=owner_profile)
+        form = VacancyForm(request.POST, work_profile=owner_profile, resume_mode=True)
         if form.is_valid():
             try:
                 data = form.cleaned_data

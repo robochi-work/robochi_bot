@@ -110,35 +110,7 @@
  </a>
  {% endif %}
 
- {# 2. Rollcall #}
- {% if show_start_rollcall %}
- {% if rollcall_time_reached %}
- <a href="{% url 'vacancy:pre_call' pk=vacancy.pk call_type='start' %}" class="worker-btn">
- <span class="worker-btn__icon"></span>
- <span class="worker-btn__text">
- <span class="worker-btn__title">Перекличка: Початок роботи</span>
- <span class="worker-btn__sub">Відзначте присутніх</span>
- </span>
- </a>
- {% else %}
- <div class="worker-btn worker-btn--disabled">
- <span class="worker-btn__icon"></span>
- <span class="worker-btn__text">
- <span class="worker-btn__title">Перекличка: Початок роботи</span>
- <span class="worker-btn__sub">Доступно з {{ vacancy.start_time|time:"H:i" }}</span>
- </span>
- </div>
- {% endif %}
- {% elif show_end_rollcall %}
- <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='after_start' %}" class="worker-btn">
- <span class="worker-btn__icon"></span>
- <span class="worker-btn__text">
- <span class="worker-btn__title">Перекличка: Кінець роботи</span>
- <span class="worker-btn__sub">Відзначте тих, хто відпрацював</span>
- </span>
- </a>
- {% endif %}
-
+ {# 2. Rollcall merged into members page #}
  {# 3. Members page #}
  {% if not is_pending and not is_closed_lifecycle %}
  <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="worker-btn">

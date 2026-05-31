@@ -1935,3 +1935,35 @@ class Meta:
 
 ### Тести
 - tests/test_session_20260519_lifecycle.py — 13 тестів
+
+## Сессия 31.05.2026: Объединение страницы Учасники + Перекличка
+
+### Что сделано
+- **Объединение страниц**: Страница «Учасники» (`vacancy_members.html`) теперь совмещает управление участниками и переклички. Отдельная кнопка «Перекличка» убрана из карточки вакансии (`vacancy_detail.html`).
+- **Три режима страницы Учасники**:
+  1. До начала работы — карточки рабочих + кнопка «Видалити з групи»
+  2. 1-я перекличка (Початок роботи) — чекбоксы + «Підтвердити» (фиксирована внизу) + сценарії А/Б/В
+  3. 2-я перекличка (Кінець роботи) — чекбоксы + «Підтвердити»
+- **Кнопка «Повернутися в групу»** перенесена выше заголовка «Учасники»
+- **URL бота**: `call_markup.py` теперь отправляет ссылку на `vacancy:members` вместо `vacancy:pre_call`
+- **Редирект**: `vacancy_pre_call_check` редиректит на `vacancy:members`
+- **Проверка owner убрана** из `vacancy_members` (как в оригинальных pre_call/call)
+- **`is_end_rollcall`** проверяет `sent_final_call` — 2-я перекличка показывается только после уведомления Celery
+- **`vacancy_continue_search`**: сбрасывает все флаги переклички (`first/second_rollcall_passed`, extra-ключи) + удаляет старые `VacancyUserCall` записи для чистого нового цикла
+- **Удаление auto-confirm блока**: при «Продовжити пошук» первая перекличка НЕ автоподтверждается, вместо этого весь цикл запускается заново
+- **Удаление сообщений переклички при закрытии**: `start_call_msg_id` и `final_call_msg_id` добавлены в `VacancyDeleteEmployerInviteObserver`
+- **Модерация**: `admin_moderate_vacancy` использует `resume_mode=True` чтобы не требовать сдвиг времени
+
+### Ключевые файлы
+- `vacancy/views.py` — `vacancy_members` (основной view), `vacancy_continue_search` (сброс флагов), `vacancy_pre_call_check` (редирект)
+- `vacancy/templates/vacancy/vacancy_members.html` — объединённый шаблон
+- `vacancy/templates/vacancy/vacancy_detail.html` — убраны кнопки переклички
+- `vacancy/services/call_markup.py` — URL бота → members
+- `vacancy/services/observers/vacancy_close.py` — удаление сообщений переклички
+- `work/views/admin_panel.py` — resume_mode для модерации
+- `tests/test_session_20260531_members_rollcall.py` — 10 тестов
+
+### Баги найдены и исправлены
+- `search_active=False` при `status=approved` — observer не включал поиск после модерации (данные, не код)
+- Статус `awaiting_payment` → правильное значение в БД `awaiting` (max_length=10)
+- `STATUS_ACTIVE` уже полностью удалён (сессия 29.05)
