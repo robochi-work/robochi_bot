@@ -277,7 +277,7 @@ class TestBotUrlPointsToMembers:
         markup = get_start_call_markup(vacancy_approved)
         button_url = markup.keyboard[0][0].web_app.url
 
-        assert "/members/" in button_url
+        assert "/detail/" in button_url
         assert "/pre-call/" not in button_url
 
 

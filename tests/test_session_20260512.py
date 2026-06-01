@@ -28,7 +28,7 @@ class TestRollcallTimeReached:
         response = client.get(reverse("vacancy:detail", kwargs={"pk": vacancy.pk}))
 
         assert response.status_code == 200
-        assert response.context["rollcall_time_reached"] is True
+        assert response.context["is_start_rollcall"] is True
 
     def test_rollcall_time_reached_without_sent_start_call(self, client, employer_factory, vacancy_factory):
         owner = employer_factory()
@@ -46,7 +46,7 @@ class TestRollcallTimeReached:
         response = client.get(reverse("vacancy:detail", kwargs={"pk": vacancy.pk}))
 
         assert response.status_code == 200
-        assert response.context["rollcall_time_reached"] is False
+        assert response.context["is_start_rollcall"] is False
 
 
 class TestNightShiftDateLabels:

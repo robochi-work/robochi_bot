@@ -51,7 +51,7 @@ class TestVacancyFeedbackRedirect:
         response = client.get(url)
 
         assert response.status_code == 302
-        assert response["Location"] == reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        assert response["Location"] == reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
 
     def test_admin_redirects_to_members(self, client):
         """A staff user is sent to the members page regardless of ownership."""
@@ -64,7 +64,7 @@ class TestVacancyFeedbackRedirect:
         response = client.get(url)
 
         assert response.status_code == 302
-        assert response["Location"] == reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        assert response["Location"] == reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
 
     def test_anonymous_redirects_to_login(self, client):
         """Unauthenticated request is rejected by @login_required."""
@@ -107,7 +107,7 @@ class TestVacancyMembersOwnerExclusion:
         VacancyUser.objects.create(user=employer, vacancy=vacancy)
 
         client.force_login(employer)
-        url = reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        url = reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
         response = client.get(url)
 
         assert response.status_code == 200
@@ -125,7 +125,7 @@ class TestVacancyMembersOwnerExclusion:
         VacancyUser.objects.create(user=employer, vacancy=vacancy)
 
         client.force_login(admin)
-        url = reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        url = reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
         response = client.get(url)
 
         assert response.status_code == 200
@@ -143,7 +143,7 @@ class TestVacancyMembersOwnerExclusion:
         VacancyUser.objects.create(user=worker, vacancy=vacancy)
 
         client.force_login(employer)
-        url = reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        url = reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
         response = client.get(url)
 
         assert response.status_code == 200
@@ -176,7 +176,7 @@ class TestVacancyMembersContactPhone:
         VacancyContactPhone.objects.create(vacancy=vacancy, user=worker, phone="+380501234567")
 
         client.force_login(employer)
-        url = reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        url = reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
         response = client.get(url)
 
         assert response.status_code == 200
@@ -197,7 +197,7 @@ class TestVacancyMembersContactPhone:
         # Deliberately no VacancyContactPhone created
 
         client.force_login(employer)
-        url = reverse("vacancy:members", kwargs={"pk": vacancy.pk})
+        url = reverse("vacancy:detail", kwargs={"pk": vacancy.pk})
         response = client.get(url)
 
         assert response.status_code == 200

@@ -497,14 +497,138 @@ def vacancy_my_list(request):
     )
 
 
+def _build_members_context(vacancy, request):
+    """Build context for members section embedded in vacancy detail."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from telegram.choices import CallStatus, CallType
+    from user.models import UserFeedback
+    from user.services import BlockService
+    from vacancy.forms import VacancyCallForm
+    from vacancy.models import VacancyContactPhone, VacancyUser, VacancyUserCall
+    from vacancy.tasks.call import _get_start_aware
+
+    now = timezone.now()
+    start_aware = _get_start_aware(vacancy)
+    rollcall_time_reached = now >= start_aware or vacancy.extra.get("sent_start_call", False)
+
+    is_start_rollcall = (
+        not vacancy.first_rollcall_passed
+        and vacancy.status in [STATUS_APPROVED, STATUS_SEARCH_STOPPED]
+        and rollcall_time_reached
+    )
+    is_end_rollcall = (
+        vacancy.first_rollcall_passed
+        and not vacancy.second_rollcall_passed
+        and vacancy.status != STATUS_CLOSED
+        and vacancy.extra.get("sent_final_call", False)
+    )
+    is_rollcall_mode = is_start_rollcall or is_end_rollcall
+
+    call_type = None
+    if is_start_rollcall:
+        call_type = CallType.START
+    elif is_end_rollcall:
+        call_type = CallType.AFTER_START
+
+    members_qs = vacancy.members
+    m_members_count = members_qs.count()
+    m_people_count = vacancy.people_count
+
+    scenario = None
+    can_search_members = False
+    if is_start_rollcall:
+        search_deadline = start_aware + timedelta(hours=2)
+        can_search_members = now < search_deadline
+        if m_members_count == 0:
+            scenario = "A"
+        elif m_members_count < m_people_count:
+            scenario = "B"
+        else:
+            scenario = "C"
+
+    if is_rollcall_mode:
+        all_users_qs = (
+            VacancyUser.objects.filter(vacancy=vacancy, status="member").select_related("user").order_by("-created_at")
+        )
+        if not request.user.is_staff:
+            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
+    else:
+        all_users_qs = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
+        if not request.user.is_staff:
+            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
+
+    contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
+
+    members_list = []
+    for vu in all_users_qs:
+        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
+        is_user_blocked = BlockService.is_blocked(vu.user)
+        members_list.append(
+            {
+                "vacancy_user": vu,
+                "user": vu.user,
+                "status": vu.get_status_display(),
+                "is_member": vu.status == "member",
+                "is_blocked": is_user_blocked,
+                "feedbacks_count": feedbacks,
+                "contact_phone": contact_phones.get(vu.user_id, ""),
+            }
+        )
+
+    rollcall_form = None
+    if is_rollcall_mode and scenario in ("B", "C", None) and call_type:
+        any_records_exist = VacancyUserCall.objects.filter(vacancy_user__in=members_qs, call_type=call_type).exists()
+        if call_type == CallType.AFTER_START or not any_records_exist:
+            rollcall_form = VacancyCallForm(
+                queryset=members_qs, call_type=call_type, initial={"users": list(members_qs)}
+            )
+        else:
+            initial_calls = VacancyUserCall.objects.filter(
+                vacancy_user__in=members_qs, status=CallStatus.CONFIRM, call_type=call_type
+            )
+            rollcall_form = VacancyCallForm(
+                queryset=members_qs, call_type=call_type, initial={"users": list(initial_calls)}
+            )
+
+    return {
+        "is_rollcall_mode": is_rollcall_mode,
+        "is_start_rollcall": is_start_rollcall,
+        "is_end_rollcall": is_end_rollcall,
+        "m_call_type": call_type,
+        "scenario": scenario,
+        "can_search_members": can_search_members,
+        "rollcall_form": rollcall_form,
+        "members_list": members_list,
+        "m_members_count": m_members_count,
+        "m_people_count": m_people_count,
+    }
+
+
 @login_required
 def vacancy_detail(request, pk):
-    """Detail page for a single vacancy with management buttons."""
+    """Detail page for a single vacancy with management buttons and members section."""
+    from vacancy.forms import VacancyCallForm
+
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
     is_admin_view = request.user.is_staff and vacancy.owner_id != request.user.id
+
+    # Build members context (rollcall, members list, etc.)
+    mc = _build_members_context(vacancy, request)
+
+    # Handle POST for rollcall form
+    if request.method == "POST" and mc["is_rollcall_mode"] and mc["m_call_type"]:
+        form = VacancyCallForm(request.POST, queryset=vacancy.members, call_type=mc["m_call_type"])
+        call_answer = vacancy_check_call(request=request, form=form, vacancy=vacancy, call_type=mc["m_call_type"])
+        if call_answer:
+            return call_answer
+        # Rebuild context after POST processing
+        mc = _build_members_context(vacancy, request)
 
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
@@ -524,57 +648,30 @@ def vacancy_detail(request, pk):
     can_close = (
         vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT] and vacancy.closed_at is None
     )
-    has_workers = members.count() > 0
-    show_start_rollcall = (
-        not vacancy.first_rollcall_passed and vacancy.status in [STATUS_APPROVED, STATUS_SEARCH_STOPPED] and has_workers
-    )
-    show_end_rollcall = (
-        vacancy.first_rollcall_passed
-        and not vacancy.second_rollcall_passed
-        and vacancy.status != STATUS_CLOSED
-        and has_workers
-    )
-    rollcall_type = "start" if show_start_rollcall else ("after_start" if show_end_rollcall else None)
-
-    # Check if work time has started (for rollcall time gate)
-    from datetime import datetime as _dt
-
-    from django.utils import timezone as _tz
-
-    _now = _tz.now()
-    _start_naive = _dt.combine(vacancy.date, vacancy.start_time)
-    _start_aware = _tz.make_aware(_start_naive, _tz.get_current_timezone())
-    rollcall_time_reached = _now >= _start_aware or vacancy.extra.get("sent_start_call", False)
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)
     show_payment = vacancy.second_rollcall_passed and not is_paid and vacancy.status != STATUS_PAID
 
-    return render(
-        request,
-        "vacancy/vacancy_detail.html",
-        {
-            "vacancy": vacancy,
-            "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
-            "members": members,
-            "members_count": members.count(),
-            "work_profile": getattr(request.user, "work_profile", None),
-            "can_stop_search": can_stop_search,
-            "can_resume_search": can_resume_search,
-            "can_close": can_close,
-            "show_start_rollcall": show_start_rollcall,
-            "show_end_rollcall": show_end_rollcall,
-            "rollcall_type": rollcall_type,
-            "is_closed_lifecycle": is_closed_lifecycle,
-            "is_paid": is_paid,
-            "show_payment": show_payment,
-            "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
-            "channel_title": vacancy.channel.title if vacancy.channel else "",
-            "is_pending": vacancy.status == "pending",
-            "rollcall_time_reached": rollcall_time_reached,
-            "has_workers": has_workers,
-            "is_admin_view": is_admin_view,
-        },
-    )
+    context = {
+        "vacancy": vacancy,
+        "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
+        "members": members,
+        "members_count": members.count(),
+        "work_profile": getattr(request.user, "work_profile", None),
+        "can_stop_search": can_stop_search,
+        "can_resume_search": can_resume_search,
+        "can_close": can_close,
+        "is_closed_lifecycle": is_closed_lifecycle,
+        "is_paid": is_paid,
+        "show_payment": show_payment,
+        "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
+        "channel_title": vacancy.channel.title if vacancy.channel else "",
+        "is_pending": vacancy.status == "pending",
+        "is_admin_view": is_admin_view,
+    }
+    context.update(mc)
+
+    return render(request, "vacancy/vacancy_detail.html", context)
 
 
 @login_required
@@ -1177,7 +1274,7 @@ def vacancy_feedback_redirect(request, pk):
     """Entry point from group 'Відгуки/Контакти' button. Routes by role."""
     vacancy = get_object_or_404(Vacancy, pk=pk)
     if request.user.is_staff or request.user == vacancy.owner:
-        return redirect("vacancy:members", pk=pk)
+        return redirect("vacancy:detail", pk=pk)
     return redirect("work:worker_my_work")
 
 
@@ -1197,7 +1294,7 @@ def vacancy_kick_member(request, pk, user_id):
     if vacancy.group:
         GroupService.kick_user(chat_id=vacancy.group.id, user_id=user_id)
 
-    return redirect("vacancy:members", pk=pk)
+    return redirect("vacancy:detail", pk=pk)
 
 
 def vacancy_members_json(request, pk):
