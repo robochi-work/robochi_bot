@@ -593,6 +593,16 @@ def _build_members_context(vacancy, request):
                 queryset=members_qs, call_type=call_type, initial={"users": list(initial_calls)}
             )
 
+    # Attach checkbox HTML to each member for unified rollcall cards
+    if rollcall_form and is_rollcall_mode:
+        checkbox_map = {}
+        for bound_cb in rollcall_form["users"]:
+            vu_pk = bound_cb.data["value"]
+            checkbox_map[int(str(vu_pk))] = bound_cb.tag()
+        for item in members_list:
+            vu_pk = item["vacancy_user"].pk
+            item["checkbox_tag"] = checkbox_map.get(vu_pk, "")
+
     return {
         "is_rollcall_mode": is_rollcall_mode,
         "is_start_rollcall": is_start_rollcall,
@@ -604,6 +614,7 @@ def _build_members_context(vacancy, request):
         "members_list": members_list,
         "m_members_count": m_members_count,
         "m_people_count": m_people_count,
+        "work_time_started": rollcall_time_reached,
     }
 
 
@@ -646,7 +657,9 @@ def vacancy_detail(request, pk):
         vacancy.status == STATUS_SEARCH_STOPPED and not vacancy.first_rollcall_passed and vacancy.status != "pending"
     )
     can_close = (
-        vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT] and vacancy.closed_at is None
+        vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT]
+        and vacancy.closed_at is None
+        and not mc["is_rollcall_mode"]
     )
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)

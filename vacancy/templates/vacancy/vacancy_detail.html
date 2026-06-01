@@ -12,6 +12,15 @@
  .then(function(data) {
  var el = document.querySelector('[data-detail-members-count]');
  if (el) el.textContent = data.members_count;
+ {% if is_rollcall_mode %}
+ if (data.first_rollcall_passed || data.second_rollcall_passed) {
+  window.location.href = '/vacancy/' + pk + '/detail/';
+  return;
+ }
+ if (data.members_count !== {{ members_count }}) {
+  window.location.reload();
+ }
+ {% endif %}
  })
  .catch(function(e) {});
  }, 15000);
@@ -35,6 +44,21 @@
  {{ status_label }}
  </span>
  </div>
+
+ {# 1. Close vacancy — above info card, hidden during rollcall and after invoice #}
+ {% if can_close %}
+ <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
+ style="margin:0 0 16px" onsubmit="return confirm('Закрити вакансію? Через 3 години групу буде розпущено.')">
+ {% csrf_token %}
+ <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Закрити вакансію</span>
+ <span class="worker-btn__sub">Завершити підбір та роботу</span>
+ </span>
+ </button>
+ </form>
+ {% endif %}
 
  {# Vacancy info card #}
  <div class="detail-card">
@@ -84,21 +108,6 @@
  {# Action buttons #}
  <div class="detail-actions">
 
- {# 1. Close vacancy #}
- {% if can_close %}
- <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
- style="margin:0" onsubmit="return confirm('Закрити вакансію? Через 3 години групу буде розпущено.')">
- {% csrf_token %}
- <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
- <span class="worker-btn__icon"></span>
- <span class="worker-btn__text">
- <span class="worker-btn__title">Закрити вакансію</span>
- <span class="worker-btn__sub">Завершити підбір та роботу</span>
- </span>
- </button>
- </form>
- {% endif %}
-
  {# Channel link #}
  {% if channel_invite_link and not is_pending and not is_closed_lifecycle %}
  <a href="{{ channel_invite_link }}" target="_blank" class="worker-btn">
@@ -110,9 +119,7 @@
  </a>
  {% endif %}
 
-
-
- {# 4. Payment button (after second rollcall) #}
+ {# Payment button (after second rollcall) #}
  {% if show_payment %}
  <a href="{% url 'vacancy:payment' pk=vacancy.pk %}" class="worker-btn worker-btn--pay">
  <span class="worker-btn__icon"></span>
@@ -131,7 +138,7 @@
  </div>
  {% endif %}
 
- {# 5. Stop / Resume search #}
+ {# Stop / Resume search #}
  {% if can_stop_search %}
  <a href="{% url 'vacancy:stop_search' pk=vacancy.pk %}" class="worker-btn"
  onclick="return confirm('Зупинити пошук робітників?')">
@@ -159,29 +166,31 @@
  </button>
  {% endif %}
 
- {# Group invite link #}
+ {# Group invite link — renamed #}
  {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle %}
  <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
  <span class="worker-btn__icon"></span>
  <span class="worker-btn__text">
- <span class="worker-btn__title">Група в Telegram</span>
- <span class="worker-btn__sub">Перейти в Telegram</span>
+ <span class="worker-btn__title">Група з робітниками</span>
+ <span class="worker-btn__sub">Перейти для спілкування</span>
  </span>
  </a>
  {% endif %}
 
- {# ── MEMBERS SECTION (embedded from vacancy_members) ── #}
+ </div>
+
+ {# ═══ MEMBERS / ROLLCALL SECTION ═══ #}
  {% if not is_pending and not is_closed_lifecycle %}
  <div class="detail-members-section">
 
  {% if is_rollcall_mode %}
  {# ── ROLLCALL MODE ── #}
- <h3 class="members-section-title">Учасники</h3>
+ <h2 class="members-title">Робітники</h2>
 
  {% if is_start_rollcall %}
- <p class="rollcall-hint">Початок роботи. Проведіть перекличку робітників.</p>
+ <p class="rollcall-hint">Увага! Початок роботи. Проведіть перекличку робітників.</p>
  {% else %}
- <p class="rollcall-hint">Кінець роботи. Проведіть перекличку робітників.</p>
+ <p class="rollcall-hint">Увага! Кінець роботи. Проведіть перекличку робітників.</p>
  {% endif %}
 
  {% if scenario == "A" %}
@@ -213,7 +222,7 @@
  </div>
 
  {% else %}
- {# Сценарій Б або В: є робітники — чекбокси #}
+ {# Сценарій Б або В: є робітники — unified cards with checkboxes #}
  {% if scenario == "B" %}
  <p class="rollcall-scenario-note">
   Працівників: <strong>{{ m_members_count }}</strong> з <strong>{{ m_people_count }}</strong>
@@ -225,61 +234,69 @@
   {{ rollcall_form.call_type }}
 
   <div class="members-cards members-cards--rollcall">
-   {% for checkbox in rollcall_form.users %}
-   <div class="member-card">
-    <label class="rollcall-row">
-     {{ checkbox.tag }}
-     <span class="call-user-name">{{ checkbox.choice_label }}</span>
-    </label>
+   {% for item in members_list %}
+   <div class="member-card member-card--rollcall-unified">
+    <div class="member-card__top-row">
+     <div class="member-card__info">
+      <button type="button" class="member-card__feedback-link"
+       onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
+       Дивитися/Залишити відгук
+      </button>
+      <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
+      {% if item.contact_phone %}
+      <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
+      {% endif %}
+     </div>
+     <label class="rollcall-checkbox-wrap">
+      {{ item.checkbox_tag }}
+     </label>
+    </div>
    </div>
    {% empty %}
-   <div class="vacancy-list-empty"><p>Немає учасників</p></div>
+   <div class="vacancy-list-empty"><p>Немає робітників</p></div>
    {% endfor %}
   </div>
 
-  {% if can_search_members and scenario == "B" %}
-  <div style="margin-top:8px;margin-bottom:72px;">
-   <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}?confirm_rollcall=1" class="worker-btn">
-    <span class="worker-btn__text">
-     <span class="worker-btn__title">Продовжити пошук</span>
-     <span class="worker-btn__sub">Підтвердити наявних + шукати ще</span>
-    </span>
-   </a>
-  </div>
-  {% endif %}
-
+  {# Fixed bottom bar: submit + continue search #}
   <div class="rollcall-submit-bar">
-   <button type="submit" class="worker-btn rollcall-submit-btn" style="border:none;cursor:pointer;">
-    <span class="worker-btn__text">
-     <span class="worker-btn__title">Підтвердити</span>
-    </span>
-   </button>
+   <div class="rollcall-submit-bar__inner">
+    <button type="submit" class="worker-btn rollcall-submit-btn" style="border:none;cursor:pointer;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити. Робітників достатньо.</span>
+     </span>
+    </button>
+    {% if can_search_members and scenario == "B" %}
+    <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}?confirm_rollcall=1"
+     class="worker-btn rollcall-submit-btn" style="text-decoration:none;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити наявних + шукати ще</span>
+     </span>
+    </a>
+    {% endif %}
+   </div>
   </div>
  </form>
  {% endif %}
 
  {% else %}
- {# ── NORMAL MODE — карточки учасників ── #}
+ {# ── NORMAL MODE ── #}
  {% if members_list %}
- <h3 class="members-section-title">Учасники ({{ m_members_count }})</h3>
+ <h2 class="members-title">Робітники ({{ m_members_count }})</h2>
  <div class="members-cards">
   {% for item in members_list %}
   <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
+   <button type="button" class="member-card__feedback-link"
+    onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
+    Дивитися/Залишити відгук
+   </button>
    <div class="member-card__info">
     <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
     {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;">Заблоковано</span>{% endif %}
     {% if item.contact_phone %}
     <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
     {% endif %}
-    {% if item.feedbacks_count %}
-    <span>{{ item.feedbacks_count }} відгук{{ item.feedbacks_count|pluralize:"ів,и,ів" }}</span>
-    {% endif %}
    </div>
-   <button type="button" class="btn-secondary btn-block"
-    onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
-    Рейтинг/Відгуки
-   </button>
-   {% if item.is_member %}
+   {% if item.is_member and not work_time_started %}
    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="margin:0;">
     {% csrf_token %}
     <button type="submit" class="btn-secondary btn-block"
@@ -289,9 +306,9 @@
   </div>
   {% endfor %}
  </div>
- {% elif m_members_count == 0 and members_count == 0 %}
- <div class="detail-members-empty">
-  <p>Ще немає учасників</p>
+ {% else %}
+ <div class="vacancy-list-empty">
+  <p>Ще немає робітників</p>
  </div>
  {% endif %}
  {% endif %}
@@ -299,7 +316,6 @@
  </div>
  {% endif %}
 
- </div>
  </div>
 </main>
 
@@ -311,17 +327,45 @@
  </div>
 </div>
 
+{# Feedback modal #}
+<div id="feedback-modal" class="feedback-modal-overlay" onclick="closeFeedbackModalOutside(event)">
+ <div class="feedback-modal-box">
+  <div class="feedback-modal-header">
+   <span id="feedback-modal-name" class="feedback-modal-title"></span>
+   <button class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
+  </div>
+  <div class="feedback-modal-actions">
+   <a id="btn-leave-feedback" href="#" class="feedback-modal-btn feedback-modal-btn--primary">Залишити відгук</a>
+   <a id="btn-see-reviews" href="#" class="feedback-modal-btn feedback-modal-btn--secondary">Подивитися відгуки</a>
+  </div>
+ </div>
+</div>
+
 <script>
 function showExpiredModal() {
  document.getElementById('expired-modal').style.display = 'flex';
 }
-
 function closeExpiredModal() {
  document.getElementById('expired-modal').style.display = 'none';
 }
 document.getElementById('expired-modal').addEventListener('click', function(e) {
  if (e.target === this) closeExpiredModal();
 });
+
+var vacancyPk = {{ vacancy.pk }};
+
+function openFeedbackModal(userId, userName) {
+ document.getElementById('feedback-modal-name').textContent = userName;
+ document.getElementById('btn-leave-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
+ document.getElementById('btn-see-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
+ document.getElementById('feedback-modal').classList.add('open');
+}
+function closeFeedbackModal() {
+ document.getElementById('feedback-modal').classList.remove('open');
+}
+function closeFeedbackModalOutside(event) {
+ if (event.target === document.getElementById('feedback-modal')) closeFeedbackModal();
+}
 </script>
 
 <style>
@@ -392,57 +436,20 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
  gap: 12px;
 }
 
-
-
-/* Status badges */
-.vacancy-card__status--pending { background: var(--message-warning-bg); }
-.vacancy-card__status--approved { background: var(--message-success-bg); }
-.vacancy-card__status--active { background: rgba(33,150,243,0.25); }
-.vacancy-card__status--stopped { background: rgba(158,158,158,0.3); }
-.vacancy-card__status--awaiting { background: rgba(255,152,0,0.25); }
-.vacancy-card__status--closed { background: rgba(0,0,0,0.1); }
-
-/* Payment button variant */
-.worker-btn--pay {
- border-color: rgba(34,197,94,0.3) !important;
-}
-.worker-btn--pay .worker-btn__title { color: var(--success-text); }
-.worker-btn--paid { opacity: 0.75; pointer-events: none; }
-.worker-btn--paid .worker-btn__title { color: var(--success-text); }
-/* dark mode handled by CSS vars */
-
-/* Danger button variant */
-.worker-btn--danger {
- border-color: rgba(239,68,68,0.3) !important;
-}
-.worker-btn--danger .worker-btn__title {
- color: var(--destructive);
-}
-/* dark mode handled by CSS vars */
-
-/* Disabled button variant */
-.worker-btn--disabled {
- opacity: 0.5;
- cursor: default;
- pointer-events: auto;
-}
-
+/* Members section */
 .detail-members-section {
- margin-top: 4px;
+ margin-top: 20px;
 }
-.members-section-title {
- font-size: 17px;
- font-weight: 700;
+.members-title {
  margin: 8px 0 12px;
 }
 .rollcall-hint {
  font-size: 14px;
- font-weight: 600;
- color: var(--muted-foreground);
+ font-weight: 700;
+ color: var(--destructive);
  margin-bottom: 12px;
- padding: 10px 14px;
- background: var(--btn-bg);
- border-radius: var(--btn-radius);
+ padding: 0;
+ background: none;
 }
 .rollcall-scenario-note {
  font-size: 14px;
@@ -456,7 +463,7 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
  padding-bottom: 16px;
 }
 .members-cards--rollcall {
- padding-bottom: 80px;
+ padding-bottom: 140px;
 }
 .member-card {
  padding: 14px 16px;
@@ -469,6 +476,15 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
 }
 .member-card--inactive {
  opacity: 0.6;
+}
+.member-card__top-row {
+ display: flex;
+ align-items: center;
+ gap: 12px;
+}
+.member-card__top-row .member-card__info {
+ flex: 1;
+ min-width: 0;
 }
 .member-card__info {
  display: flex;
@@ -487,44 +503,83 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
  text-decoration: none;
  font-weight: 600;
 }
-.rollcall-row {
+.member-card__feedback-link {
+ background: none;
+ border: none;
+ padding: 0;
+ font-size: 13px;
+ font-weight: 600;
+ color: var(--primary);
+ cursor: pointer;
+ text-align: left;
+ -webkit-tap-highlight-color: transparent;
+}
+.rollcall-checkbox-wrap {
+ flex-shrink: 0;
+ cursor: pointer;
  display: flex;
  align-items: center;
- gap: 12px;
- cursor: pointer;
 }
-.rollcall-row input[type="checkbox"] {
- width: 22px;
- height: 22px;
+.rollcall-checkbox-wrap input[type="checkbox"] {
+ width: 26px;
+ height: 26px;
  accent-color: var(--primary);
- flex-shrink: 0;
-}
-.call-user-name {
- font-size: 15px;
- font-weight: 600;
 }
 .rollcall-submit-bar {
  position: fixed;
  bottom: 0;
  left: 0;
  right: 0;
- padding: 12px 14px;
+ padding: 10px 14px;
  background: var(--background);
  border-top: 1px solid var(--border);
  z-index: 100;
 }
-.rollcall-submit-btn {
- width: 100%;
+.rollcall-submit-bar__inner {
  max-width: 520px;
  margin: 0 auto;
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
+}
+.rollcall-submit-btn {
+ width: 100%;
  display: block;
-}
-.detail-members-empty {
- padding: 16px;
  text-align: center;
- color: var(--muted-foreground);
- font-size: 14px;
 }
+
+/* Status badges */
+.vacancy-card__status--pending { background: var(--message-warning-bg); }
+.vacancy-card__status--approved { background: var(--message-success-bg); }
+.vacancy-card__status--active { background: rgba(33,150,243,0.25); }
+.vacancy-card__status--stopped { background: rgba(158,158,158,0.3); }
+.vacancy-card__status--awaiting { background: rgba(255,152,0,0.25); }
+.vacancy-card__status--closed { background: rgba(0,0,0,0.1); }
+
+/* Payment button variant */
+.worker-btn--pay {
+ border-color: rgba(34,197,94,0.3) !important;
+}
+.worker-btn--pay .worker-btn__title { color: var(--success-text); }
+.worker-btn--paid { opacity: 0.75; pointer-events: none; }
+.worker-btn--paid .worker-btn__title { color: var(--success-text); }
+
+/* Danger button variant */
+.worker-btn--danger {
+ border-color: rgba(239,68,68,0.3) !important;
+}
+.worker-btn--danger .worker-btn__title {
+ color: var(--destructive);
+}
+
+/* Disabled button variant */
+.worker-btn--disabled {
+ opacity: 0.5;
+ cursor: default;
+ pointer-events: auto;
+}
+
+/* Feedback modal */
 .feedback-modal-overlay {
  display: none;
  position: fixed;
@@ -590,56 +645,4 @@ document.getElementById('expired-modal').addEventListener('click', function(e) {
  .detail-card { padding: 16px 12px; border-radius: 24px; }
 }
 </style>
-{# Feedback modal #}
-<div id="feedback-modal" class="feedback-modal-overlay" onclick="closeFeedbackModalOutside(event)">
- <div class="feedback-modal-box">
-  <div class="feedback-modal-header">
-   <span id="feedback-modal-name" class="feedback-modal-title"></span>
-   <button class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
-  </div>
-  <div class="feedback-modal-actions">
-   <a id="btn-leave-feedback" href="#" class="feedback-modal-btn feedback-modal-btn--primary">Залишити відгук</a>
-   <a id="btn-see-reviews" href="#" class="feedback-modal-btn feedback-modal-btn--secondary">Подивитися відгуки</a>
-  </div>
- </div>
-</div>
-
-<script>
-var vacancyPk = {{ vacancy.pk }};
-
-function openFeedbackModal(userId, userName) {
- document.getElementById('feedback-modal-name').textContent = userName;
- document.getElementById('btn-leave-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
- document.getElementById('btn-see-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
- document.getElementById('feedback-modal').classList.add('open');
-}
-function closeFeedbackModal() {
- document.getElementById('feedback-modal').classList.remove('open');
-}
-function closeFeedbackModalOutside(event) {
- if (event.target === document.getElementById('feedback-modal')) closeFeedbackModal();
-}
-</script>
-
-{% if is_rollcall_mode %}
-<script>
-(function() {
- var pk = {{ vacancy.pk }};
- var url = '/vacancy/' + pk + '/members-json/';
- var knownCount = {{ m_members_count }};
- setInterval(function() {
-  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
-   if (data.first_rollcall_passed || data.second_rollcall_passed) {
-    window.location.reload();
-    return;
-   }
-   if (data.members.length !== knownCount) {
-    window.location.reload();
-   }
-  }).catch(function(e) {});
- }, 15000);
-})();
-</script>
-{% endif %}
-
 {% endblock %}
