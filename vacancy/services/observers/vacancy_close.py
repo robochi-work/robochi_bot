@@ -160,6 +160,7 @@ class VacancyNotifyAdminsObserver(Observer):
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
             text=CallVacancyTelegramTextFormatter(vacancy).vacancy_closed_admin(),
+            parse_mode="HTML",
         )
         logging.info("Notify admins - vacancy closed")
 
@@ -174,6 +175,7 @@ class VacancyPaymentDoesNotExistObserver(Observer):
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
             text=CallVacancyTelegramTextFormatter(vacancy).vacancy_payment_no_exist_admin(),
+            parse_mode="HTML",
         )
         logging.info("Notify admins - vacancy does not payment exists")
 

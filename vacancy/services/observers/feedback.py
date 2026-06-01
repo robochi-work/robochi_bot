@@ -22,4 +22,5 @@ class VacancyFeedbackAdminObserver(Observer):
                 method=NotificationMethod.TEXT,
                 text=VacancyTelegramTextFormatter(vacancy).for_admin_new_feedback(feedback),
                 reply_markup=admin_vacancy_feedback_reply_markup(feedback),
+                parse_mode="HTML",
             )
