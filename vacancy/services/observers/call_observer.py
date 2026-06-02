@@ -34,6 +34,8 @@ class VacancyBeforeCallObserver(Observer):
     def check_before_start(self, vacancy: Vacancy):
         from datetime import datetime
 
+        from telegram.choices import Status as _Status
+
         start_naive = datetime.combine(vacancy.date, vacancy.start_time)
         start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
         two_hours_before = start_aware - timedelta(hours=2)
@@ -52,15 +54,12 @@ class VacancyBeforeCallObserver(Observer):
                 ).exists()
                 if already_confirmed:
                     continue
-                # Skip workers who joined after the 2h-before mark —
-                # they already confirmed via join_confirm
-                join_confirmed = VacancyUserCall.objects.filter(
-                    vacancy_user=member,
-                    call_type=CallType.WORKER_JOIN_CONFIRM,
-                    status=CallStatus.CONFIRM,
-                    created_at__gte=two_hours_before,
-                ).exists()
-                if join_confirmed:
+                # Skip workers who joined the group after the 2h-before mark.
+                # Their VacancyUser.updated_at reflects the moment they entered
+                # the group (status set to member). join_confirm records may be
+                # wiped by continue_search, so we rely on updated_at instead.
+                joined_recently = member.status == _Status.MEMBER.value and member.updated_at >= two_hours_before
+                if joined_recently:
                     logger.info(
                         "before_start_skipped",
                         extra={"user_id": member.user.id, "vacancy_id": vacancy.id, "reason": "joined_after_2h_mark"},

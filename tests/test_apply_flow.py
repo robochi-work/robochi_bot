@@ -364,7 +364,9 @@ class TestPendingConfirmStatus:
         vacancy.start_time = (timezone.now() + datetime.timedelta(hours=1)).time()
         vacancy.save()
 
-        VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER.value)
+        vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER.value)
+        # Force updated_at well before the 2h-before mark (joined long ago)
+        VacancyUser.objects.filter(pk=vu.pk).update(updated_at=timezone.now() - datetime.timedelta(hours=5))
 
         notifier = MagicMock()
         observer = VacancyBeforeCallObserver(notifier=notifier)

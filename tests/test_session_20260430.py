@@ -107,6 +107,8 @@ class TestBeforeStartCall:
             start_time=start_time_local,
         )
         vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
+        # Joined long ago (before the 2h-before mark) — updated_at reflects entry time
+        VacancyUser.objects.filter(pk=vu.pk).update(updated_at=now - timedelta(hours=3))
         UserInGroup.objects.create(user=worker, group=group, status=Status.MEMBER)
         VacancyUserCall.objects.create(
             vacancy_user=vu,
