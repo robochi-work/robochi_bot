@@ -736,30 +736,37 @@ def vacancy_continue_search(request, pk):
 
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
-    # 1. Auto-adjust start_time
+    # 1. Auto-adjust start_time ONLY if work time has already passed.
+    #    Before work start: keep original time, just re-publish search.
+    #    After work start: original time is in the past, shift to now + 1h.
     now = _tz.localtime(_tz.now())
-    new_start = now + _td(hours=1)
-    # Round to next 15 min
-    minute = (new_start.minute // 15 + 1) * 15
-    if minute >= 60:
-        new_start = new_start.replace(hour=new_start.hour + 1, minute=0, second=0, microsecond=0)
-    else:
-        new_start = new_start.replace(minute=minute, second=0, microsecond=0)
+    start_naive = _dt.combine(vacancy.date, vacancy.start_time)
+    start_aware = _tz.make_aware(start_naive, _tz.get_current_timezone())
+    work_time_passed = now >= start_aware
 
-    vacancy.start_time = new_start.time()
-    vacancy.date = now.date()
+    if work_time_passed:
+        new_start = now + _td(hours=1)
+        # Round to next 15 min
+        minute = (new_start.minute // 15 + 1) * 15
+        if minute >= 60:
+            new_start = new_start.replace(hour=new_start.hour + 1, minute=0, second=0, microsecond=0)
+        else:
+            new_start = new_start.replace(minute=minute, second=0, microsecond=0)
 
-    # 2. Ensure minimum 3h shift
-    end_naive = _dt.combine(vacancy.date, vacancy.end_time)
-    end_aware = _tz.make_aware(end_naive, _tz.get_current_timezone())
-    if vacancy.end_time < vacancy.start_time:
-        end_aware += _td(days=1)
-    diff = end_aware - _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone())
-    if diff < _td(hours=3):
-        new_end = _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone()) + _td(
-            hours=3
-        )
-        vacancy.end_time = _tz.localtime(new_end).time()
+        vacancy.start_time = new_start.time()
+        vacancy.date = now.date()
+
+        # 2. Ensure minimum 3h shift
+        end_naive = _dt.combine(vacancy.date, vacancy.end_time)
+        end_aware = _tz.make_aware(end_naive, _tz.get_current_timezone())
+        if vacancy.end_time < vacancy.start_time:
+            end_aware += _td(days=1)
+        diff = end_aware - _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone())
+        if diff < _td(hours=3):
+            new_end = _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone()) + _td(
+                hours=3
+            )
+            vacancy.end_time = _tz.localtime(new_end).time()
 
     # 3. Re-activate search + reset rollcall flags for new cycle
     from vacancy.choices import STATUS_APPROVED
