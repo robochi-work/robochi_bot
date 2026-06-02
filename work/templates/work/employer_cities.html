@@ -6,47 +6,47 @@
 {% block body %}
 <main class="page page--employer-cities">
 
-    <div class="vacancy-list-header">
-        <a href="{% url 'index' %}" class="page-back-btn">← Назад</a>
-        <h1>Загальна стрічка вакансій</h1>
-    </div>
+ <div class="vacancy-list-header">
+ <a href="{% url 'index' %}" class="page-back-btn">← Назад</a>
+ <h1>Загальна стрічка вакансій</h1>
+ </div>
 
-    {% if city_channels %}
-    <div class="city-list">
-        {% for item in city_channels %}
-        <a href="#" onclick="Telegram.WebApp.openTelegramLink('{{ item.invite_link }}'); return false;" class="worker-btn">
-            <span class="worker-btn__icon">🏙️</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">{{ item.city_name }}</span>
-                <span class="worker-btn__sub">
-                    {{ item.channel_title }}
-                    {% if item.is_main %} (основне){% endif %}
-                </span>
-            </span>
-        </a>
-        {% endfor %}
-    </div>
-    {% else %}
-    <div class="vacancy-list-empty">
-        <p>Немає доступних міст</p>
-    </div>
-    {% endif %}
+ {% if city_channels %}
+ <div class="city-list">
+ {% for item in city_channels %}
+ <a href="#" onclick="Telegram.WebApp.openTelegramLink('{{ item.invite_link }}'); return false;" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">{{ item.city_name }}</span>
+ <span class="worker-btn__sub">
+ {{ item.channel_title }}
+ {% if item.is_main %} (основне){% endif %}
+ </span>
+ </span>
+ </a>
+ {% endfor %}
+ </div>
+ {% else %}
+ <div class="vacancy-list-empty">
+ <p>Немає доступних міст</p>
+ </div>
+ {% endif %}
 
 </main>
 
 <style>
 .page--employer-cities {
-    padding: 20px 14px;
-    justify-content: flex-start;
-    min-height: 100vh;
+ padding: 20px 14px;
+ justify-content: flex-start;
+ min-height: 100vh;
 }
 .city-list {
-    width: 100%;
-    max-width: 520px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+ width: 100%;
+ max-width: 520px;
+ margin: 0 auto;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
 }
 </style>
 {% endblock %}

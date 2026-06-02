@@ -12,7 +12,6 @@ Covers:
 8.  auto_approve: declines employer trying to join a foreign vacancy group
 9.  VacancyStartCallFailObserver: creates block with reason=employer_uncheck
 10. VacancyAfterStartCallFailObserver: only queries AFTER_START call type, not START
-11. vacancy_reinvite_worker: removes active block and sends bot message
 """
 
 from unittest.mock import MagicMock, patch
@@ -389,44 +388,6 @@ def test_after_start_call_fail_filters_after_start_type():
     )
     assert UserBlock.objects.filter(user=worker_after_start, is_active=True).exists(), (
         "AFTER_START reject must be blocked by VacancyAfterStartCallFailObserver"
-    )
-
-
-# ---------------------------------------------------------------------------
-# 11. vacancy_reinvite_worker unblocks user and sends bot message
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-def test_reinvite_worker_unblocks_and_sends_message(client):
-    """vacancy_reinvite_worker must remove active block and send invite via bot."""
-    from telegram.handlers.bot_instance import bot
-    from user.choices import BlockType
-    from user.models import UserBlock
-    from user.services import BlockService
-
-    admin = UserFactory(is_staff=True)
-    worker = WorkerFactory()
-    BlockService.block_user(worker, block_type=BlockType.TEMPORARY)
-    assert UserBlock.objects.filter(user=worker, is_active=True).exists()
-
-    group = GroupFactory(status="process", invite_link="https://t.me/+testgroup")
-    channel = ChannelFactory()
-    vacancy = _create_active_vacancy(admin, group, channel)
-
-    client.force_login(admin)
-    url = reverse("vacancy:reinvite_worker", kwargs={"pk": vacancy.pk, "user_id": worker.pk})
-
-    with patch.object(bot, "send_message") as mock_send:
-        response = client.post(url)
-
-    assert response.status_code == 302
-    assert not UserBlock.objects.filter(user=worker, is_active=True).exists(), "Block must be removed after reinvite"
-    mock_send.assert_called()
-    # View calls: bot.send_message(target_user.id, "...", reply_markup=markup)
-    first_positional_arg = mock_send.call_args[0][0] if mock_send.call_args[0] else None
-    assert first_positional_arg == worker.id, (
-        f"send_message must target worker.id={worker.id}, got {first_positional_arg}"
     )
 
 

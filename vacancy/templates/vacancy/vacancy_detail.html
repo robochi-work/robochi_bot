@@ -1,363 +1,648 @@
 {% extends 'base.html' %}
 {% load i18n %}
 
-{% block header %}{% endblock %}
+{% block header %}
+<script>
+(function() {
+ var pk = {{ vacancy.pk }};
+ var url = '/vacancy/' + pk + '/members-json/';
+ setInterval(function() {
+ fetch(url)
+ .then(function(r) { return r.json(); })
+ .then(function(data) {
+ var el = document.querySelector('[data-detail-members-count]');
+ if (el) el.textContent = data.members_count;
+ {% if is_rollcall_mode %}
+ if (data.first_rollcall_passed || data.second_rollcall_passed) {
+  window.location.href = '/vacancy/' + pk + '/detail/';
+  return;
+ }
+ if (data.members_count !== {{ members_count }}) {
+  window.location.reload();
+ }
+ {% endif %}
+ })
+ .catch(function(e) {});
+ }, 15000);
+})();
+</script>
+
+{% endblock %}
 
 {% block body %}
 <main class="page page--vacancy-detail">
 
-    <div class="detail-container">
+ <div class="detail-container">
 
-        <div class="detail-header">
-            {% if is_admin_view %}
-            <a href="{% url 'vacancy:my_list' %}?for_user={{ vacancy.owner.pk }}" class="page-back-btn">← Заявки</a>
-            {% else %}
-            <a href="{% url 'vacancy:my_list' %}" class="page-back-btn">← Заявки</a>
-            {% endif %}
-            <span class="vacancy-card__status vacancy-card__status--{{ vacancy.status }}">
-                {{ status_label }}
-            </span>
-        </div>
+ <div class="detail-header">
+ {% if is_admin_view %}
+ <a href="{% url 'vacancy:my_list' %}?for_user={{ vacancy.owner.pk }}" class="page-back-btn">← Заявки</a>
+ {% else %}
+ <a href="{% url 'vacancy:my_list' %}" class="page-back-btn">← Заявки</a>
+ {% endif %}
+ <span class="vacancy-card__status vacancy-card__status--{{ vacancy.status }}">
+ {{ status_label }}
+ </span>
+ </div>
 
-        {# Vacancy info card #}
-        <div class="detail-card">
-            <h2 class="detail-address">📍 {{ vacancy.address }}</h2>
+ {# 1. Close vacancy — above info card, hidden during rollcall and after invoice #}
+ {% if can_close %}
+ <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
+ style="margin:0 0 16px" onsubmit="return confirm('Закрити вакансію? Через 3 години групу буде розпущено.')">
+ {% csrf_token %}
+ <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Закрити вакансію</span>
+ <span class="worker-btn__sub">Завершити підбір та роботу</span>
+ </span>
+ </button>
+ </form>
+ {% endif %}
 
-            <div class="detail-grid">
-                <div class="detail-row">
-                    <span class="detail-label">📅 Дата</span>
-                    <span class="detail-value">{{ vacancy.date|date:"d.m.Y" }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">⏰ Час</span>
-                    <span class="detail-value">{{ vacancy.start_time|time:"H:i" }} – {{ vacancy.end_time|time:"H:i" }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">👥 Люди</span>
-                    <span class="detail-value">{{ members_count }} / {{ vacancy.people_count }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">💰 Оплата</span>
-                    <span class="detail-value">{{ vacancy.payment_amount }} грн / {{ vacancy.get_payment_unit_display }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">💳 Спосіб</span>
-                    <span class="detail-value">{{ vacancy.get_payment_method_display }}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">👤 Стать</span>
-                    <span class="detail-value">{{ vacancy.get_gender_display }}</span>
-                </div>
-                {% if vacancy.has_passport %}
-                <div class="detail-row">
-                    <span class="detail-label">🪪 Паспорт</span>
-                    <span class="detail-value">Потрібен</span>
-                </div>
-                {% endif %}
-            </div>
+ {# Vacancy info card #}
+ <div class="detail-card">
+ <h2 class="detail-address">{{ vacancy.address }}</h2>
 
-            {% if vacancy.skills %}
-            <div class="detail-skills">
-                <span class="detail-label">📝 Опис роботи</span>
-                <p>{{ vacancy.skills }}</p>
-            </div>
-            {% endif %}
-        </div>
+ <div class="detail-grid">
+ <div class="detail-row">
+ <span class="detail-label">Дата</span>
+ <span class="detail-value">{{ vacancy.date|date:"d.m.Y" }}</span>
+ </div>
+ <div class="detail-row">
+ <span class="detail-label">Час</span>
+ <span class="detail-value">{{ vacancy.start_time|time:"H:i" }} – {{ vacancy.end_time|time:"H:i" }}</span>
+ </div>
+ <div class="detail-row">
+ <span class="detail-label">Люди</span>
+ <span class="detail-value"><span data-detail-members-count>{{ members_count }}</span> / {{ vacancy.people_count }}</span>
+ </div>
+ <div class="detail-row">
+ <span class="detail-label">Оплата</span>
+ <span class="detail-value">{{ vacancy.payment_amount }} грн / {{ vacancy.get_payment_unit_display }}</span>
+ </div>
+ <div class="detail-row">
+ <span class="detail-label">Спосіб</span>
+ <span class="detail-value">{{ vacancy.get_payment_method_display }}</span>
+ </div>
+ <div class="detail-row">
+ <span class="detail-label">Стать</span>
+ <span class="detail-value">{{ vacancy.get_gender_display }}</span>
+ </div>
+ {% if vacancy.has_passport %}
+ <div class="detail-row">
+ <span class="detail-label">Паспорт</span>
+ <span class="detail-value">Потрібен</span>
+ </div>
+ {% endif %}
+ </div>
 
-        {# Action buttons #}
-        <div class="detail-actions">
+ {% if vacancy.skills %}
+ <div class="detail-skills">
+ <span class="detail-label">Опис роботи</span>
+ <p>{{ vacancy.skills }}</p>
+ </div>
+ {% endif %}
+ </div>
 
-            {# 1. Close vacancy #}
-            {% if can_close %}
-            <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
-                  style="margin:0" onsubmit="return confirm('Закрити вакансію? Через 3 години групу буде розпущено.')">
-                {% csrf_token %}
-                <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
-                    <span class="worker-btn__icon">🔴</span>
-                    <span class="worker-btn__text">
-                        <span class="worker-btn__title">Закрити вакансію</span>
-                        <span class="worker-btn__sub">Завершити підбір та роботу</span>
-                    </span>
-                </button>
-            </form>
-            {% endif %}
+ {# Action buttons #}
+ <div class="detail-actions">
 
-            {# Channel link #}
-            {% if channel_invite_link and not is_pending and not is_closed_lifecycle %}
-            <a href="{{ channel_invite_link }}" target="_blank" class="worker-btn">
-                <span class="worker-btn__icon">🏙️</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Загальна стрічка вакансій</span>
-                    <span class="worker-btn__sub">{{ channel_title }}</span>
-                </span>
-            </a>
-            {% endif %}
+ {# Channel link #}
+ {% if channel_invite_link and not is_pending and not is_closed_lifecycle %}
+ <a href="{{ channel_invite_link }}" target="_blank" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Загальна стрічка вакансій</span>
+ <span class="worker-btn__sub">{{ channel_title }}</span>
+ </span>
+ </a>
+ {% endif %}
 
-            {# 2. Rollcall #}
-            {% if show_start_rollcall %}
-                {% if rollcall_time_reached %}
-                <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='start' %}" class="worker-btn">
-                    <span class="worker-btn__icon">▶️</span>
-                    <span class="worker-btn__text">
-                        <span class="worker-btn__title">Перекличка: Початок роботи</span>
-                        <span class="worker-btn__sub">Відзначте присутніх</span>
-                    </span>
-                </a>
-                {% else %}
-                <button type="button" class="worker-btn" onclick="showRollcallTimeModal()">
-                    <span class="worker-btn__icon">▶️</span>
-                    <span class="worker-btn__text">
-                        <span class="worker-btn__title">Перекличка: Початок роботи</span>
-                        <span class="worker-btn__sub">Доступно з {{ vacancy.start_time|time:"H:i" }}</span>
-                    </span>
-                </button>
-                {% endif %}
-            {% elif show_end_rollcall %}
-            <a href="{% url 'vacancy:call' pk=vacancy.pk call_type='after_start' %}" class="worker-btn">
-                <span class="worker-btn__icon">🏁</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Перекличка: Кінець роботи</span>
-                    <span class="worker-btn__sub">Відзначте тих, хто відпрацював</span>
-                </span>
-            </a>
-            {% endif %}
+ {# Payment button (after second rollcall) #}
+ {% if show_payment %}
+ <a href="{% url 'vacancy:payment' pk=vacancy.pk %}" class="worker-btn worker-btn--pay">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Сплатити рахунок</span>
+ <span class="worker-btn__sub">Перейти до оплати</span>
+ </span>
+ </a>
+ {% elif is_paid %}
+ <div class="worker-btn worker-btn--paid">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Рахунок оплачено</span>
+ <span class="worker-btn__sub">Дякуємо!</span>
+ </span>
+ </div>
+ {% endif %}
 
-            {# 3. Members page #}
-            {% if not is_pending and not is_closed_lifecycle %}
-            <a href="{% url 'vacancy:members' pk=vacancy.pk %}" class="worker-btn">
-                <span class="worker-btn__icon">👥</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Додавання/Видалення працівників</span>
-                    <span class="worker-btn__sub">Керування складом групи</span>
-                </span>
-            </a>
-            {% endif %}
+ {# Stop / Resume search #}
+ {% if can_stop_search %}
+ <a href="{% url 'vacancy:stop_search' pk=vacancy.pk %}" class="worker-btn"
+ onclick="return confirm('Зупинити пошук робітників?')">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Зупинити пошук</span>
+ <span class="worker-btn__sub">Кнопку з каналу буде знято</span>
+ </span>
+ </a>
+ {% elif can_resume_search %}
+ <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Поновити пошук</span>
+ <span class="worker-btn__sub">Вакансія піде на модерацію</span>
+ </span>
+ </a>
+ {% elif vacancy.status == 'stopped' %}
+ <button type="button" class="worker-btn worker-btn--disabled" onclick="showExpiredModal()">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Пошук зупинено</span>
+ <span class="worker-btn__sub">Термін поновлення вийшов</span>
+ </span>
+ </button>
+ {% endif %}
 
-            {# 4. Payment button (after second rollcall) #}
-            {% if show_payment %}
-            <a href="{% url 'vacancy:payment' pk=vacancy.pk %}" class="worker-btn worker-btn--pay">
-                <span class="worker-btn__icon">💳</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Оплатити рахунок</span>
-                    <span class="worker-btn__sub">Перейти до оплати</span>
-                </span>
-            </a>
-            {% elif is_paid %}
-            <div class="worker-btn worker-btn--paid">
-                <span class="worker-btn__icon">✅</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Рахунок оплачено</span>
-                    <span class="worker-btn__sub">Дякуємо!</span>
-                </span>
-            </div>
-            {% endif %}
+ {# Group invite link — renamed #}
+ {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle %}
+ <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Група з робітниками</span>
+ <span class="worker-btn__sub">Перейти для спілкування</span>
+ </span>
+ </a>
+ {% endif %}
 
-            {# 5. Stop / Resume search #}
-            {% if can_stop_search %}
-            <a href="{% url 'vacancy:stop_search' pk=vacancy.pk %}" class="worker-btn"
-               onclick="return confirm('Зупинити пошук робітників?')">
-                <span class="worker-btn__icon">⏹️</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Зупинити пошук</span>
-                    <span class="worker-btn__sub">Кнопку з каналу буде знято</span>
-                </span>
-            </a>
-            {% elif can_resume_search %}
-            <a href="{% url 'vacancy:resume_search' pk=vacancy.pk %}" class="worker-btn">
-                <span class="worker-btn__icon">🔄</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Поновити пошук</span>
-                    <span class="worker-btn__sub">Вакансія піде на модерацію</span>
-                </span>
-            </a>
-            {% elif vacancy.status == 'stopped' %}
-            <button type="button" class="worker-btn worker-btn--disabled" onclick="showExpiredModal()">
-                <span class="worker-btn__icon">⏹️</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Пошук зупинено</span>
-                    <span class="worker-btn__sub">Термін поновлення вийшов</span>
-                </span>
-            </button>
-            {% endif %}
+ </div>
 
-            {# Group invite link #}
-            {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle %}
-            <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
-                <span class="worker-btn__icon">💬</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Група в Telegram</span>
-                    <span class="worker-btn__sub">Перейти в Telegram</span>
-                </span>
-            </a>
-            {% endif %}
+ {# ═══ MEMBERS / ROLLCALL SECTION ═══ #}
+ {% if not is_pending and not is_closed_lifecycle %}
+ <div class="detail-members-section">
 
-            {# Members list #}
-            {% if members_count > 0 and not is_pending and not is_closed_lifecycle %}
-            <div class="detail-members">
-                <h3>Робітники ({{ members_count }})</h3>
-                {% for vu in members %}
-                <div class="member-row">
-                    <span class="member-name">{{ vu.user.full_name|default:"Без імені" }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% endif %}
+ {% if is_rollcall_mode %}
+ {# ── ROLLCALL MODE ── #}
+ <h2 class="members-title">Робітники</h2>
 
-        </div>
+ {% if is_start_rollcall %}
+ <p class="rollcall-hint">Увага! Початок роботи. Проведіть перекличку робітників.</p>
+ {% else %}
+ <p class="rollcall-hint">Увага! Кінець роботи. Проведіть перекличку робітників.</p>
+ {% endif %}
+
+ {% if scenario == "A" %}
+ {# Сценарій А: немає жодного робітника #}
+ <div class="detail-card" style="text-align:center;margin-bottom:12px;">
+  <p style="margin-bottom:20px;color:var(--muted-foreground);">
+   Працівників у групі: <strong>0</strong>
+  </p>
+ </div>
+ <div class="detail-actions">
+  {% if can_search_members %}
+  <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}" class="worker-btn">
+   <span class="worker-btn__text">
+    <span class="worker-btn__title">Продовжити пошук</span>
+    <span class="worker-btn__sub">Вакансію буде відправлено на модерацію</span>
+   </span>
+  </a>
+  {% endif %}
+  <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}" style="margin:0"
+   onsubmit="return confirm('Закрити вакансію?')">
+   {% csrf_token %}
+   <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
+    <span class="worker-btn__text">
+     <span class="worker-btn__title">Закрити вакансію</span>
+     <span class="worker-btn__sub">Завершити підбір та роботу</span>
+    </span>
+   </button>
+  </form>
+ </div>
+
+ {% else %}
+ {# Сценарій Б або В: є робітники — unified cards with checkboxes #}
+ {% if scenario == "B" %}
+ <p class="rollcall-scenario-note">
+  Працівників: <strong>{{ m_members_count }}</strong> з <strong>{{ m_people_count }}</strong>
+ </p>
+ {% endif %}
+
+ <form method="post" action="">
+  {% csrf_token %}
+  {{ rollcall_form.call_type }}
+
+  <div class="members-cards members-cards--rollcall">
+   {% for item in members_list %}
+   <div class="member-card member-card--rollcall-unified">
+    <div class="member-card__top-row">
+     <div class="member-card__info">
+      <button type="button" class="member-card__feedback-link"
+       onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
+       Дивитися/Залишити відгук
+      </button>
+      <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
+      {% if item.contact_phone %}
+      <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
+      {% endif %}
+     </div>
+     <label class="rollcall-checkbox-wrap">
+      {{ item.checkbox_tag }}
+     </label>
     </div>
+   </div>
+   {% empty %}
+   <div class="vacancy-list-empty"><p>Немає робітників</p></div>
+   {% endfor %}
+  </div>
+
+  {# Fixed bottom bar: submit + continue search #}
+  <div class="rollcall-submit-bar">
+   <div class="rollcall-submit-bar__inner">
+    <button type="submit" class="worker-btn rollcall-submit-btn" style="border:none;cursor:pointer;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити. Робітників достатньо.</span>
+     </span>
+    </button>
+    {% if can_search_members and scenario == "B" %}
+    <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}?confirm_rollcall=1"
+     class="worker-btn rollcall-submit-btn" style="text-decoration:none;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити наявних + шукати ще</span>
+     </span>
+    </a>
+    {% endif %}
+   </div>
+  </div>
+ </form>
+ {% endif %}
+
+ {% else %}
+ {# ── NORMAL MODE ── #}
+ {% if members_list %}
+ <h2 class="members-title">Робітники ({{ m_members_count }})</h2>
+ <div class="members-cards">
+  {% for item in members_list %}
+  <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
+   <button type="button" class="member-card__feedback-link"
+    onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
+    Дивитися/Залишити відгук
+   </button>
+   <div class="member-card__info">
+    <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
+    {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;">Заблоковано</span>{% endif %}
+    {% if item.contact_phone %}
+    <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
+    {% endif %}
+   </div>
+   {% if item.is_member and not work_time_started %}
+   <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="margin:0;">
+    {% csrf_token %}
+    <button type="submit" class="btn-secondary btn-block"
+     onclick="return confirm('Видалити з групи?')">Видалити з групи</button>
+   </form>
+   {% endif %}
+  </div>
+  {% endfor %}
+ </div>
+ {% else %}
+ <div class="vacancy-list-empty">
+  <p>Ще немає робітників</p>
+ </div>
+ {% endif %}
+ {% endif %}
+
+ </div>
+ {% endif %}
+
+ </div>
 </main>
 
 {# Expired search modal #}
 <div id="expired-modal" class="modal-overlay" style="display:none;">
-    <div class="modal-card">
-        <p style="margin-bottom:16px;">Якщо Вам знов потрібні люди — створіть нову вакансію у власному кабінеті</p>
-        <button type="button" class="btn-primary" onclick="closeExpiredModal()">Зрозуміло</button>
-    </div>
+ <div class="modal-card">
+ <p style="margin-bottom:16px;">Якщо Вам знов потрібні люди — створіть нову вакансію у власному кабінеті</p>
+ <button type="button" class="btn-primary" onclick="closeExpiredModal()">Зрозуміло</button>
+ </div>
+</div>
+
+{# Feedback modal #}
+<div id="feedback-modal" class="feedback-modal-overlay" onclick="closeFeedbackModalOutside(event)">
+ <div class="feedback-modal-box">
+  <div class="feedback-modal-header">
+   <span id="feedback-modal-name" class="feedback-modal-title"></span>
+   <button class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
+  </div>
+  <div class="feedback-modal-actions">
+   <a id="btn-leave-feedback" href="#" class="feedback-modal-btn feedback-modal-btn--primary">Залишити відгук</a>
+   <a id="btn-see-reviews" href="#" class="feedback-modal-btn feedback-modal-btn--secondary">Подивитися відгуки</a>
+  </div>
+ </div>
 </div>
 
 <script>
 function showExpiredModal() {
-    document.getElementById('expired-modal').style.display = 'flex';
+ document.getElementById('expired-modal').style.display = 'flex';
 }
-function closeRollcallTimeModal() {
-    document.getElementById('rollcallTimeModal').style.display = 'none';
-}
-function showRollcallTimeModal() {
-    document.getElementById('rollcallTimeModal').style.display = 'flex';
-}
-
 function closeExpiredModal() {
-    document.getElementById('expired-modal').style.display = 'none';
+ document.getElementById('expired-modal').style.display = 'none';
 }
 document.getElementById('expired-modal').addEventListener('click', function(e) {
-    if (e.target === this) closeExpiredModal();
+ if (e.target === this) closeExpiredModal();
 });
+
+var vacancyPk = {{ vacancy.pk }};
+
+function openFeedbackModal(userId, userName) {
+ document.getElementById('feedback-modal-name').textContent = userName;
+ document.getElementById('btn-leave-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
+ document.getElementById('btn-see-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
+ document.getElementById('feedback-modal').classList.add('open');
+}
+function closeFeedbackModal() {
+ document.getElementById('feedback-modal').classList.remove('open');
+}
+function closeFeedbackModalOutside(event) {
+ if (event.target === document.getElementById('feedback-modal')) closeFeedbackModal();
+}
 </script>
 
 <style>
 .page--vacancy-detail {
-    padding: 20px 14px;
-    justify-content: flex-start;
-    min-height: 100vh;
+ padding: 20px 14px;
+ justify-content: flex-start;
+ min-height: 100vh;
 }
 .detail-container {
-    width: 100%;
-    max-width: 520px;
-    margin: 0 auto;
+ width: 100%;
+ max-width: 520px;
+ margin: 0 auto;
 }
 .detail-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ margin-bottom: 16px;
 }
 
 .detail-card {
-    padding: 20px 16px;
-    border-radius: var(--radius);
-    background: var(--card);
-    box-shadow: var(--shadow);
-    margin-bottom: 16px;
+ padding: 20px 16px;
+ border-radius: var(--radius);
+ background: var(--card);
+ box-shadow: var(--shadow);
+ margin-bottom: 16px;
 }
 .detail-address {
-    font-size: 17px;
-    font-weight: 700;
-    margin-bottom: 16px;
-    line-height: 1.4;
+ font-size: 17px;
+ font-weight: 700;
+ margin-bottom: 16px;
+ line-height: 1.4;
 }
 
 .detail-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
 }
 .detail-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 14px;
+ display: flex;
+ justify-content: space-between;
+ align-items: center;
+ font-size: 14px;
 }
 .detail-label {
-    font-weight: 600;
-    text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
+ font-weight: 600;
+ text-shadow: 1px 1px 2px rgba(255,255,255,0.4);
 }
 .detail-value {
-    font-weight: 500;
+ font-weight: 500;
 }
 
 .detail-skills {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
+ margin-top: 14px;
+ padding-top: 14px;
+ border-top: 1px solid var(--border);
 }
 .detail-skills p {
-    font-size: 14px;
-    margin-top: 6px;
-    line-height: 1.5;
+ font-size: 14px;
+ margin-top: 6px;
+ line-height: 1.5;
 }
 
 .detail-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+ display: flex;
+ flex-direction: column;
+ gap: 12px;
 }
 
-.detail-members {
-    padding: 16px;
-    border-radius: var(--radius);
-    background: var(--card);
-    box-shadow: var(--shadow);
+/* Members section */
+.detail-members-section {
+ margin-top: 20px;
 }
-.detail-members h3 {
-    font-size: 15px;
-    font-weight: 700;
-    margin-bottom: 12px;
+.members-title {
+ margin: 8px 0 12px;
 }
-.member-row {
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 14px;
+.rollcall-hint {
+ font-size: 14px;
+ font-weight: 700;
+ color: var(--destructive);
+ margin-bottom: 12px;
+ padding: 0;
+ background: none;
 }
-.member-row:last-child {
-    border-bottom: none;
+.rollcall-scenario-note {
+ font-size: 14px;
+ color: var(--muted-foreground);
+ margin-bottom: 10px;
+}
+.members-cards {
+ display: flex;
+ flex-direction: column;
+ gap: 12px;
+ padding-bottom: 16px;
+}
+.members-cards--rollcall {
+ padding-bottom: 140px;
+}
+.member-card {
+ padding: 14px 16px;
+ border-radius: var(--btn-radius);
+ background: var(--btn-bg);
+ box-shadow: var(--btn-shadow);
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
+}
+.member-card--inactive {
+ opacity: 0.6;
+}
+.member-card__top-row {
+ display: flex;
+ align-items: center;
+ gap: 12px;
+}
+.member-card__top-row .member-card__info {
+ flex: 1;
+ min-width: 0;
+}
+.member-card__info {
+ display: flex;
+ flex-direction: column;
+ gap: 4px;
+ font-size: 14px;
+ padding: 4px 0;
+}
+.member-card__name {
+ font-size: 15px;
+ font-weight: 700;
+ text-shadow: var(--btn-text-shadow);
+}
+.member-card__phone {
+ color: var(--accent-dark);
+ text-decoration: none;
+ font-weight: 600;
+}
+.member-card__feedback-link {
+ background: none;
+ border: none;
+ padding: 0;
+ font-size: 13px;
+ font-weight: 600;
+ color: var(--primary);
+ cursor: pointer;
+ text-align: left;
+ -webkit-tap-highlight-color: transparent;
+}
+.rollcall-checkbox-wrap {
+ flex-shrink: 0;
+ cursor: pointer;
+ display: flex;
+ align-items: center;
+}
+.rollcall-checkbox-wrap input[type="checkbox"] {
+ width: 26px;
+ height: 26px;
+ accent-color: var(--primary);
+}
+.rollcall-submit-bar {
+ position: fixed;
+ bottom: 0;
+ left: 0;
+ right: 0;
+ padding: 10px 14px;
+ background: var(--background);
+ border-top: 1px solid var(--border);
+ z-index: 100;
+}
+.rollcall-submit-bar__inner {
+ max-width: 520px;
+ margin: 0 auto;
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
+}
+.rollcall-submit-btn {
+ width: 100%;
+ display: block;
+ text-align: center;
 }
 
 /* Status badges */
-.vacancy-card__status--pending  { background: var(--message-warning-bg); }
+.vacancy-card__status--pending { background: var(--message-warning-bg); }
 .vacancy-card__status--approved { background: var(--message-success-bg); }
-.vacancy-card__status--active   { background: rgba(33,150,243,0.25); }
-.vacancy-card__status--stopped  { background: rgba(158,158,158,0.3); }
+.vacancy-card__status--active { background: rgba(33,150,243,0.25); }
+.vacancy-card__status--stopped { background: rgba(158,158,158,0.3); }
 .vacancy-card__status--awaiting { background: rgba(255,152,0,0.25); }
-.vacancy-card__status--closed   { background: rgba(0,0,0,0.1); }
+.vacancy-card__status--closed { background: rgba(0,0,0,0.1); }
 
 /* Payment button variant */
 .worker-btn--pay {
-    border-color: rgba(34,197,94,0.3) !important;
+ border-color: rgba(34,197,94,0.3) !important;
 }
 .worker-btn--pay .worker-btn__title { color: var(--success-text); }
 .worker-btn--paid { opacity: 0.75; pointer-events: none; }
 .worker-btn--paid .worker-btn__title { color: var(--success-text); }
-/* dark mode handled by CSS vars */
 
 /* Danger button variant */
 .worker-btn--danger {
-    border-color: rgba(239,68,68,0.3) !important;
+ border-color: rgba(239,68,68,0.3) !important;
 }
 .worker-btn--danger .worker-btn__title {
-    color: var(--destructive);
+ color: var(--destructive);
 }
-/* dark mode handled by CSS vars */
 
 /* Disabled button variant */
 .worker-btn--disabled {
-    opacity: 0.5;
-    cursor: default;
-    pointer-events: auto;
+ opacity: 0.5;
+ cursor: default;
+ pointer-events: auto;
+}
+
+/* Feedback modal */
+.feedback-modal-overlay {
+ display: none;
+ position: fixed;
+ inset: 0;
+ background: rgba(0,0,0,0.4);
+ backdrop-filter: blur(4px);
+ -webkit-backdrop-filter: blur(4px);
+ z-index: 1000;
+ align-items: flex-end;
+ justify-content: center;
+}
+.feedback-modal-overlay.open { display: flex; }
+.feedback-modal-box {
+ background: var(--card);
+ border-radius: var(--radius) var(--radius) 0 0;
+ border: 1px solid var(--border);
+ padding: 20px 16px 32px;
+ width: 100%;
+ max-width: 520px;
+ box-shadow: var(--shadow-lg);
+}
+.feedback-modal-header {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ margin-bottom: 20px;
+}
+.feedback-modal-title { font-size: 17px; font-weight: 700; }
+.feedback-modal-close {
+ background: none;
+ border: none;
+ font-size: 18px;
+ opacity: 0.5;
+ cursor: pointer;
+ padding: 4px 8px;
+ color: inherit;
+}
+.feedback-modal-actions { display: flex; flex-direction: column; gap: 10px; }
+.feedback-modal-btn {
+ display: block;
+ text-align: center;
+ text-decoration: none;
+ padding: 14px;
+ border-radius: var(--radius);
+ font-size: 15px;
+ font-weight: 600;
+ border: none;
+ cursor: pointer;
+ -webkit-tap-highlight-color: transparent;
+}
+.feedback-modal-btn--primary {
+ background: var(--primary);
+ color: var(--primary-foreground);
+ box-shadow: var(--shadow);
+}
+.feedback-modal-btn--secondary {
+ background: var(--card);
+ box-shadow: var(--shadow);
+ color: inherit;
 }
 
 @media (max-width: 420px) {
-    .detail-card { padding: 16px 12px; border-radius: 24px; }
-    .detail-members { border-radius: 24px; }
+ .detail-card { padding: 16px 12px; border-radius: 24px; }
 }
 </style>
 {% endblock %}

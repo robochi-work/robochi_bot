@@ -9,7 +9,7 @@ from service.notifications_impl import TelegramNotifier
 from service.telegram_markup_factory import channel_vacancy_reply_markup
 from telegram.handlers.bot_instance import bot
 from telegram.service.message_delete import MessageDeleter, MessageDeleteService
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import STATUS_APPROVED
 from vacancy.models import Vacancy
 from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
 
@@ -41,10 +41,7 @@ def resend_vacancy_to_channel(vacancy: Vacancy):
 def resend_vacancies_to_channel_task():
     """Rotation: republish vacancies with active search button every 5 minutes."""
     logger.info("task_started", extra={"task": "resend_vacancies_to_channel_task"})
-    vacancies = Vacancy.objects.filter(
-        status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        search_active=True,
-    )
+    vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, search_active=True)
 
     count = vacancies.count()
     if count > 0:

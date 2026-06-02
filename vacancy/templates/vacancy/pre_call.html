@@ -1,16 +1,135 @@
 {% extends 'base.html' %}
 {% load i18n %}
-
 {% block header %}{% endblock %}
-
 {% block body %}
-<div class="pre-call-page">
-    <div class="info">{% trans "Attention! Work time has started but there are not enough workers! If you want to continue searching for workers, click below." %}</div>
+<script>document.body.setAttribute("data-scenario", "{{ scenario }}");</script>
+<main class="page page--vacancy-detail">
+<div class="detail-container">
 
-    <a href="{% url 'vacancy:refind' pk=pk %}" class="btn-primary">{% trans "Continue search" %}</a>
+ <div class="detail-header">
+ <a href="{% url 'vacancy:detail' pk=pk %}" class="page-back-btn">← Назад</a>
+ </div>
 
-    {% if members_count %}
-        <a href="{% url 'vacancy:call' pk=pk call_type=call_type %}" class="btn-secondary" style="display:block;margin:14px auto;max-width:520px;">{% trans "Not needed" %}</a>
-    {% endif %}
+ {% if scenario == 'A' %}
+ {# ─── Scenario A: no workers ─── #}
+ <div class="detail-card" style="text-align:center;">
+ <h2 style="font-size:17px;font-weight:700;margin-bottom:12px;">
+ Початок роботи за вакансією
+ </h2>
+ <p style="margin-bottom:8px;">{{ vacancy.address }}</p>
+ <p style="margin-bottom:20px;color:var(--muted-foreground);">
+ Працівників у групі: <strong data-members-count>0</strong>
+ </p>
+ </div>
+ <div class="detail-actions">
+ {% if can_search %}
+ <a href="{% url 'vacancy:continue_search' pk=pk %}" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Продовжити пошук</span>
+ <span class="worker-btn__sub">Вакансію буде відправлено на модерацію</span>
+ </span>
+ </a>
+ {% endif %}
+ <form method="post" action="{% url 'vacancy:close_lifecycle' pk=pk %}" style="margin:0"
+ onsubmit="return confirm('Закрити вакансію?')">
+ {% csrf_token %}
+ <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Закрити вакансію</span>
+ <span class="worker-btn__sub">Завершити підбір та роботу</span>
+ </span>
+ </button>
+ </form>
+ </div>
+
+ {% elif scenario == 'B' %}
+ {# ─── Scenario B: workers exist but not enough ─── #}
+ <div class="detail-card" style="text-align:center;">
+ <h2 style="font-size:17px;font-weight:700;margin-bottom:12px;">
+ Перекличка: Початок роботи
+ </h2>
+ <p style="margin-bottom:8px;">{{ vacancy.address }}</p>
+ <p style="margin-bottom:20px;color:var(--muted-foreground);">
+ Працівників: <strong data-members-count>{{ members_count }}</strong> з <strong data-people-count>{{ people_count }}</strong>
+ </p>
+ </div>
+
+ <form method="post" action="{% url 'vacancy:call' pk=pk call_type=call_type %}">
+ {% csrf_token %}
+ <div class="detail-card">
+ {{ form.as_p }}
+ </div>
+ <div class="detail-actions" style="margin-top:12px;">
+ <button type="submit" class="worker-btn" style="width:100%;border:none;cursor:pointer">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Підтвердити явку робочих на роботу</span>
+ <span class="worker-btn__sub">Перекличка з наявними працівниками</span>
+ </span>
+ </button>
+ </div>
+ </form>
+
+ {% if can_search %}
+ <div class="detail-actions" style="margin-top:12px;">
+ <a href="{% url 'vacancy:continue_search' pk=pk %}?confirm_rollcall=1" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Продовжити пошук</span>
+ <span class="worker-btn__sub">Підтвердити наявних + шукати ще</span>
+ </span>
+ </a>
+ </div>
+ {% endif %}
+
+ {% else %}
+ {# ─── Fallback ─── #}
+ <script>window.location.href = "{% url 'vacancy:call' pk=pk call_type=call_type %}";</script>
+ {% endif %}
+
 </div>
+</main>
+
+<script>
+(function() {
+ var refreshInterval = 15000; // 15 seconds
+ var pk = {{ pk }};
+ var url = '/vacancy/' + pk + '/members-json/';
+
+ function refreshMembers() {
+ fetch(url)
+ .then(function(r) { return r.json(); })
+ .then(function(data) {
+ // Update counter
+ var counters = document.querySelectorAll('[data-members-count]');
+ counters.forEach(function(el) {
+ el.textContent = data.members_count;
+ });
+ var totals = document.querySelectorAll('[data-people-count]');
+ totals.forEach(function(el) {
+ el.textContent = data.people_count;
+ });
+
+ // If scenario changed (workers appeared or enough workers) — reload page
+ var scenario = document.body.getAttribute('data-scenario');
+ if (scenario === 'A' && data.members_count > 0) {
+ window.location.reload();
+ } else if (scenario === 'B' && data.members_count >= data.people_count) {
+ window.location.reload();
+ }
+
+ // If rollcall already passed — redirect to detail
+ if (data.first_rollcall_passed) {
+ window.location.href = '/vacancy/' + pk + '/detail/';
+ }
+ })
+ .catch(function(err) { console.log('refresh error', err); });
+ }
+
+ setInterval(refreshMembers, refreshInterval);
+})();
+</script>
+
 {% endblock %}

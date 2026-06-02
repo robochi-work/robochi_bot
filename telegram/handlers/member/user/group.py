@@ -9,7 +9,7 @@ from telegram.models import Group, Status, UserInGroup
 from telegram.service.group import GroupService
 from user.models import User
 from user.services import BlockService
-from vacancy.choices import GENDER_ANY, STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import GENDER_ANY, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser
 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 from vacancy.services.observers import events
@@ -36,14 +36,9 @@ def auto_approve(req: ChatJoinRequest):
             logger.info(
                 "join_approved", extra={"user_id": req.from_user.id, "group_id": req.chat.id, "vacancy_id": None}
             )
-            GroupService.set_default_admin_permissions(
-                chat_id=req.chat.id,
-                user_id=req.from_user.id,
-            )
+            GroupService.set_default_admin_permissions(chat_id=req.chat.id, user_id=req.from_user.id)
             GroupService.set_admin_custom_title(
-                chat_id=req.chat.id,
-                user_id=req.from_user.id,
-                custom_title="Адміністратор",
+                chat_id=req.chat.id, user_id=req.from_user.id, custom_title="Адміністратор"
             )
             return
 
@@ -52,26 +47,19 @@ def auto_approve(req: ChatJoinRequest):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "permanently_blocked"})
             bot.send_message(
-                req.from_user.id,
-                text=CallVacancyTelegramTextFormatter.auto_block_message(reason="постійне блокування"),
+                req.from_user.id, text=CallVacancyTelegramTextFormatter.auto_block_message(reason="постійне блокування")
             )
             return
         elif BlockService.is_temporarily_blocked(user):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "temporarily_blocked"})
-            bot.send_message(
-                req.from_user.id,
-                text="Ви не можете брати участь у вакансіях. Ви заблоковані.",
-            )
+            bot.send_message(req.from_user.id, text="Ви не можете брати участь у вакансіях. Ви заблоковані.")
             return
         elif not user.is_active:
             # Legacy fallback: is_active=False without UserBlock record
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "not_active"})
-            bot.send_message(
-                req.from_user.id,
-                text="Ви не можете брати участь у вакансіях. Ви заблоковані.",
-            )
+            bot.send_message(req.from_user.id, text="Ви не можете брати участь у вакансіях. Ви заблоковані.")
             return
 
         # Unregistered user — no work_profile or no role
@@ -95,10 +83,7 @@ def auto_approve(req: ChatJoinRequest):
                 "title": req.chat.title or "",
             },
         )
-        vacancy = Vacancy.objects.get(
-            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-            group=group,
-        )
+        vacancy = Vacancy.objects.get(status=STATUS_APPROVED, group=group)
 
         # Vacancy owner always passes
         if vacancy.owner == user:
@@ -107,15 +92,11 @@ def auto_approve(req: ChatJoinRequest):
                 "join_approved", extra={"user_id": req.from_user.id, "group_id": req.chat.id, "vacancy_id": vacancy.id}
             )
             time.sleep(1)
-            GroupService.set_default_owner_permissions(
-                chat_id=req.chat.id,
-                user_id=req.from_user.id,
-            )
+            GroupService.set_default_owner_permissions(chat_id=req.chat.id, user_id=req.from_user.id)
             GroupService.set_admin_custom_title(
-                chat_id=req.chat.id,
-                user_id=req.from_user.id,
-                custom_title="Роботодавець",
+                chat_id=req.chat.id, user_id=req.from_user.id, custom_title="Роботодавець"
             )
+            GroupService.set_member_tag(chat_id=req.chat.id, user_id=req.from_user.id, tag="Роботодавець")
             return
 
         # Employer cannot join another employer's vacancy group
@@ -123,21 +104,14 @@ def auto_approve(req: ChatJoinRequest):
             bot.decline_chat_join_request(req.chat.id, req.from_user.id)
             logger.warning("join_declined", extra={"user_id": req.from_user.id, "reason": "employer_not_owner"})
             try:
-                bot.send_message(
-                    req.from_user.id,
-                    "Ви роботодавець. Ви не можете приєднатися до чужої вакансії.",
-                )
+                bot.send_message(req.from_user.id, "Ви роботодавець. Ви не можете приєднатися до чужої вакансії.")
             except Exception:
                 sentry_sdk.capture_exception()
             return
 
         # Check: already in another active vacancy
         already_in_vacancy = (
-            VacancyUser.objects.filter(
-                user=user,
-                status=Status.MEMBER,
-                vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-            )
+            VacancyUser.objects.filter(user=user, status=Status.MEMBER, vacancy__status=STATUS_APPROVED)
             .exclude(vacancy=vacancy)
             .exists()
         )
@@ -218,10 +192,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
     )
     work_profile = getattr(user, "work_profile", None)
 
-    vacancy = Vacancy.objects.get(
-        status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        group=group,
-    )
+    vacancy = Vacancy.objects.get(status=STATUS_APPROVED, group=group)
 
     status = event.new_chat_member.status
 
@@ -279,11 +250,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
 
         # Check: already in another active vacancy
         elif (
-            VacancyUser.objects.filter(
-                user=user,
-                status=Status.MEMBER,
-                vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-            )
+            VacancyUser.objects.filter(user=user, status=Status.MEMBER, vacancy__status=STATUS_APPROVED)
             .exclude(vacancy=vacancy)
             .exists()
         ):
@@ -326,15 +293,9 @@ def handle_user_status_change(event: ChatMemberUpdated):
     # Admin enters group — set permissions, don't create VacancyUser
     if status not in ["kicked", "left"] and user.is_staff and vacancy.owner != user:
         try:
-            GroupService.set_default_admin_permissions(
-                chat_id=event.chat.id,
-                user_id=user.id,
-            )
-            GroupService.set_admin_custom_title(
-                chat_id=event.chat.id,
-                user_id=user.id,
-                custom_title="Адміністратор",
-            )
+            GroupService.set_default_admin_permissions(chat_id=event.chat.id, user_id=user.id)
+            GroupService.set_admin_custom_title(chat_id=event.chat.id, user_id=user.id, custom_title="Адміністратор")
+            GroupService.set_member_tag(chat_id=event.chat.id, user_id=user.id, tag="Адміністратор")
         except Exception:
             sentry_sdk.capture_exception()
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": Status.ADMINISTRATOR.value})
@@ -342,37 +303,29 @@ def handle_user_status_change(event: ChatMemberUpdated):
         return
 
     if status not in ["kicked", "left"]:
-        if status not in Status.values:
-            status = Status.MEMBER.value
-            GroupService.set_default_owner_permissions(
-                chat_id=event.chat.id,
-                user_id=event.new_chat_member.user.id,
-            )
-            GroupService.set_admin_custom_title(
-                chat_id=event.chat.id,
-                user_id=event.new_chat_member.user.id,
-                custom_title="Працівник",
-            )
         if event.new_chat_member.user.id == vacancy.owner.id:
+            # Vacancy owner (employer)
             status = Status.OWNER.value
-            GroupService.set_default_owner_permissions(
-                chat_id=event.chat.id,
-                user_id=event.new_chat_member.user.id,
-            )
+            GroupService.set_default_owner_permissions(chat_id=event.chat.id, user_id=event.new_chat_member.user.id)
             GroupService.set_admin_custom_title(
-                chat_id=event.chat.id,
-                user_id=event.new_chat_member.user.id,
-                custom_title="Роботодавець",
+                chat_id=event.chat.id, user_id=event.new_chat_member.user.id, custom_title="Роботодавець"
             )
-        if user.is_staff:
+            GroupService.set_member_tag(
+                chat_id=event.chat.id, user_id=event.new_chat_member.user.id, tag="Роботодавець"
+            )
+        elif user.is_staff:
             status = Status.ADMINISTRATOR.value
+        else:
+            # Worker
+            status = Status.MEMBER.value
+            GroupService.set_default_worker_permissions(chat_id=event.chat.id, user_id=event.new_chat_member.user.id)
+            GroupService.set_admin_custom_title(
+                chat_id=event.chat.id, user_id=event.new_chat_member.user.id, custom_title="Працівник"
+            )
+            GroupService.set_member_tag(chat_id=event.chat.id, user_id=event.new_chat_member.user.id, tag="Працівник")
 
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})
-        VacancyUser.objects.update_or_create(
-            user=user,
-            vacancy=vacancy,
-            status=status,
-        )
+        VacancyUser.objects.update_or_create(user=user, vacancy=vacancy, defaults={"status": status})
         # Delete invite message from bot chat
         try:
             invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})
@@ -409,10 +362,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
 
         vacancy.refresh_from_db()
         vacancy_publisher.notify(VACANCY_NEW_MEMBER, data={"vacancy": vacancy})
-        GroupService.kick_user(
-            chat_id=event.chat.id,
-            user_id=event.new_chat_member.user.id,
-        )
+        GroupService.kick_user(chat_id=event.chat.id, user_id=event.new_chat_member.user.id)
 
         if not vacancy.owner == user and not user.is_staff:
             vacancy_publisher.notify(events.VACANCY_LEFT_MEMBER, data={"vacancy": vacancy})

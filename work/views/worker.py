@@ -67,14 +67,14 @@ def worker_my_work(request):
     from django.utils import timezone as _tz
 
     from telegram.choices import Status
-    from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+    from vacancy.choices import STATUS_APPROVED
     from vacancy.models import VacancyContactPhone, VacancyUser
 
     user = request.user
     vacancy_user = (
         VacancyUser.objects.filter(user=user, status=Status.MEMBER)
         .select_related("vacancy", "vacancy__group", "vacancy__channel")
-        .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
+        .filter(vacancy__status=STATUS_APPROVED)
         .first()
     )
 
@@ -83,9 +83,7 @@ def worker_my_work(request):
         from telegram.models import UserInGroup
 
         in_group = UserInGroup.objects.filter(
-            user=user,
-            group=vacancy_user.vacancy.group,
-            status=Status.MEMBER,
+            user=user, group=vacancy_user.vacancy.group, status=Status.MEMBER
         ).exists()
         if not in_group:
             vacancy_user = None

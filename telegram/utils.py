@@ -69,36 +69,21 @@ def _build_full_name(first_name: str = "", last_name: str = "") -> str:
 
 def notify_admins_new_user(user: User) -> None:
     """Send notification to all admins about a new user registration."""
-    from django.conf import settings
-
+    from service.broadcast_service import TelegramBroadcastService
+    from service.notifications_impl import TelegramNotifier
     from telegram.handlers.bot_instance import get_bot
+    from vacancy.services.admin_format import format_user_block
 
-    admin_ids = getattr(settings, "ADMIN_TELEGRAM_IDS", [])
-    if not admin_ids:
-        logger.warning("ADMIN_TELEGRAM_IDS not configured, skipping new user notification")
-        return
+    text = f"🆕 <b>Новий користувач</b>\n\n{format_user_block(user)}"
 
-    text = (
-        "🆕 <b>Новий користувач</b>\n\n"
-        f"<b>ID:</b> <code>{user.pk}</code>\n"
-        f"<b>Ім'я:</b> {user.full_name or '—'}\n"
-        f"<b>Username:</b> @{user.username}\n"
-        if user.username
-        else "🆕 <b>Новий користувач</b>\n\n"
-        f"<b>ID:</b> <code>{user.pk}</code>\n"
-        f"<b>Ім'я:</b> {user.full_name or '—'}\n"
-        f"<b>Username:</b> —\n"
-    )
-    if user.phone_number:
-        text += f"<b>Телефон:</b> {user.phone_number}\n"
-
-    bot = get_bot()
-    for admin_id in admin_ids:
-        try:
-            bot.send_message(chat_id=admin_id, text=text, parse_mode="HTML")
-            logger.info(f"New user notification sent to admin {admin_id}")
-        except Exception as e:
-            logger.error(f"Failed to notify admin {admin_id}: {e}")
+    try:
+        bot = get_bot()
+        notifier = TelegramNotifier(bot)
+        broadcast = TelegramBroadcastService(notifier=notifier)
+        broadcast.admin_broadcast(text=text, parse_mode="HTML")
+        logger.info("New user notification sent to admins")
+    except Exception as e:
+        logger.error(f"Failed to notify admins about new user: {e}")
 
 
 def get_or_create_user(user_id: int, **kwargs: dict[str, Any]) -> tuple[User, bool]:

@@ -100,6 +100,7 @@ class VacancyAdmin(admin.ModelAdmin):
         "close_vacancy_forcibly_action",
         "send_vacancy_invoice_action",
         "set_default_owner_group_permissions",
+        "mark_as_paid_action",
     ]
 
     list_filter = (StatusDefaultFilter,)
@@ -310,6 +311,35 @@ class VacancyAdmin(admin.ModelAdmin):
                 )
 
         self.message_user(request, gettext("sent."), messages.SUCCESS)
+
+    @admin.action(description=_("Зарахувати оплату (адмін)"))
+    def mark_as_paid_action(self, request, queryset: QuerySet[Vacancy]):
+        from user.services import admin_mark_vacancies_paid
+
+        from .choices import STATUS_AWAITING_PAYMENT
+
+        paid_count = 0
+        owners_done = set()
+        for vacancy in queryset:
+            if vacancy.status != STATUS_AWAITING_PAYMENT:
+                self.message_user(
+                    request,
+                    gettext("Вакансія #%(pk)s не очікує оплати (статус: %(status)s), пропущено.")
+                    % {"pk": vacancy.pk, "status": vacancy.get_status_display()},
+                    messages.WARNING,
+                )
+                continue
+
+            if vacancy.owner_id not in owners_done:
+                paid_count += admin_mark_vacancies_paid(user=vacancy.owner, admin_user=request.user)
+                owners_done.add(vacancy.owner_id)
+
+        if paid_count:
+            self.message_user(
+                request,
+                gettext("Зараховано оплату для %(count)s вакансій.") % {"count": paid_count},
+                messages.SUCCESS,
+            )
 
 
 @admin.register(VacancyUser)

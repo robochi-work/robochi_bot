@@ -7,6 +7,7 @@ class Status(models.TextChoices):
     ADMINISTRATOR = "administrator", _("Administrator")
     OWNER = "owner", _("Owner")
     MEMBER = "member", _("Member")
+    PENDING_CONFIRM = "pending_confirm", _("Pending confirmation")
     RESTRICTED = "restricted", _("Restricted")
     LEFT = "left", _("Left")
     KICKED = "kicked", _("Kicked")

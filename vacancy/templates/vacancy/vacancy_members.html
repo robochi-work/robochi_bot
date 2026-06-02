@@ -5,126 +5,366 @@
 
 {% block body %}
 <main class="page page--members">
-    <div class="members-container">
+ <div class="members-container">
 
-        <div class="vacancy-list-header">
-            <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Заявка</a>
-            <h1>Учасники</h1>
-        </div>
+  <div class="vacancy-list-header">
+   <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Заявка</a>
+  </div>
 
-        {% if members_list %}
-        <div class="members-cards">
-            {% for item in members_list %}
-            <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
-                <div class="member-card__top">
-                    <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
-                    <span class="member-card__status">{{ item.status }}</span>
-                    {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;margin-left:6px;">🔒 Заблоковано</span>{% endif %}
-                </div>
-                <div class="member-card__info">
-                    {% if item.user.phone_number %}
-                    <a href="tel:{{ item.user.phone_number }}" class="member-card__phone">📞 {{ item.user.phone_number }}</a>
-                    {% endif %}
-                    {% if item.feedbacks_count %}
-                    <span>⭐ {{ item.feedbacks_count }} відгук{{ item.feedbacks_count|pluralize:"ів,и,ів" }}</span>
-                    {% endif %}
-                </div>
-                {% if item.is_member %}
-                <div class="member-card__actions">
-                    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary btn-block" onclick="return confirm('Видалити з групи?')">Видалити з групи</button>
-                    </form>
-                </div>
-                {% elif request.user.is_staff and not item.is_member %}
-                <div class="member-card__actions">
-                    <form method="POST" action="{% url 'vacancy:reinvite_worker' vacancy.pk item.user.pk %}" style="display:inline;">
-                        {% csrf_token %}
-                        <button type="submit" class="btn-secondary btn-unblock" onclick="return confirm('Повернути працівника до групи?')">Повернути до групи</button>
-                    </form>
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="vacancy-list-empty">
-            <p>Ще немає учасників</p>
-        </div>
-        {% endif %}
+  {% if vacancy.group and vacancy.group.invite_link %}
+  <a href="{{ vacancy.group.invite_link }}" target="_blank" class="btn-secondary btn-block members-group-btn">
+   Повернутися в групу
+  </a>
+  {% endif %}
 
+  <h1 class="members-title">Учасники</h1>
+
+  {% if is_rollcall_mode %}
+  {# ── ROLLCALL MODE ───────────────────────────────────────────────── #}
+
+  {% if is_start_rollcall %}
+  <p class="rollcall-hint">Початок роботи. Проведіть перекличку робітників.</p>
+  {% else %}
+  <p class="rollcall-hint">Кінець роботи. Проведіть перекличку робітників.</p>
+  {% endif %}
+
+  {% if scenario == "A" %}
+  {# Сценарій А: немає жодного робітника #}
+  <div class="detail-card" style="text-align:center;margin-bottom:12px;">
+   <p style="margin-bottom:20px;color:var(--muted-foreground);">
+    Працівників у групі: <strong>0</strong>
+   </p>
+  </div>
+  <div class="detail-actions">
+   {% if can_search %}
+   <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}" class="worker-btn">
+    <span class="worker-btn__text">
+     <span class="worker-btn__title">Продовжити пошук</span>
+     <span class="worker-btn__sub">Вакансію буде відправлено на модерацію</span>
+    </span>
+   </a>
+   {% endif %}
+   <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}" style="margin:0"
+    onsubmit="return confirm('Закрити вакансію?')">
+    {% csrf_token %}
+    <button type="submit" class="worker-btn worker-btn--danger" style="width:100%;border:none;cursor:pointer">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Закрити вакансію</span>
+      <span class="worker-btn__sub">Завершити підбір та роботу</span>
+     </span>
+    </button>
+   </form>
+  </div>
+
+  {% else %}
+  {# Сценарій Б або В: є робітники — показуємо чекбокси #}
+  {% if scenario == "B" %}
+  <p class="rollcall-scenario-note">
+   Працівників: <strong>{{ members_count }}</strong> з <strong>{{ people_count }}</strong>
+  </p>
+  {% endif %}
+
+  <form method="post" action="">
+   {% csrf_token %}
+   {{ rollcall_form.call_type }}
+
+   <div class="members-cards members-cards--rollcall">
+    {% for checkbox in rollcall_form.users %}
+    <div class="member-card">
+     <label class="rollcall-row">
+      {{ checkbox.tag }}
+      <span class="call-user-name">{{ checkbox.choice_label }}</span>
+     </label>
     </div>
+    {% empty %}
+    <div class="vacancy-list-empty"><p>Немає учасників</p></div>
+    {% endfor %}
+   </div>
+
+   {% if can_search and scenario == "B" %}
+   <div style="margin-top:8px;margin-bottom:72px;">
+    <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}?confirm_rollcall=1" class="worker-btn">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Продовжити пошук</span>
+      <span class="worker-btn__sub">Підтвердити наявних + шукати ще</span>
+     </span>
+    </a>
+   </div>
+   {% endif %}
+
+   <div class="rollcall-submit-bar">
+    <button type="submit" class="worker-btn rollcall-submit-btn" style="border:none;cursor:pointer;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити</span>
+     </span>
+    </button>
+   </div>
+  </form>
+  {% endif %}
+
+  {% else %}
+  {# ── NORMAL MODE (before work start) ────────────────────────────── #}
+  {% if members_list %}
+  <div class="members-cards">
+   {% for item in members_list %}
+   <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
+
+    <div class="member-card__info">
+     <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
+     {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;">Заблоковано</span>{% endif %}
+     {% if item.contact_phone %}
+     <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
+     {% endif %}
+     {% if item.feedbacks_count %}
+     <span>{{ item.feedbacks_count }} відгук{{ item.feedbacks_count|pluralize:"ів,и,ів" }}</span>
+     {% endif %}
+    </div>
+
+    <button type="button" class="btn-secondary btn-block"
+     onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
+     Рейтинг/Відгуки
+    </button>
+
+    {% if item.is_member %}
+    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="margin:0;">
+     {% csrf_token %}
+     <button type="submit" class="btn-secondary btn-block"
+      onclick="return confirm('Видалити з групи?')">Видалити з групи</button>
+    </form>
+    {% endif %}
+
+   </div>
+   {% endfor %}
+  </div>
+  {% else %}
+  <div class="vacancy-list-empty">
+   <p>Ще немає учасників</p>
+  </div>
+  {% endif %}
+  {% endif %}
+
+ </div>
 </main>
 
 <style>
 .page--members {
-    padding: 20px 14px;
-    justify-content: flex-start;
-    min-height: 100vh;
+ padding: 20px 14px;
+ justify-content: flex-start;
+ min-height: 100vh;
 }
 .members-container {
-    width: 100%;
-    max-width: 520px;
-    margin: 0 auto;
+ width: 100%;
+ max-width: 520px;
+ margin: 0 auto;
+}
+.members-title {
+ margin: 8px 0 12px;
+}
+.members-group-btn {
+ margin-bottom: 4px;
+ text-align: center;
+ text-decoration: none;
+ display: block;
+}
+.rollcall-hint {
+ font-size: 14px;
+ font-weight: 600;
+ color: var(--muted-foreground);
+ margin-bottom: 12px;
+ padding: 10px 14px;
+ background: var(--btn-bg);
+ border-radius: var(--btn-radius);
+}
+.rollcall-scenario-note {
+ font-size: 14px;
+ color: var(--muted-foreground);
+ margin-bottom: 10px;
 }
 .members-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+ display: flex;
+ flex-direction: column;
+ gap: 12px;
+ padding-bottom: 16px;
+}
+.members-cards--rollcall {
+ padding-bottom: 80px;
 }
 .member-card {
-    padding: 16px;
-    border-radius: var(--btn-radius);
-    background: var(--btn-bg);
-    box-shadow: var(--btn-shadow);
+ padding: 14px 16px;
+ border-radius: var(--btn-radius);
+ background: var(--btn-bg);
+ box-shadow: var(--btn-shadow);
+ display: flex;
+ flex-direction: column;
+ gap: 8px;
 }
 .member-card--inactive {
-    opacity: 0.6;
-}
-.member-card__top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-.member-card__name {
-    font-size: 15px;
-    font-weight: 700;
-    text-shadow: var(--btn-text-shadow);
-}
-.member-card__status {
-    font-size: 12px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 8px;
-    background: rgba(0,0,0,0.08);
+ opacity: 0.6;
 }
 .member-card__info {
-    display: flex;
-    gap: 12px;
-    font-size: 13px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
+ display: flex;
+ flex-direction: column;
+ gap: 4px;
+ font-size: 14px;
+ padding: 4px 0;
+}
+.member-card__name {
+ font-size: 15px;
+ font-weight: 700;
+ text-shadow: var(--btn-text-shadow);
 }
 .member-card__phone {
-    color: var(--accent-dark);
-    text-decoration: none;
-    font-weight: 600;
+ color: var(--accent-dark);
+ text-decoration: none;
+ font-weight: 600;
 }
-.member-card__actions {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(0,0,0,0.08);
+.btn-sm {
+ padding: 8px 12px;
+ font-size: 13px;
 }
-.btn-kick {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 12px;
-    background: var(--message-error-bg);
-    color: #b71c1c;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
+.rollcall-row {
+ display: flex;
+ align-items: center;
+ gap: 12px;
+ cursor: pointer;
+}
+.rollcall-row input[type="checkbox"] {
+ width: 22px;
+ height: 22px;
+ accent-color: var(--primary);
+ flex-shrink: 0;
+}
+.call-user-name {
+ font-size: 15px;
+ font-weight: 600;
+}
+.rollcall-submit-bar {
+ position: fixed;
+ bottom: 0;
+ left: 0;
+ right: 0;
+ padding: 12px 14px;
+ background: var(--background);
+ border-top: 1px solid var(--border);
+ z-index: 100;
+}
+.rollcall-submit-btn {
+ width: 100%;
+ max-width: 520px;
+ margin: 0 auto;
+ display: block;
+}
+.feedback-modal-overlay {
+ display: none;
+ position: fixed;
+ inset: 0;
+ background: rgba(0,0,0,0.4);
+ backdrop-filter: blur(4px);
+ -webkit-backdrop-filter: blur(4px);
+ z-index: 1000;
+ align-items: flex-end;
+ justify-content: center;
+}
+.feedback-modal-overlay.open { display: flex; }
+.feedback-modal-box {
+ background: var(--card);
+ border-radius: var(--radius) var(--radius) 0 0;
+ border: 1px solid var(--border);
+ padding: 20px 16px 32px;
+ width: 100%;
+ max-width: 520px;
+ box-shadow: var(--shadow-lg);
+}
+.feedback-modal-header {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ margin-bottom: 20px;
+}
+.feedback-modal-title { font-size: 17px; font-weight: 700; }
+.feedback-modal-close {
+ background: none;
+ border: none;
+ font-size: 18px;
+ opacity: 0.5;
+ cursor: pointer;
+ padding: 4px 8px;
+ color: inherit;
+}
+.feedback-modal-actions { display: flex; flex-direction: column; gap: 10px; }
+.feedback-modal-btn {
+ display: block;
+ text-align: center;
+ text-decoration: none;
+ padding: 14px;
+ border-radius: var(--radius);
+ font-size: 15px;
+ font-weight: 600;
+ border: none;
+ cursor: pointer;
+ -webkit-tap-highlight-color: transparent;
+}
+.feedback-modal-btn--primary {
+ background: var(--primary);
+ color: var(--primary-foreground);
+ box-shadow: var(--shadow);
+}
+.feedback-modal-btn--secondary {
+ background: var(--card);
+ box-shadow: var(--shadow);
+ color: inherit;
 }
 </style>
+
+<div id="feedback-modal" class="feedback-modal-overlay" onclick="closeFeedbackModalOutside(event)">
+ <div class="feedback-modal-box">
+  <div class="feedback-modal-header">
+   <span id="feedback-modal-name" class="feedback-modal-title"></span>
+   <button class="feedback-modal-close" onclick="closeFeedbackModal()">✕</button>
+  </div>
+  <div class="feedback-modal-actions">
+   <a id="btn-leave-feedback" href="#" class="feedback-modal-btn feedback-modal-btn--primary">Залишити відгук</a>
+   <a id="btn-see-reviews" href="#" class="feedback-modal-btn feedback-modal-btn--secondary">Подивитися відгуки</a>
+  </div>
+ </div>
+</div>
+
+<script>
+var vacancyPk = {{ vacancy.pk }};
+
+function openFeedbackModal(userId, userName) {
+ document.getElementById('feedback-modal-name').textContent = userName;
+ document.getElementById('btn-leave-feedback').href = '/vacancy/' + vacancyPk + '/feedback/' + userId + '/';
+ document.getElementById('btn-see-reviews').href = '/vacancy/' + vacancyPk + '/user/' + userId + '/reviews/';
+ document.getElementById('feedback-modal').classList.add('open');
+}
+function closeFeedbackModal() {
+ document.getElementById('feedback-modal').classList.remove('open');
+}
+function closeFeedbackModalOutside(event) {
+ if (event.target === document.getElementById('feedback-modal')) closeFeedbackModal();
+}
+</script>
+
+{% if is_rollcall_mode %}
+<script>
+(function() {
+ var pk = {{ vacancy.pk }};
+ var url = '/vacancy/' + pk + '/members-json/';
+ var knownCount = {{ members_count }};
+ setInterval(function() {
+  fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+   if (data.first_rollcall_passed || data.second_rollcall_passed) {
+    window.location.href = '/vacancy/' + pk + '/detail/';
+    return;
+   }
+   if (data.members.length !== knownCount) {
+    window.location.reload();
+   }
+  }).catch(function(e) {});
+ }, 15000);
+})();
+</script>
+{% endif %}
+
 {% endblock %}

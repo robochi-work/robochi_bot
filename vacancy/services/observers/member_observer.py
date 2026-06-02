@@ -40,10 +40,7 @@ class VacancyIsFullObserver(Observer):
 
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
-                ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                )
+                ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                 .order_by("-id")
                 .first()
             )
@@ -51,6 +48,24 @@ class VacancyIsFullObserver(Observer):
             if channel_message:
                 strategy = TelegramStrategyFactory.get_strategy(NotificationMethod.TEXT)
                 strategy.update(bot, vacancy.channel.id, text=text, message_id=channel_message.message_id)
+
+        # Notify employer about new worker during continued search
+        if vacancy.first_rollcall_passed and not vacancy.second_rollcall_passed:
+            try:
+                from telegram.choices import CallType
+                from vacancy.services.call_markup import get_rollcall_reminder_markup
+
+                _count = vacancy.members.count()
+                _text = f"Новий працівник додано. Працівників: {_count} / {vacancy.people_count}"
+                bot.send_message(
+                    chat_id=vacancy.owner.id,
+                    text=_text,
+                    reply_markup=get_rollcall_reminder_markup(vacancy, CallType.START),
+                )
+            except Exception:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
 
 
 class VacancySlotFreedObserver(Observer):
@@ -63,9 +78,9 @@ class VacancySlotFreedObserver(Observer):
         vacancy: Vacancy = data["vacancy"]
 
         # Only republish if vacancy is not closed
-        from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+        from vacancy.choices import STATUS_APPROVED
 
-        if vacancy.status not in [STATUS_APPROVED, STATUS_ACTIVE]:
+        if vacancy.status != STATUS_APPROVED:
             return
 
         current_count = vacancy.members.count()
@@ -78,10 +93,7 @@ class VacancySlotFreedObserver(Observer):
             # Immediate republish with button
             try:
                 channel_message = (
-                    ChannelMessage.objects.filter(
-                        channel_id=vacancy.channel.id,
-                        extra__vacancy_id=vacancy.id,
-                    )
+                    ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                     .order_by("-id")
                     .first()
                 )

@@ -1,4 +1,4 @@
-"""Regression: lifecycle.js v5 must use single reloadTimer to prevent ERR_CONNECTION_ABORTED (fix d76053f)."""
+"""Regression: lifecycle.js must guard against multiple rapid reloads (ERR_CONNECTION_ABORTED fix)."""
 
 import re
 from pathlib import Path
@@ -8,16 +8,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_lifecycle_js_has_single_reload_timer():
-    """Ensure lifecycle.js uses debounced reload (reloadTimer pattern) instead of direct reload()."""
+    """lifecycle.js v7+: uses recovering flag + pingAndReload to debounce reloads."""
     js_path = PROJECT_ROOT / "telegram" / "static" / "js" / "lifecycle.js"
     assert js_path.exists(), f"lifecycle.js not found at {js_path}"
     content = js_path.read_text()
 
-    # Must have reloadTimer variable
-    assert "reloadTimer" in content, "lifecycle.js must use reloadTimer for debounced reload"
+    # v7+: recovering flag prevents concurrent reload attempts
+    assert "recovering" in content, "lifecycle.js must have a guard to prevent multiple reloads"
 
-    # Must have setTimeout wrapping reload (supports both function() and arrow function styles)
-    assert re.search(r"setTimeout\(.*?reload", content, re.DOTALL), "reload must be inside setTimeout"
+    # v7: reload is deferred via pingAndReload (fetch-based), which is itself called from setTimeout
+    assert "pingAndReload" in content, "lifecycle.js must use pingAndReload for ping-before-reload flow"
+    assert re.search(r"setTimeout\(.*?pingAndReload", content, re.DOTALL), "pingAndReload must be called via setTimeout"
 
 
 def test_check_html_no_duplicate_webapp_script():

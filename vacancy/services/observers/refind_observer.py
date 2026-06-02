@@ -52,4 +52,5 @@ class VacancyRefindAdminObserver(Observer):
             method=NotificationMethod.TEXT,
             text=VacancyTelegramTextFormatter(vacancy).for_admin_refind(),
             reply_markup=admin_vacancy_reply_markup(vacancy),
+            parse_mode="HTML",
         )

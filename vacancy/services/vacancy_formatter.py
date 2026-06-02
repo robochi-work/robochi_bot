@@ -51,13 +51,30 @@ class VacancyTelegramTextFormatter:
         return _("Your request has been created and is being moderated") + "\n" * 2 + self.base_format()
 
     def for_admin_chat(self) -> str:
-        return self.base_format()
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+        group = format_group_link(self.vacancy)
+        return f"📋 Нова заявка на модерацію\n\n{self.base_format()}\nЗамовник:\n{owner_block}{group}"
 
     def for_admin_refind(self) -> str:
-        return _("Additional search for workers has been launched") + "\n" * 2 + self.base_format()
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+        group = format_group_link(self.vacancy)
+        return (
+            _("Additional search for workers has been launched")
+            + "\n" * 2
+            + self.base_format()
+            + f"\nЗамовник:\n{owner_block}{group}"
+        )
 
     def for_admin_new_feedback(self, feedback: UserFeedback) -> str:
-        return _("New feedback") + "\n" * 2 + feedback.text
+        from vacancy.services.admin_format import format_user_block
+
+        author_block = format_user_block(feedback.owner)
+        recipient_block = format_user_block(feedback.user)
+        return f"⭐ {_('New feedback')}\n\n{feedback.text}\n\nАвтор:\n{author_block}\n\nПрацівник:\n{recipient_block}"
 
     def for_channel(self, status: Literal["full"] | None = None) -> str:
         if status == "full":

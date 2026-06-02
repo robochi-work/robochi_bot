@@ -1,6 +1,5 @@
 from django.conf import settings
 from django.urls import reverse
-from django.utils.translation import gettext as _
 from telebot.types import InlineKeyboardButton as IKB
 from telebot.types import InlineKeyboardMarkup
 
@@ -48,8 +47,8 @@ def get_start_call_markup(vacancy: Vacancy, **kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
-            label=_("Confirm first call"),
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:pre_call", args=[vacancy.id, CallType.START.value]),
+            label="Підтвердити перше опитування",
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]),
         )
     )
     return markup
@@ -59,9 +58,8 @@ def get_final_call_markup(vacancy: Vacancy, **kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
-            label=_("Confirm second call"),
-            url=settings.BASE_URL.rstrip("/")
-            + reverse("vacancy:pre_call", args=[vacancy.id, CallType.AFTER_START.value]),
+            label="Підтвердити друге опитування",
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]),
         )
     )
     return markup
@@ -71,7 +69,7 @@ def get_final_call_success_markup(**kwargs):
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.pay(
-            label=_("Pay"),
+            label="Сплатити рахунок",
         )
     )
     return markup
@@ -87,8 +85,8 @@ def get_rollcall_reminder_markup(vacancy: Vacancy, call_type: CallType) -> Inlin
     markup = InlineKeyboardMarkup()
     markup.row(
         ButtonStorage.web_app(
-            label=_("Go to rollcall"),
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:pre_call", args=[vacancy.id, call_type.value]),
+            label="Перейти до переклички",
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]),
         )
     )
     return markup
@@ -138,6 +136,19 @@ def get_renewal_worker_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
                 vacancy_id=vacancy.id,
             ),
         ),
+    )
+    return markup
+
+
+def get_admin_check_rollcall_markup(
+    vacancy: Vacancy, call_type: CallType = CallType.AFTER_START
+) -> InlineKeyboardMarkup:
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        ButtonStorage.web_app(
+            label="Перевірити перекличку",
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:call", args=[vacancy.id, call_type.value]),
+        )
     )
     return markup
 

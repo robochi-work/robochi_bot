@@ -97,7 +97,8 @@ vacancy/templates/vacancy/
 vacancy_form.html                — Vacancy creation form
 vacancy_detail.html              — Vacancy detail page
 vacancy_my_list.html             — My vacancies list
-vacancy_members.html             — Members management
+vacancy_detail.html              — Vacancy detail + embedded members/rollcall section (members embedded 02.06.2026)
+vacancy_members.html             — Legacy template (vacancy_members view now redirects to detail)
 vacancy_user_list.html           — User list with modal
 vacancy_payment.html             — Payment page
 

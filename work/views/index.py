@@ -5,7 +5,14 @@ from telegram.choices import Status
 from telegram.models import Channel
 from user.models import UserFeedback
 from user.services import BlockService
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED
+from vacancy.choices import (
+    STATUS_APPROVED,
+    STATUS_AWAITING_PAYMENT,
+    STATUS_CLOSED,
+    STATUS_PAID,
+    STATUS_PENDING,
+    STATUS_SEARCH_STOPPED,
+)
 from vacancy.models import Vacancy, VacancyUser
 from work.blocks.registry import block_registry
 from work.choices import WorkProfileRole
@@ -32,10 +39,7 @@ def index(request: WSGIRequest):
         channel = None
         if profile.city:
             channel = Channel.objects.filter(
-                city=profile.city,
-                is_active=True,
-                has_bot_administrator=True,
-                invite_link__isnull=False,
+                city=profile.city, is_active=True, has_bot_administrator=True, invite_link__isnull=False
             ).first()
 
         # Current active vacancy (worker is member of)
@@ -43,16 +47,14 @@ def index(request: WSGIRequest):
         vacancy_user = (
             VacancyUser.objects.filter(user=user, status=Status.MEMBER)
             .select_related("vacancy", "vacancy__group")
-            .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_ACTIVE])
+            .filter(vacancy__status=STATUS_APPROVED)
             .first()
         )
         if vacancy_user and vacancy_user.vacancy.group:
             from telegram.models import UserInGroup
 
             in_group = UserInGroup.objects.filter(
-                user=user,
-                group=vacancy_user.vacancy.group,
-                status=Status.MEMBER,
+                user=user, group=vacancy_user.vacancy.group, status=Status.MEMBER
             ).exists()
             if in_group:
                 current_vacancy = vacancy_user.vacancy
@@ -73,15 +75,42 @@ def index(request: WSGIRequest):
 
     # Employer — dedicated dashboard
     if profile and profile.role == WorkProfileRole.EMPLOYER:
+        # Check if employer has pending rollcall (block vacancy creation)
+        has_pending_rollcall = False
+        for _v in Vacancy.objects.filter(owner=user, status__in=[STATUS_APPROVED, STATUS_SEARCH_STOPPED]):
+            if (_v.extra.get("sent_start_call") and not _v.first_rollcall_passed) or (
+                _v.extra.get("sent_final_call") and not _v.second_rollcall_passed
+            ):
+                has_pending_rollcall = True
+                break
+
         # First visit: no vacancies yet → redirect to create
         if Vacancy.objects.filter(owner=user).count() == 0:
             return redirect("vacancy:create")
 
         # Active vacancies count
-        active_vacancies_count = Vacancy.objects.filter(
-            owner=user,
-            status__in=[STATUS_APPROVED, STATUS_ACTIVE],
-        ).count()
+        from datetime import timedelta
+
+        from django.db.models import Q
+        from django.utils import timezone as _tz
+
+        _threshold_3h = _tz.now() - timedelta(hours=3)
+        active_vacancies_count = (
+            Vacancy.objects.filter(owner=user)
+            .filter(
+                Q(
+                    status__in=[
+                        STATUS_PENDING,
+                        STATUS_APPROVED,
+                        STATUS_SEARCH_STOPPED,
+                        STATUS_AWAITING_PAYMENT,
+                        STATUS_PAID,
+                    ]
+                )
+                | Q(status=STATUS_CLOSED, closed_at__gte=_threshold_3h)
+            )
+            .count()
+        )
 
         # Reviews count
         reviews_count = UserFeedback.objects.filter(user=user).count()
@@ -90,10 +119,7 @@ def index(request: WSGIRequest):
         channel = None
         if profile.city:
             channel = Channel.objects.filter(
-                city=profile.city,
-                is_active=True,
-                has_bot_administrator=True,
-                invite_link__isnull=False,
+                city=profile.city, is_active=True, has_bot_administrator=True, invite_link__isnull=False
             ).first()
 
         # Multi-city: collect all city channels
@@ -104,10 +130,7 @@ def index(request: WSGIRequest):
                 allowed_ids.append(profile.city_id)
             city_channels = list(
                 Channel.objects.filter(
-                    city_id__in=allowed_ids,
-                    is_active=True,
-                    has_bot_administrator=True,
-                    invite_link__isnull=False,
+                    city_id__in=allowed_ids, is_active=True, has_bot_administrator=True, invite_link__isnull=False
                 ).select_related("city")
             )
 
@@ -120,6 +143,7 @@ def index(request: WSGIRequest):
             "city_channels": city_channels,
             "is_blocked": is_blocked,
             "active_block": BlockService.get_active_block(user) if is_blocked else None,
+            "has_pending_rollcall": has_pending_rollcall,
         }
         return render(request, "work/employer_dashboard.html", context)
 

@@ -182,6 +182,28 @@ class BlockService:
         logger.info("all_blocks_removed", extra={"user_id": user.id, "count": count})
         return count
 
+    @staticmethod
+    def auto_block_employer_rollcall_fail(user, blocked_by=None) -> UserBlock:
+        existing = UserBlock.objects.filter(
+            user=user, is_active=True, reason=BlockReason.EMPLOYER_ROLLCALL_FAIL
+        ).first()
+        if existing:
+            return existing
+        return BlockService.block_user(
+            user=user,
+            block_type=BlockType.TEMPORARY,
+            reason=BlockReason.EMPLOYER_ROLLCALL_FAIL,
+            blocked_by=blocked_by,
+        )
+
+    @staticmethod
+    def unblock_employer_rollcall_fail(user) -> None:
+        blocks = UserBlock.objects.filter(user=user, is_active=True, reason=BlockReason.EMPLOYER_ROLLCALL_FAIL)
+        for block in blocks:
+            block.is_active = False
+            block.save(update_fields=["is_active"])
+        logger.info("employer_rollcall_block_removed", extra={"user_id": user.id})
+
 
 def find_user_by_phone(*, phone_number: str):
     """Поиск пользователя по номеру телефона через AuthIdentity."""
@@ -193,3 +215,56 @@ def find_user_by_phone(*, phone_number: str):
         return identity.user
     except AuthIdentity.DoesNotExist:
         return None
+
+
+def admin_mark_vacancies_paid(user, admin_user=None):
+    """Mark all awaiting-payment vacancies as paid, unblock employer, notify."""
+    from vacancy.choices import STATUS_AWAITING_PAYMENT, STATUS_PAID
+    from vacancy.models import Vacancy
+
+    paid_count = 0
+    unpaid_vacancies = Vacancy.objects.filter(owner=user, status=STATUS_AWAITING_PAYMENT)
+    for vac in unpaid_vacancies:
+        vac.extra["is_paid"] = True
+        vac.extra["admin_marked_paid"] = True
+        if admin_user:
+            vac.extra["admin_marked_paid_by"] = admin_user.id
+        vac.status = STATUS_PAID
+        vac.save(update_fields=["status", "extra"])
+        logger.info(
+            "vacancy_admin_marked_paid",
+            extra={
+                "admin_id": admin_user.id if admin_user else None,
+                "vacancy_id": vac.pk,
+            },
+        )
+        # Delete payment bot message
+        if vac.extra.get("payment_message_id"):
+            try:
+                from telegram.handlers.bot_instance import get_bot
+
+                get_bot().delete_message(
+                    chat_id=user.id,
+                    message_id=vac.extra["payment_message_id"],
+                )
+            except Exception:
+                pass
+        # Notify employer
+        try:
+            from telegram.handlers.bot_instance import get_bot
+
+            get_bot().send_message(
+                user.id,
+                f"Оплату за вакансію {vac.address} зараховано адміністратором. Дякуємо!",
+            )
+        except Exception:
+            pass
+        paid_count += 1
+
+    # Remove unpaid block
+    unpaid_blocks = UserBlock.objects.filter(user=user, is_active=True, reason=BlockReason.UNPAID)
+    for block in unpaid_blocks:
+        block.is_active = False
+        block.save(update_fields=["is_active"])
+
+    return paid_count

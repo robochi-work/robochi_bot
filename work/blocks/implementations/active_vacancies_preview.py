@@ -1,4 +1,4 @@
-from vacancy.choices import STATUS_ACTIVE, STATUS_APPROVED, STATUS_PENDING
+from vacancy.choices import STATUS_APPROVED, STATUS_PENDING
 from vacancy.models import Vacancy
 from work.blocks.base import PageBlock
 from work.blocks.registry import block_registry
@@ -7,21 +7,13 @@ from work.blocks.registry import block_registry
 @block_registry.register
 class ActiveVacanciesPreviewBlock(PageBlock):
     order = 2
-    statuses = [STATUS_PENDING, STATUS_APPROVED, STATUS_ACTIVE]
+    statuses = [STATUS_PENDING, STATUS_APPROVED]
 
     def is_visible(self, request):
-        return Vacancy.objects.filter(
-            owner=request.user,
-            status__in=self.statuses,
-        ).exists()
+        return Vacancy.objects.filter(owner=request.user, status__in=self.statuses).exists()
 
     def get_context(self, request):
-        return {
-            "vacancies": Vacancy.objects.filter(
-                owner=request.user,
-                status__in=self.statuses,
-            ).all()
-        }
+        return {"vacancies": Vacancy.objects.filter(owner=request.user, status__in=self.statuses).all()}
 
     @property
     def template_name(self):

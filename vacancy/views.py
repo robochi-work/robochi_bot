@@ -10,7 +10,6 @@ from django.utils.translation import gettext as _
 from telegram.choices import CallStatus, CallType
 from user.models import User, UserFeedback
 from vacancy.choices import (
-    STATUS_ACTIVE,
     STATUS_APPROVED,
     STATUS_AWAITING_PAYMENT,
     STATUS_CLOSED,
@@ -39,10 +38,7 @@ def vacancy_create(request):
         return redirect("index")
 
     # Block new vacancy creation if employer has an unpaid completed vacancy
-    for v in Vacancy.objects.filter(
-        owner=request.user,
-        second_rollcall_passed=True,
-    ).exclude(status=STATUS_CLOSED):
+    for v in Vacancy.objects.filter(owner=request.user, second_rollcall_passed=True).exclude(status=STATUS_CLOSED):
         if not v.extra.get("is_paid"):
             messages.warning(request, "Спершу оплатіть попередню вакансію.")
             return redirect("vacancy:payment", pk=v.pk)
@@ -146,29 +142,27 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
     if form.is_valid():
         users_queryset = form.fields["users"].queryset
 
-        create_vacancy_call(
-            vacancy=vacancy,
-            call_type=call_type,
-            status=CallStatus.CREATED,
+        # Detect repeat attempt for AFTER_START before creating new records
+        is_repeat_after_start = (
+            call_type == CallType.AFTER_START
+            and VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=CallType.AFTER_START).exists()
         )
+
+        create_vacancy_call(vacancy=vacancy, call_type=call_type, status=CallStatus.CREATED)
         selected_users = list(form.cleaned_data.get("users", []))
         vacancy_users_call = VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=call_type)
-        vacancy_users_call.filter(vacancy_user__in=selected_users).update(
-            status=CallStatus.CONFIRM,
-        )
+        vacancy_users_call.filter(vacancy_user__in=selected_users).update(status=CallStatus.CONFIRM)
 
         if call_type == CallType.START:
             vacancy.extra["start_pre_call"] = "continue"
             (
                 VacancyUserCall.objects.filter(vacancy_user__in=users_queryset, call_type=CallType.BEFORE_START)
                 .filter(vacancy_user__in=selected_users)
-                .update(
-                    status=CallStatus.CONFIRM,
-                )
+                .update(status=CallStatus.CONFIRM)
             )
 
         rejected_users: int = vacancy_users_call.exclude(vacancy_user__in=selected_users).update(
-            status=CallStatus.REJECT,
+            status=CallStatus.REJECT
         )
         extra_calls = vacancy.extra.get("calls", defaultdict(dict))
         extra_calls[call_type] = [i.user.id for i in selected_users]
@@ -179,41 +173,120 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
         if call_type == CallType.START:
             vacancy.first_rollcall_passed = True
             vacancy.save(update_fields=["first_rollcall_passed"])
-        elif call_type == CallType.AFTER_START:
-            vacancy.second_rollcall_passed = True
-            vacancy.save(update_fields=["second_rollcall_passed"])
+        # AFTER_START: second_rollcall_passed set only on success (see else branch below)
 
-        if rejected_users > 0:
+        all_unchecked = len(selected_users) == 0 and users_queryset.exists()
+        no_workers_ever = len(selected_users) == 0 and not users_queryset.exists()
+
+        if no_workers_ever:
+            # No workers existed at all — just close vacancy
+            from vacancy.services.observers.events import VACANCY_CLOSE
+
+            vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+        elif all_unchecked:
+            if call_type == CallType.AFTER_START:
+                # Don't kick employer; block them and send detailed admin notification
+                from service.broadcast_service import TelegramBroadcastService
+                from user.services import BlockService
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+                from vacancy.services.call_markup import get_admin_check_rollcall_markup
+
+                BlockService.auto_block_employer_rollcall_fail(user=vacancy.owner)
+                try:
+                    from telegram.handlers.bot_instance import bot as _bot
+
+                    _bot.send_message(
+                        chat_id=vacancy.owner.id,
+                        text="Друга перекличка не пройдена— Вас заблоковано! Зв'яжіться з Адміністратором для вирішення проблеми! @robochi_work_admin",
+                    )
+                except Exception:
+                    pass
+                broadcast = TelegramBroadcastService()
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_after_start_call_fail_detailed(),
+                    parse_mode="HTML",
+                    reply_markup=get_admin_check_rollcall_markup(vacancy),
+                )
+                vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
+            else:
+                # START: kick employer + notify admin (existing behavior)
+                from service.broadcast_service import TelegramBroadcastService
+                from vacancy.services.call_markup import get_admin_check_rollcall_markup
+
+                if vacancy.group:
+                    try:
+                        from telegram.service.group import GroupService
+
+                        GroupService.kick_user(chat_id=vacancy.group.id, user_id=vacancy.owner.id)
+                    except Exception:
+                        import sentry_sdk
+
+                        sentry_sdk.capture_exception()
+                broadcast = TelegramBroadcastService()
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_all_unchecked(CallType.START),
+                    parse_mode="HTML",
+                    reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
+                )
+                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
+        elif rejected_users > 0:
             if call_type == CallType.START:
                 vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
             elif call_type == CallType.AFTER_START:
+                from user.services import BlockService
+
+                BlockService.auto_block_employer_rollcall_fail(user=vacancy.owner)
+                try:
+                    from telegram.handlers.bot_instance import bot as _bot
+
+                    _bot.send_message(
+                        chat_id=vacancy.owner.id,
+                        text="Друга перекличка не пройдена— Вас заблоковано! Зв'яжіться з Адміністратором для вирішення проблеми! @robochi_work_admin",
+                    )
+                except Exception:
+                    pass
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
         else:
             if call_type == CallType.AFTER_START:
+                if is_repeat_after_start:
+                    from user.services import BlockService
+
+                    BlockService.unblock_employer_rollcall_fail(user=vacancy.owner)
+                vacancy.second_rollcall_passed = True
+                vacancy.save(update_fields=["second_rollcall_passed"])
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_SUCCESS, data={"vacancy": vacancy})
 
-        return render(request, "vacancy/call_confirm.html", context={"form": form})
+                # Scenario B: not enough workers after confirmed rollcall
+        if call_type == CallType.START and len(selected_users) < vacancy.people_count:
+            try:
+                from service.broadcast_service import TelegramBroadcastService
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+                broadcast = TelegramBroadcastService()
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_scenario_b(
+                        confirmed=len(selected_users),
+                        needed=vacancy.people_count,
+                    ),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        # Send bot notification about rollcall result
+        try:
+            from telegram.handlers.bot_instance import bot as _bot
+
+            _confirmed = len(selected_users)
+            _text = f"Перекличку пройдено. Підтверджено працівників: {_confirmed}."
+            _bot.send_message(chat_id=vacancy.owner.id, text=_text)
+        except Exception:
+            pass
+        return render(request, "vacancy/call_confirm.html", context={"form": form, "vacancy": vacancy})
     return None
 
 
 def vacancy_pre_call_check(request: WSGIRequest, pk: int, call_type: CallType):
-    vacancy: Vacancy = get_object_or_404(Vacancy, pk=pk)
-    users_queryset = vacancy.members
-    if call_type == CallType.START:
-        vacancy.extra["pre_call_start"] = True
-        vacancy.save(update_fields=["extra"])
-
-        if vacancy.extra.get("start_pre_call", "need") in ["need"]:
-            can_request_find_users_again = users_queryset.count() < vacancy.people_count
-
-            if can_request_find_users_again:
-                return render(
-                    request,
-                    "vacancy/pre_call.html",
-                    context={"pk": pk, "call_type": call_type, "members_count": users_queryset.count()},
-                )
-
-    return redirect("vacancy:call", pk=pk, call_type=call_type)
+    return redirect("vacancy:detail", pk=pk)
 
 
 def vacancy_start_refind(request: WSGIRequest, pk: int):
@@ -235,16 +308,23 @@ def vacancy_call(request: WSGIRequest, pk: int, call_type: CallType) -> HttpResp
         if call_answer:
             return call_answer
     else:
-        initial_calls = VacancyUserCall.objects.filter(
-            vacancy_user__in=users_queryset,
-            status=CallStatus.CONFIRM,
-            call_type=call_type,
-        )
-        form = VacancyCallForm(
-            queryset=users_queryset,
-            call_type=call_type,
-            initial={"users": [user_call.vacancy_user for user_call in initial_calls]},
-        )
+        any_records_exist = VacancyUserCall.objects.filter(
+            vacancy_user__in=users_queryset, call_type=call_type
+        ).exists()
+        if call_type == CallType.AFTER_START or (call_type == CallType.START and not any_records_exist):
+            # Default all checkboxes to checked
+            form = VacancyCallForm(
+                queryset=users_queryset, call_type=call_type, initial={"users": list(users_queryset)}
+            )
+        else:
+            initial_calls = VacancyUserCall.objects.filter(
+                vacancy_user__in=users_queryset, status=CallStatus.CONFIRM, call_type=call_type
+            )
+            form = VacancyCallForm(
+                queryset=users_queryset,
+                call_type=call_type,
+                initial={"users": [user_call.vacancy_user for user_call in initial_calls]},
+            )
 
     return render(
         request,
@@ -268,11 +348,7 @@ def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpRe
             rating = form.cleaned_data.get("rating") or "none"
             text = form.cleaned_data.get("text", "")
             feedback = UserFeedback.objects.create(
-                owner=request.user,
-                user=target_user,
-                text=text,
-                rating=rating,
-                extra={"vacancy_id": vacancy.pk},
+                owner=request.user, user=target_user, text=text, rating=rating, extra={"vacancy_id": vacancy.pk}
             )
             vacancy_publisher.notify(VACANCY_NEW_FEEDBACK, data={"vacancy": vacancy, "feedback": feedback})
             messages.success(request, _("Feedback has been sent."))
@@ -367,7 +443,6 @@ def vacancy_my_list(request):
     statuses = [
         STATUS_PENDING,
         STATUS_APPROVED,
-        STATUS_ACTIVE,
         STATUS_SEARCH_STOPPED,
         STATUS_AWAITING_PAYMENT,
         STATUS_PAID,
@@ -388,9 +463,8 @@ def vacancy_my_list(request):
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
         STATUS_APPROVED: "Активна",
-        STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
-        STATUS_AWAITING_PAYMENT: "Очікує оплати",
+        STATUS_AWAITING_PAYMENT: "Сплатити рахунок",
         STATUS_CLOSED: "Закрита",
         STATUS_PAID: "Сплачено",
     }
@@ -419,21 +493,155 @@ def vacancy_my_list(request):
     )
 
 
+def _build_members_context(vacancy, request):
+    """Build context for members section embedded in vacancy detail."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from telegram.choices import CallStatus, CallType
+    from user.models import UserFeedback
+    from user.services import BlockService
+    from vacancy.forms import VacancyCallForm
+    from vacancy.models import VacancyContactPhone, VacancyUserCall
+    from vacancy.tasks.call import _get_start_aware
+
+    now = timezone.now()
+    start_aware = _get_start_aware(vacancy)
+    rollcall_time_reached = now >= start_aware or vacancy.extra.get("sent_start_call", False)
+
+    is_start_rollcall = (
+        not vacancy.first_rollcall_passed
+        and vacancy.status in [STATUS_APPROVED, STATUS_SEARCH_STOPPED]
+        and rollcall_time_reached
+    )
+    is_end_rollcall = (
+        vacancy.first_rollcall_passed
+        and not vacancy.second_rollcall_passed
+        and vacancy.status != STATUS_CLOSED
+        and vacancy.extra.get("sent_final_call", False)
+    )
+    is_rollcall_mode = is_start_rollcall or is_end_rollcall
+
+    call_type = None
+    if is_start_rollcall:
+        call_type = CallType.START
+    elif is_end_rollcall:
+        call_type = CallType.AFTER_START
+
+    members_qs = vacancy.members
+    m_members_count = members_qs.count()
+    m_people_count = vacancy.people_count
+
+    scenario = None
+    can_search_members = False
+    if is_start_rollcall:
+        search_deadline = start_aware + timedelta(hours=2)
+        can_search_members = now < search_deadline
+        if m_members_count == 0:
+            scenario = "A"
+        elif m_members_count < m_people_count:
+            scenario = "B"
+        else:
+            scenario = "C"
+
+    if is_rollcall_mode:
+        all_users_qs = (
+            VacancyUser.objects.filter(vacancy=vacancy, status="member").select_related("user").order_by("-created_at")
+        )
+        if not request.user.is_staff:
+            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
+    else:
+        all_users_qs = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
+        if not request.user.is_staff:
+            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
+
+    contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
+
+    members_list = []
+    for vu in all_users_qs:
+        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
+        is_user_blocked = BlockService.is_blocked(vu.user)
+        members_list.append(
+            {
+                "vacancy_user": vu,
+                "user": vu.user,
+                "status": vu.get_status_display(),
+                "is_member": vu.status == "member",
+                "is_blocked": is_user_blocked,
+                "feedbacks_count": feedbacks,
+                "contact_phone": contact_phones.get(vu.user_id, ""),
+            }
+        )
+
+    rollcall_form = None
+    if is_rollcall_mode and scenario in ("B", "C", None) and call_type:
+        any_records_exist = VacancyUserCall.objects.filter(vacancy_user__in=members_qs, call_type=call_type).exists()
+        if call_type == CallType.AFTER_START or not any_records_exist:
+            rollcall_form = VacancyCallForm(
+                queryset=members_qs, call_type=call_type, initial={"users": list(members_qs)}
+            )
+        else:
+            initial_calls = VacancyUserCall.objects.filter(
+                vacancy_user__in=members_qs, status=CallStatus.CONFIRM, call_type=call_type
+            )
+            rollcall_form = VacancyCallForm(
+                queryset=members_qs, call_type=call_type, initial={"users": list(initial_calls)}
+            )
+
+    # Attach checkbox HTML to each member for unified rollcall cards
+    if rollcall_form and is_rollcall_mode:
+        checkbox_map = {}
+        for bound_cb in rollcall_form["users"]:
+            vu_pk = bound_cb.data["value"]
+            checkbox_map[int(str(vu_pk))] = bound_cb.tag()
+        for item in members_list:
+            vu_pk = item["vacancy_user"].pk
+            item["checkbox_tag"] = checkbox_map.get(vu_pk, "")
+
+    return {
+        "is_rollcall_mode": is_rollcall_mode,
+        "is_start_rollcall": is_start_rollcall,
+        "is_end_rollcall": is_end_rollcall,
+        "m_call_type": call_type,
+        "scenario": scenario,
+        "can_search_members": can_search_members,
+        "rollcall_form": rollcall_form,
+        "members_list": members_list,
+        "m_members_count": m_members_count,
+        "m_people_count": m_people_count,
+        "work_time_started": rollcall_time_reached,
+    }
+
+
 @login_required
 def vacancy_detail(request, pk):
-    """Detail page for a single vacancy with management buttons."""
+    """Detail page for a single vacancy with management buttons and members section."""
+    from vacancy.forms import VacancyCallForm
+
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
     is_admin_view = request.user.is_staff and vacancy.owner_id != request.user.id
 
+    # Build members context (rollcall, members list, etc.)
+    mc = _build_members_context(vacancy, request)
+
+    # Handle POST for rollcall form
+    if request.method == "POST" and mc["is_rollcall_mode"] and mc["m_call_type"]:
+        form = VacancyCallForm(request.POST, queryset=vacancy.members, call_type=mc["m_call_type"])
+        call_answer = vacancy_check_call(request=request, form=form, vacancy=vacancy, call_type=mc["m_call_type"])
+        if call_answer:
+            return call_answer
+        # Rebuild context after POST processing
+        mc = _build_members_context(vacancy, request)
+
     STATUS_LABELS = {
         STATUS_PENDING: "Очікує модерації",
         STATUS_APPROVED: "Активна",
-        STATUS_ACTIVE: "Активна",
         STATUS_SEARCH_STOPPED: "Пошук зупинено",
-        STATUS_AWAITING_PAYMENT: "Очікує оплати",
+        STATUS_AWAITING_PAYMENT: "Сплатити рахунок",
         STATUS_CLOSED: "Закрита",
         STATUS_PAID: "Сплачено",
     }
@@ -445,61 +653,34 @@ def vacancy_detail(request, pk):
         vacancy.status == STATUS_SEARCH_STOPPED and not vacancy.first_rollcall_passed and vacancy.status != "pending"
     )
     can_close = (
-        vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT] and vacancy.closed_at is None
+        vacancy.status not in [STATUS_CLOSED, STATUS_PENDING, STATUS_AWAITING_PAYMENT]
+        and vacancy.closed_at is None
+        and not mc["is_rollcall_mode"]
     )
-    has_workers = members.count() > 0
-    show_start_rollcall = (
-        not vacancy.first_rollcall_passed
-        and vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE, STATUS_SEARCH_STOPPED]
-        and has_workers
-    )
-    show_end_rollcall = (
-        vacancy.first_rollcall_passed
-        and not vacancy.second_rollcall_passed
-        and vacancy.status != STATUS_CLOSED
-        and has_workers
-    )
-    rollcall_type = "start" if show_start_rollcall else ("after_start" if show_end_rollcall else None)
-
-    # Check if work time has started (for rollcall time gate)
-    from datetime import datetime as _dt
-
-    from django.utils import timezone as _tz
-
-    _now = _tz.now()
-    _start_naive = _dt.combine(vacancy.date, vacancy.start_time)
-    _start_aware = _tz.make_aware(_start_naive, _tz.get_current_timezone())
-    rollcall_time_reached = _now >= _start_aware
     is_closed_lifecycle = vacancy.status == STATUS_CLOSED or vacancy.closed_at is not None
     is_paid = vacancy.extra.get("is_paid", False)
-    show_payment = vacancy.second_rollcall_passed and not is_paid
+    show_payment = vacancy.second_rollcall_passed and not is_paid and vacancy.status != STATUS_PAID
 
-    return render(
-        request,
-        "vacancy/vacancy_detail.html",
-        {
-            "vacancy": vacancy,
-            "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
-            "members": members,
-            "members_count": members.count(),
-            "work_profile": getattr(request.user, "work_profile", None),
-            "can_stop_search": can_stop_search,
-            "can_resume_search": can_resume_search,
-            "can_close": can_close,
-            "show_start_rollcall": show_start_rollcall,
-            "show_end_rollcall": show_end_rollcall,
-            "rollcall_type": rollcall_type,
-            "is_closed_lifecycle": is_closed_lifecycle,
-            "is_paid": is_paid,
-            "show_payment": show_payment,
-            "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
-            "channel_title": vacancy.channel.title if vacancy.channel else "",
-            "is_pending": vacancy.status == "pending",
-            "rollcall_time_reached": rollcall_time_reached,
-            "has_workers": has_workers,
-            "is_admin_view": is_admin_view,
-        },
-    )
+    context = {
+        "vacancy": vacancy,
+        "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
+        "members": members,
+        "members_count": members.count(),
+        "work_profile": getattr(request.user, "work_profile", None),
+        "can_stop_search": can_stop_search,
+        "can_resume_search": can_resume_search,
+        "can_close": can_close,
+        "is_closed_lifecycle": is_closed_lifecycle,
+        "is_paid": is_paid,
+        "show_payment": show_payment,
+        "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
+        "channel_title": vacancy.channel.title if vacancy.channel else "",
+        "is_pending": vacancy.status == "pending",
+        "is_admin_view": is_admin_view,
+    }
+    context.update(mc)
+
+    return render(request, "vacancy/vacancy_detail.html", context)
 
 
 @login_required
@@ -510,7 +691,7 @@ def vacancy_stop_search(request, pk):
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
-    if vacancy.status in [STATUS_APPROVED, STATUS_ACTIVE]:
+    if vacancy.status == STATUS_APPROVED:
         from django.utils import timezone
 
         from service.notifications import NotificationMethod
@@ -523,10 +704,7 @@ def vacancy_stop_search(request, pk):
         if vacancy.channel:
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
-                ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                )
+                ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                 .order_by("-id")
                 .first()
             )
@@ -549,6 +727,105 @@ def vacancy_stop_search(request, pk):
 
 
 @login_required
+def vacancy_continue_search(request, pk):
+    """Quick resume search: auto-adjust time, republish in channel, no moderation."""
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from django.utils import timezone as _tz
+
+    vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    # 1. Auto-adjust start_time ONLY if work time has already passed.
+    #    Before work start: keep original time, just re-publish search.
+    #    After work start: original time is in the past, shift to now + 1h.
+    now = _tz.localtime(_tz.now())
+    start_naive = _dt.combine(vacancy.date, vacancy.start_time)
+    start_aware = _tz.make_aware(start_naive, _tz.get_current_timezone())
+    work_time_passed = now >= start_aware
+
+    if work_time_passed:
+        new_start = now + _td(hours=1)
+        # Round to next 15 min
+        minute = (new_start.minute // 15 + 1) * 15
+        if minute >= 60:
+            new_start = new_start.replace(hour=new_start.hour + 1, minute=0, second=0, microsecond=0)
+        else:
+            new_start = new_start.replace(minute=minute, second=0, microsecond=0)
+
+        vacancy.start_time = new_start.time()
+        vacancy.date = now.date()
+
+        # 2. Ensure minimum 3h shift
+        end_naive = _dt.combine(vacancy.date, vacancy.end_time)
+        end_aware = _tz.make_aware(end_naive, _tz.get_current_timezone())
+        if vacancy.end_time < vacancy.start_time:
+            end_aware += _td(days=1)
+        diff = end_aware - _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone())
+        if diff < _td(hours=3):
+            new_end = _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), _tz.get_current_timezone()) + _td(
+                hours=3
+            )
+            vacancy.end_time = _tz.localtime(new_end).time()
+
+    # 3. Re-activate search + reset rollcall flags for new cycle
+    from vacancy.choices import STATUS_APPROVED
+
+    vacancy.status = STATUS_APPROVED
+    vacancy.search_active = True
+    vacancy.search_stopped_at = None
+    vacancy.first_rollcall_passed = False
+    vacancy.second_rollcall_passed = False
+
+    # Clean rollcall keys from extra so Celery starts fresh
+    for key in [
+        "sent_start_call",
+        "sent_final_call",
+        "start_call_sent_at",
+        "final_call_sent_at",
+        "start_call_reminders",
+        "final_call_reminders",
+        "start_call_escalated",
+        "final_call_escalated",
+        "start_call_msg_id",
+        "final_call_msg_id",
+    ]:
+        vacancy.extra.pop(key, None)
+
+    # Delete old rollcall records so new cycle starts clean
+    VacancyUserCall.objects.filter(vacancy_user__vacancy=vacancy).delete()
+
+    vacancy.save(
+        update_fields=[
+            "start_time",
+            "end_time",
+            "date",
+            "status",
+            "search_active",
+            "search_stopped_at",
+            "first_rollcall_passed",
+            "second_rollcall_passed",
+            "extra",
+        ]
+    )
+
+    # 4. Republish in channel
+    from vacancy.services.observers.events import VACANCY_APPROVED
+    from vacancy.services.observers.subscriber_setup import vacancy_publisher as _vp
+
+    _vp.notify(VACANCY_APPROVED, data={"vacancy": vacancy})
+
+    # 5. Send bot message
+    try:
+        from telegram.handlers.bot_instance import bot
+
+        bot.send_message(chat_id=vacancy.owner.id, text=f"Повторний пошук розпочато. Адреса: {vacancy.address}")
+    except Exception:
+        pass
+
+    return redirect("vacancy:detail", pk=pk)
+
+
 def vacancy_resume_search(request, pk):
     """Resume search after stop: re-submit vacancy for moderation."""
     if request.user.is_staff:
@@ -556,6 +833,40 @@ def vacancy_resume_search(request, pk):
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
     work_profile = getattr(request.user, "work_profile", None)
+
+    # Auto-confirm rollcall if coming from pre_call "Продовжити пошук"
+    if request.GET.get("confirm_rollcall") == "1" and not vacancy.first_rollcall_passed:
+        members = vacancy.members
+        if members.exists():
+            from vacancy.models import VacancyUserCall
+            from vacancy.services.call import create_vacancy_call
+
+            create_vacancy_call(vacancy=vacancy, call_type=CallType.START, status=CallStatus.CREATED)
+            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=CallType.START).update(
+                status=CallStatus.CONFIRM
+            )
+            vacancy.extra["start_pre_call"] = "continue"
+            extra_calls = vacancy.extra.get("calls", {})
+            extra_calls[CallType.START] = [m.user.id for m in members]
+            vacancy.extra["calls"] = extra_calls
+            vacancy.first_rollcall_passed = True
+            vacancy.save(update_fields=["extra", "first_rollcall_passed"])
+            # Scenario B: not enough workers after auto-confirmed rollcall
+            if members.count() < vacancy.people_count:
+                try:
+                    from service.broadcast_service import TelegramBroadcastService
+                    from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+                    broadcast = TelegramBroadcastService()
+                    broadcast.admin_broadcast(
+                        text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_scenario_b(
+                            confirmed=members.count(),
+                            needed=vacancy.people_count,
+                        ),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
 
     if request.method == "POST":
         form = VacancyForm(request.POST, work_profile=work_profile, resume_mode=True)
@@ -592,10 +903,9 @@ def vacancy_resume_search(request, pk):
                 from vacancy.models import VacancyContactPhone
 
                 VacancyContactPhone.objects.update_or_create(
-                    vacancy=vacancy,
-                    user=request.user,
-                    defaults={"phone": _edit_phone},
+                    vacancy=vacancy, user=request.user, defaults={"phone": _edit_phone}
                 )
+            print(f"RESUME_SEARCH: saving vacancy pk={vacancy.pk} id={vacancy.id} status={vacancy.status}")
             vacancy.status = STATUS_PENDING
             vacancy.search_active = False
             vacancy.search_stopped_at = None  # reset stop timer
@@ -603,20 +913,60 @@ def vacancy_resume_search(request, pk):
             vacancy_publisher.notify(events.VACANCY_CREATED, data={"vacancy": vacancy, "request": request})
             return redirect("vacancy:detail", pk=pk)
     else:
+        # Use original times if available, otherwise current
+        orig_start = vacancy.extra.get("original_start_time")
+        orig_end = vacancy.extra.get("original_end_time")
+        if orig_start:
+            import datetime as _dt
+
+            orig_start = _dt.time(*[int(x) for x in orig_start.split(":")])
+        if orig_end:
+            import datetime as _dt
+
+            orig_end = _dt.time(*[int(x) for x in orig_end.split(":")])
+
         initial = {
             "gender": vacancy.gender,
             "people_count": vacancy.people_count,
             "has_passport": vacancy.has_passport,
             "address": vacancy.address,
             "map_link": vacancy.map_link,
-            "start_time": vacancy.start_time,
-            "end_time": vacancy.end_time,
+            "start_time": orig_start or vacancy.start_time,
+            "end_time": orig_end or vacancy.end_time,
             "payment_amount": vacancy.payment_amount,
             "payment_unit": vacancy.payment_unit,
             "payment_method": vacancy.payment_method,
             "skills": vacancy.skills,
             "contact_phone": vacancy.contact_phone,
         }
+
+        # Adjust start_time for continued search after work has started
+        from datetime import datetime as _dt
+        from datetime import timedelta as _td
+
+        from django.utils import timezone as _tz
+
+        _now = _tz.localtime(_tz.now())
+        _start_naive = _dt.combine(vacancy.date, vacancy.start_time)
+        _start_aware = _tz.make_aware(_start_naive, _tz.get_current_timezone())
+        if _now >= _start_aware:
+            _min_start = _now + _td(hours=1)
+            _minute = (_min_start.minute // 15 + 1) * 15
+            if _minute >= 60:
+                _min_start = _min_start.replace(hour=_min_start.hour + 1, minute=0, second=0, microsecond=0)
+            else:
+                _min_start = _min_start.replace(minute=_minute, second=0, microsecond=0)
+            initial["start_time"] = _min_start.time()
+            _orig_end = _dt.combine(vacancy.date, vacancy.end_time)
+            _orig_end_aware = _tz.make_aware(_orig_end, _tz.get_current_timezone())
+            if vacancy.end_time < vacancy.start_time:
+                _orig_end_aware += _td(days=1)
+            _new_end = _min_start + _td(hours=3)
+            if _orig_end_aware > _new_end:
+                pass  # keep original end_time
+            else:
+                initial["end_time"] = _new_end.time()
+
         form = VacancyForm(initial=initial, work_profile=work_profile, resume_mode=True)
 
     return render(
@@ -657,10 +1007,7 @@ def vacancy_close_lifecycle(request, pk):
         if vacancy.channel:
             text = VacancyTelegramTextFormatter(vacancy).for_channel(status="full")
             channel_message = (
-                ChannelMessage.objects.filter(
-                    channel_id=vacancy.channel.id,
-                    extra__vacancy_id=vacancy.id,
-                )
+                ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
                 .order_by("-id")
                 .first()
             )
@@ -673,30 +1020,66 @@ def vacancy_close_lifecycle(request, pk):
 
                     logging.warning(f"Failed to update channel message on close: {e}")
 
-        vacancy.status = STATUS_CLOSED
-        vacancy.closed_at = timezone.now()
-        vacancy.search_active = False
-        vacancy.extra["cancel_requested"] = True
-        vacancy.save(update_fields=["status", "closed_at", "search_active", "extra"])
+        # Check if rollcall passed and workers exist — force payment instead of close
+        members_in_group = list(vacancy.members.values_list("user_id", flat=True))
+        if vacancy.first_rollcall_passed and len(members_in_group) > 0:
+            # Save workers as after_start call data for invoice calculation
+            if "calls" not in vacancy.extra:
+                vacancy.extra["calls"] = {}
+            vacancy.extra["calls"]["after_start"] = members_in_group
+            vacancy.extra["cancel_requested"] = True
+            vacancy.status = STATUS_AWAITING_PAYMENT
+            vacancy.search_active = False
+            vacancy.save(update_fields=["status", "search_active", "extra"])
 
-        # Notify admins about manual close
-        try:
-            notifier = TelegramNotifier(bot)
-            broadcast = TelegramBroadcastService(notifier=notifier)
-            group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
-            broadcast.admin_broadcast(
-                text=(
-                    f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk}\n"
-                    f"\U0001f4cd {vacancy.address}\n"
-                    f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
-                    f"\U0001f4ac Група: {group_link}\n"
-                    f"\u23f3 Групу буде розпущено через 3 години."
-                ),
-            )
-        except Exception as e:
-            import logging
+            # Send invoice and block employer
+            try:
+                from vacancy.services.invoice import send_vacancy_invoice
 
-            logging.warning(f"Failed to notify admins on vacancy close: {e}")
+                notifier = TelegramNotifier(bot)
+                send_vacancy_invoice(notifier=notifier, vacancy=vacancy)
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Failed to send invoice on close: {e}")
+
+            # Notify admins
+            try:
+                notifier = TelegramNotifier(bot)
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+                broadcast = TelegramBroadcastService(notifier=notifier)
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_employer_closed_invoice(
+                        len(members_in_group)
+                    ),
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Failed to notify admins on vacancy close: {e}")
+        else:
+            vacancy.status = STATUS_CLOSED
+            vacancy.closed_at = timezone.now()
+            vacancy.search_active = False
+            vacancy.extra["cancel_requested"] = True
+            vacancy.save(update_fields=["status", "closed_at", "search_active", "extra"])
+
+            # Notify admins about manual close
+            try:
+                notifier = TelegramNotifier(bot)
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+                broadcast = TelegramBroadcastService(notifier=notifier)
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_employer_closed_no_workers(),
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                import logging
+
+                logging.warning(f"Failed to notify admins on vacancy close: {e}")
 
     return redirect("vacancy:detail", pk=pk)
 
@@ -716,10 +1099,7 @@ def vacancy_payment(request, pk):
 
     is_paid = (
         vacancy.extra.get("is_paid")
-        or MonobankPayment.objects.filter(
-            vacancy=vacancy,
-            status=MonobankPayment.Status.SUCCESS,
-        ).exists()
+        or MonobankPayment.objects.filter(vacancy=vacancy, status=MonobankPayment.Status.SUCCESS).exists()
     )
 
     if request.method == "POST" and not is_paid:
@@ -763,45 +1143,8 @@ def vacancy_payment(request, pk):
 
 @login_required
 def vacancy_members(request, pk):
-    """Page showing all users who joined the vacancy group."""
-    if request.user.is_staff:
-        vacancy = get_object_or_404(Vacancy, pk=pk)
-    else:
-        vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
-
-    all_users = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
-
-    from user.services import BlockService
-    from vacancy.models import VacancyContactPhone
-
-    # Build contact phone lookup for this vacancy
-    contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
-
-    members_list = []
-    for vu in all_users:
-        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
-        is_user_blocked = BlockService.is_blocked(vu.user)
-        members_list.append(
-            {
-                "vacancy_user": vu,
-                "user": vu.user,
-                "status": vu.get_status_display(),
-                "is_member": vu.status == "member",
-                "is_blocked": is_user_blocked,
-                "feedbacks_count": feedbacks,
-                "contact_phone": contact_phones.get(vu.user_id, ""),
-            }
-        )
-
-    return render(
-        request,
-        "vacancy/vacancy_members.html",
-        {
-            "vacancy": vacancy,
-            "members_list": members_list,
-            "work_profile": getattr(request.user, "work_profile", None),
-        },
-    )
+    """Redirect to vacancy detail page (members section is now embedded there)."""
+    return redirect("vacancy:detail", pk=pk)
 
 
 @login_required
@@ -835,10 +1178,19 @@ def vacancy_send_contact(request: WSGIRequest, pk: int) -> JsonResponse:
 
 
 @login_required
+def vacancy_feedback_redirect(request, pk):
+    """Entry point from group 'Відгуки/Контакти' button. Routes by role."""
+    vacancy = get_object_or_404(Vacancy, pk=pk)
+    if request.user.is_staff or request.user == vacancy.owner:
+        return redirect("vacancy:detail", pk=pk)
+    return redirect("work:worker_my_work")
+
+
+@login_required
 def vacancy_kick_member(request, pk, user_id):
     """Kick a worker from vacancy group."""
     if request.method != "POST":
-        return redirect("vacancy:members", pk=pk)
+        return redirect("vacancy:detail", pk=pk)
 
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)
@@ -850,59 +1202,21 @@ def vacancy_kick_member(request, pk, user_id):
     if vacancy.group:
         GroupService.kick_user(chat_id=vacancy.group.id, user_id=user_id)
 
-    return redirect("vacancy:members", pk=pk)
+    return redirect("vacancy:detail", pk=pk)
 
 
-@login_required
-def vacancy_reinvite_worker(request, pk, user_id):
-    """Admin reinvites a kicked/blocked worker back to vacancy group."""
-    if not request.user.is_staff:
-        return redirect("vacancy:detail", pk=pk)
-
-    if request.method != "POST":
-        return redirect("vacancy:members", pk=pk)
-
-    import logging
-
-    from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-    from telegram.handlers.bot_instance import get_bot
-    from user.models import User
-    from user.services import BlockService
+def vacancy_members_json(request, pk):
+    """JSON endpoint for auto-refresh: returns members count and list."""
+    from django.http import JsonResponse
 
     vacancy = get_object_or_404(Vacancy, pk=pk)
-    target_user = get_object_or_404(User, pk=user_id)
-
-    # Remove active block if present
-    active_block = BlockService.get_active_block(target_user)
-    if active_block:
-        BlockService.unblock_user(active_block.pk)
-
-    # Send invite via bot
-    try:
-        bot = get_bot()
-        invite_link = vacancy.group.invite_link if vacancy.group else None
-        if invite_link:
-            markup = InlineKeyboardMarkup()
-            markup.row(InlineKeyboardButton("Приєднатися до групи", url=invite_link))
-            bot.send_message(
-                target_user.id,
-                f"Адміністратор запрошує вас повернутися до вакансії: {vacancy.address}.\nНатисніть кнопку щоб приєднатися.",
-                reply_markup=markup,
-            )
-    except Exception:
-        import sentry_sdk
-
-        sentry_sdk.capture_exception()
-
-    logger = logging.getLogger(__name__)
-    logger.info(
-        "worker_reinvited",
-        extra={
-            "admin_id": request.user.id,
-            "worker_id": target_user.id,
-            "vacancy_id": vacancy.id,
-        },
-    )
-
-    return redirect("vacancy:members", pk=pk)
+    members = vacancy.members.select_related("user")
+    data = {
+        "members_count": members.count(),
+        "people_count": vacancy.people_count,
+        "members": [{"id": m.user.id, "name": m.user.full_name or f"ID {m.user.id}"} for m in members],
+        "first_rollcall_passed": vacancy.first_rollcall_passed,
+        "second_rollcall_passed": vacancy.second_rollcall_passed,
+        "status": vacancy.status,
+    }
+    return JsonResponse(data)

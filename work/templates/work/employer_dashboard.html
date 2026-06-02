@@ -6,79 +6,80 @@
 {% block body %}
 <div class="employer-layout">
 
-    <div class="employer-top">
-        <a href="{% url 'work:employer_reviews' %}" class="worker-btn worker-btn--compact">
-            <span class="worker-btn__icon">⭐</span>
-            <span class="worker-btn__text">
-                <span class="worker-btn__title">Мій рейтинг / Мої відгуки</span>
-                <span class="worker-btn__sub">
-                    {% if reviews_count %}
-                        {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}
-                    {% else %}
-                        Поки немає
-                    {% endif %}
-                </span>
-            </span>
-        </a>
-    </div>
+ <div class="employer-top">
+ <a href="{% url 'work:employer_reviews' %}" class="worker-btn worker-btn--compact">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Мій рейтинг / Мої відгуки</span>
+ <span class="worker-btn__sub">
+ {% if reviews_count %}
+ {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}
+ {% else %}
+ Поки немає
+ {% endif %}
+ </span>
+ </span>
+ </a>
+ </div>
 
-    <div class="employer-middle">
+ <div class="employer-middle">
 
-        {% if is_blocked and active_block %}
-        <div class="block-alert {% if active_block.block_type == 'permanent' %}block-alert--permanent{% else %}block-alert--temporary{% endif %}">
-            {% if active_block.block_type == 'permanent' %}
-            🔴 Вас заблоковано в системі. Зверніться до адміністратора для розблокування.
-            {% else %}
-            🟡 Вас тимчасово заблоковано{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}. Причина: {{ active_block.get_reason_display }}.
-            {% endif %}
-            {% if active_block.reason == 'unpaid' %}
-            <br>Оплатіть рахунок щоб створювати нові вакансії.
-            {% endif %}
-        </div>
-        {% endif %}
+ {% if is_blocked and active_block %}
+ <div class="block-alert {% if active_block.block_type == 'permanent' %}block-alert--permanent{% else %}block-alert--temporary{% endif %}">
+ {% if active_block.block_type == 'permanent' %}
+ Вас заблоковано в системі. Зверніться до адміністратора для розблокування.
+ {% else %}
+ Вас тимчасово заблоковано{% if active_block.blocked_until %} до {{ active_block.blocked_until|date:"d.m.Y H:i" }}{% endif %}. Причина: {{ active_block.get_reason_display }}.
+ {% endif %}
+ {% if active_block.reason == 'unpaid' %}
+ <br>Сплатіть рахунок щоб створювати нові вакансії.
+     <a href="{% url 'vacancy:my_list' %}" class="btn-primary" style="display:block;margin-top:12px;text-align:center;text-decoration:none;">Сплатити рахунок</a>
+ {% endif %}
+ </div>
+ {% endif %}
 
-        <div class="worker-buttons">
+ <div class="worker-buttons">
 
-            {% if city_channels or channel %}
-            <a href="{% url 'work:employer_cities' %}" class="worker-btn">
-                <span class="worker-btn__icon">🏙️</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Загальна стрічка вакансій</span>
-                    <span class="worker-btn__sub">Канали з вакансіями</span>
-                </span>
-            </a>
-            {% endif %}
+ {% if city_channels or channel %}
+ <a href="{% url 'work:employer_cities' %}" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Загальна стрічка вакансій</span>
+ <span class="worker-btn__sub">Канали з вакансіями</span>
+ </span>
+ </a>
+ {% endif %}
 
-            <a href="{% if not is_blocked %}{% url 'vacancy:create' %}{% endif %}"
-               class="worker-btn{% if is_blocked %} disabled{% endif %}"
-               {% if is_blocked %}aria-disabled="true"{% endif %}>
-                <span class="worker-btn__icon">📝</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Створити вакансію</span>
-                    <span class="worker-btn__sub">Нова заявка на пошук робітників</span>
-                </span>
-            </a>
+ <a href="{% if not is_blocked and not has_pending_rollcall %}{% url 'vacancy:create' %}{% endif %}"
+ class="worker-btn{% if is_blocked or has_pending_rollcall %} disabled{% endif %}"
+ {% if is_blocked or has_pending_rollcall %}aria-disabled="true"{% endif %}>
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Створити вакансію</span>
+ <span class="worker-btn__sub">Нова заявка на пошук робітників</span>
+ </span>
+ </a>
 
-            <a href="{% url 'vacancy:my_list' %}" class="worker-btn">
-                <span class="worker-btn__icon">📋</span>
-                <span class="worker-btn__text">
-                    <span class="worker-btn__title">Поточні вакансії</span>
-                    <span class="worker-btn__sub">
-                        {% if active_vacancies_count %}
-                            {{ active_vacancies_count }} активн{{ active_vacancies_count|pluralize:"а,их,их" }}
-                        {% else %}
-                            Немає активних
-                        {% endif %}
-                    </span>
-                </span>
-            </a>
+ <a href="{% url 'vacancy:my_list' %}" class="worker-btn">
+ <span class="worker-btn__icon"></span>
+ <span class="worker-btn__text">
+ <span class="worker-btn__title">Поточні вакансії</span>
+ <span class="worker-btn__sub">
+ {% if active_vacancies_count %}
+ {{ active_vacancies_count }} активн{{ active_vacancies_count|pluralize:"а,их,их" }}
+ {% else %}
+ Немає активних
+ {% endif %}
+ </span>
+ </span>
+ </a>
 
-        </div>
-    </div>
+ </div>
+ </div>
 
-    <div class="employer-bottom">
-        {% include "work/includes/dashboard_bottom.html" with faq_url="work:employer_faq" %}
-    </div>
+ <div class="employer-bottom">
+ {% include "work/includes/dashboard_bottom.html" with faq_url="work:employer_faq" %}
+ </div>
 
 </div>
 {% endblock %}

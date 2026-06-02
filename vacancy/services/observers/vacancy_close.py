@@ -160,6 +160,7 @@ class VacancyNotifyAdminsObserver(Observer):
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
             text=CallVacancyTelegramTextFormatter(vacancy).vacancy_closed_admin(),
+            parse_mode="HTML",
         )
         logging.info("Notify admins - vacancy closed")
 
@@ -174,6 +175,7 @@ class VacancyPaymentDoesNotExistObserver(Observer):
         broadcast_service = TelegramBroadcastService(notifier=self.notifier)
         broadcast_service.admin_broadcast(
             text=CallVacancyTelegramTextFormatter(vacancy).vacancy_payment_no_exist_admin(),
+            parse_mode="HTML",
         )
         logging.info("Notify admins - vacancy does not payment exists")
 
@@ -194,7 +196,13 @@ class VacancyDeleteEmployerInviteObserver(Observer):
         keys_to_delete = []
 
         # Видалити повідомлення заказчика: invite, created, approved
-        for key in ["employer_invite_msg_id", "created_msg_id", "approved_msg_id"]:
+        for key in [
+            "employer_invite_msg_id",
+            "created_msg_id",
+            "approved_msg_id",
+            "start_call_msg_id",
+            "final_call_msg_id",
+        ]:
             msg_id = vacancy.extra.get(key)
             if msg_id:
                 try:

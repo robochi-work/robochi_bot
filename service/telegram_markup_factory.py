@@ -3,7 +3,6 @@ from django.urls import reverse
 from django.utils.translation import gettext as _
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
-from telegram.service.common import get_payload_url
 from user.models import UserFeedback
 from vacancy.models import Vacancy
 
@@ -37,18 +36,14 @@ def admin_vacancy_feedback_reply_markup(feedback: UserFeedback) -> InlineKeyboar
 
 
 def group_url_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
-    payload = {
-        "type": "feedback",
-        "vacancy_id": vacancy.pk,
-    }
-    url = get_payload_url(payload=payload)
+    url = f"https://t.me/riznorobochi_ua_bot?startapp=fb_{vacancy.pk}"
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_("Надіслати відгук"), url=url, style="primary"))
+    markup.add(InlineKeyboardButton(text=_("Відгуки/Контакти"), url=url))
     return markup
 
 
 def group_webapp_feedback_reply_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
-    url = settings.BASE_URL.rstrip("/") + reverse("vacancy:user_list", kwargs={"pk": vacancy.pk})
+    url = f"https://t.me/riznorobochi_ua_bot?startapp=fb_{vacancy.pk}"
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text=_("Надіслати відгук"), web_app=WebAppInfo(url=url), style="primary"))
+    markup.add(InlineKeyboardButton(text=_("Відгуки/Контакти"), url=url))
     return markup

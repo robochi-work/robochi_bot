@@ -8,6 +8,16 @@ document.addEventListener('DOMContentLoaded', function() {
   var params = new URLSearchParams(window.location.search);
   var next = params.get("next") || "/";
 
+  // Handle startapp parameter from group button "Відгуки/Контакти"
+  var startParam = tg ? (tg.initDataUnsafe && tg.initDataUnsafe.start_param) : null;
+  if (!startParam) {
+    startParam = params.get("tgWebAppStartParam") || null;
+  }
+  if (startParam && startParam.startsWith("fb_")) {
+    var vacancyId = startParam.substring(3);
+    next = "/vacancy/" + vacancyId + "/feedback-entry/";
+  }
+
   if (!initData) {
     // No initData — likely opened from bot profile "Open App" button
     // or direct link without WebApp context. Show a message.
