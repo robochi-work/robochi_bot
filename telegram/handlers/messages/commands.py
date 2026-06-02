@@ -64,7 +64,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     except Exception as e:
         logger.error(f"RESET_MENU_BUTTON FAILED: {e}")
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True, style="constructive"))
+    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True))
     logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
     try:
         bot.send_message(

@@ -756,7 +756,7 @@ def vacancy_continue_search(request, pk):
         # Round to next 15 min
         minute = (new_start.minute // 15 + 1) * 15
         if minute >= 60:
-            new_start = new_start.replace(hour=new_start.hour + 1, minute=0, second=0, microsecond=0)
+            new_start = (new_start + _td(hours=1)).replace(minute=0, second=0, microsecond=0)
         else:
             new_start = new_start.replace(minute=minute, second=0, microsecond=0)
 
