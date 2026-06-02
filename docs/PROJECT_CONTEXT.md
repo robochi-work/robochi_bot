@@ -1967,3 +1967,25 @@ class Meta:
 - `search_active=False` при `status=approved` — observer не включал поиск после модерации (данные, не код)
 - Статус `awaiting_payment` → правильное значение в БД `awaiting` (max_length=10)
 - `STATUS_ACTIVE` уже полностью удалён (сессия 29.05)
+
+## Сессия 01-02.06.2026: Унификация сервисных сообщений администратору
+
+### Что сделано
+- **`admin_format.py`** — новый файл `vacancy/services/admin_format.py` с функциями `format_user_block(user)`, `format_user_block_with_contact(user, vacancy)`, `format_group_link(vacancy)`. Все сервисные сообщения админу используют эти функции.
+- **Единый блок данных заказчика**: ID + Ім'я + Username + Телефон + Контактний (если отличается от регистрационного). Добавлен ко всем вакансийным сообщениям.
+- **Ссылка на группу** добавлена ко всем вакансийным сообщениям через `format_group_link()`.
+- **Відгук** — показывает обоих участников (Автор + Працівник).
+- **`ADMIN_TELEGRAM_IDS`** полностью удалён из `config/django/base.py` и `.env`. Все уведомления через `admin_broadcast()` (запрос `is_staff=True`).
+- **chr() кодирование** убрано из `_escalate_rollcall()` и `admin_start_call_fail_detailed()`.
+- **Инлайн-форматирование** в `views.py` заменено на вызовы методов форматтера: `admin_all_unchecked()`, `admin_employer_closed_invoice()`, `admin_employer_closed_no_workers()`.
+- **Сценарій Б** (`admin_scenario_b()`) — сообщение «Початок роботи — недостатньо робітників!» с количеством (Потрібно/Підтверджено) + блок заказчика + группа. Вызывается в 2 местах views.py.
+- **`parse_mode="HTML"`** добавлен в 4 наблюдателя (vacancy_close ×2, feedback, refind).
+
+### Ключевые файлы
+- `vacancy/services/admin_format.py` — единые функции форматирования
+- `vacancy/services/call_formatter.py` — все admin-методы переписаны
+- `vacancy/services/vacancy_formatter.py` — `for_admin_chat`, `for_admin_refind`, `for_admin_new_feedback`
+- `vacancy/tasks/call.py` — `_escalate_rollcall()` переписан
+- `vacancy/views.py` — инлайн-сообщения заменены + сценарій Б
+- `telegram/utils.py` — `notify_admins_new_user()` → `admin_broadcast()`
+- `tests/test_session_20260601_admin_notifications.py` — 17 тестов
