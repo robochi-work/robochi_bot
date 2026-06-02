@@ -149,11 +149,11 @@
  </span>
  </a>
  {% elif can_resume_search %}
- <a href="{% url 'vacancy:resume_search' pk=vacancy.pk %}" class="worker-btn">
+ <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}" class="worker-btn">
  <span class="worker-btn__icon"></span>
  <span class="worker-btn__text">
  <span class="worker-btn__title">Поновити пошук</span>
- <span class="worker-btn__sub">Редагувати та відновити вакансію</span>
+ <span class="worker-btn__sub">Вакансію буде опубліковано в каналі</span>
  </span>
  </a>
  {% elif vacancy.status == 'stopped' %}

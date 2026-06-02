@@ -33,6 +33,7 @@ def try_auto_approve(vacancy) -> bool:
         group = GroupService.get_available_group()
         if not group:
             logger.warning("Auto-approve: no available group for vacancy %s", vacancy.pk)
+            _notify_admins_no_group(vacancy)
             return False
         vacancy.group = group
         group.status = STATUS_PROCESS
@@ -63,3 +64,24 @@ def _notify_admins_auto_approved(vacancy):
             bot.send_message(admin_id, text, parse_mode="HTML")
         except Exception:
             logger.exception("Failed to send auto-approve msg to admin %s", admin_id)
+
+
+def _notify_admins_no_group(vacancy):
+    """Notify admins that auto-approve failed due to no available groups."""
+    from telegram.handlers.bot_instance import bot
+    from user.models import User
+
+    owner_name = vacancy.owner.full_name or vacancy.owner.username
+    text = (
+        f"⚠️ Немає вільних груп!\n\n"
+        f"Вакансія: {vacancy.address}\n"
+        f"Замовник: {owner_name}\n\n"
+        f"Автопідтвердження не спрацювало — вакансія очікує модерації."
+    )
+    admin_ids = list(User.objects.filter(is_staff=True).values_list("id", flat=True))
+
+    for admin_id in admin_ids:
+        try:
+            bot.send_message(admin_id, text, parse_mode="HTML")
+        except Exception:
+            logger.exception("Failed to send no-group msg to admin %s", admin_id)
