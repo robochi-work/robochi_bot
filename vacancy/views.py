@@ -286,7 +286,7 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
 
 
 def vacancy_pre_call_check(request: WSGIRequest, pk: int, call_type: CallType):
-    return redirect("vacancy:members", pk=pk)
+    return redirect("vacancy:detail", pk=pk)
 
 
 def vacancy_start_refind(request: WSGIRequest, pk: int):
@@ -503,7 +503,7 @@ def _build_members_context(vacancy, request):
     from user.models import UserFeedback
     from user.services import BlockService
     from vacancy.forms import VacancyCallForm
-    from vacancy.models import VacancyContactPhone, VacancyUser, VacancyUserCall
+    from vacancy.models import VacancyContactPhone, VacancyUserCall
     from vacancy.tasks.call import _get_start_aware
 
     now = timezone.now()
@@ -1136,126 +1136,8 @@ def vacancy_payment(request, pk):
 
 @login_required
 def vacancy_members(request, pk):
-    """Members page - also handles rollcall (start / end of work)."""
-    from datetime import timedelta
-
-    from django.utils import timezone
-
-    from user.services import BlockService
-    from vacancy.models import VacancyContactPhone
-    from vacancy.tasks.call import _get_start_aware
-
-    vacancy = get_object_or_404(Vacancy, pk=pk)
-    user_role = "admin" if request.user.is_staff else ("employer" if request.user == vacancy.owner else None)
-
-    now = timezone.now()
-    start_aware = _get_start_aware(vacancy)
-    rollcall_time_reached = now >= start_aware or vacancy.extra.get("sent_start_call", False)
-
-    is_start_rollcall = (
-        not vacancy.first_rollcall_passed
-        and vacancy.status in [STATUS_APPROVED, STATUS_SEARCH_STOPPED]
-        and rollcall_time_reached
-    )
-    is_end_rollcall = (
-        vacancy.first_rollcall_passed
-        and not vacancy.second_rollcall_passed
-        and vacancy.status != STATUS_CLOSED
-        and vacancy.extra.get("sent_final_call", False)
-    )
-    is_rollcall_mode = is_start_rollcall or is_end_rollcall
-
-    call_type = None
-    if is_start_rollcall:
-        call_type = CallType.START
-    elif is_end_rollcall:
-        call_type = CallType.AFTER_START
-
-    members_qs = vacancy.members
-    members_count = members_qs.count()
-    people_count = vacancy.people_count
-
-    if request.method == "POST" and is_rollcall_mode and call_type:
-        form = VacancyCallForm(request.POST, queryset=members_qs, call_type=call_type)
-        call_answer = vacancy_check_call(request=request, form=form, vacancy=vacancy, call_type=call_type)
-        if call_answer:
-            return call_answer
-
-    scenario = None
-    can_search = False
-    if is_start_rollcall:
-        search_deadline = start_aware + timedelta(hours=2)
-        can_search = now < search_deadline
-        if members_count == 0:
-            scenario = "A"
-        elif members_count < people_count:
-            scenario = "B"
-        else:
-            scenario = "C"
-
-    if is_rollcall_mode:
-        all_users_qs = (
-            VacancyUser.objects.filter(vacancy=vacancy, status="member").select_related("user").order_by("-created_at")
-        )
-        if not request.user.is_staff:
-            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
-    else:
-        all_users_qs = VacancyUser.objects.filter(vacancy=vacancy).select_related("user").order_by("-created_at")
-        if not request.user.is_staff:
-            all_users_qs = all_users_qs.exclude(user=vacancy.owner)
-
-    contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
-
-    members_list = []
-    for vu in all_users_qs:
-        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
-        is_user_blocked = BlockService.is_blocked(vu.user)
-        members_list.append(
-            {
-                "vacancy_user": vu,
-                "user": vu.user,
-                "status": vu.get_status_display(),
-                "is_member": vu.status == "member",
-                "is_blocked": is_user_blocked,
-                "feedbacks_count": feedbacks,
-                "contact_phone": contact_phones.get(vu.user_id, ""),
-            }
-        )
-
-    rollcall_form = None
-    if is_rollcall_mode and scenario in ("B", "C", None) and call_type:
-        any_records_exist = VacancyUserCall.objects.filter(vacancy_user__in=members_qs, call_type=call_type).exists()
-        if call_type == CallType.AFTER_START or not any_records_exist:
-            rollcall_form = VacancyCallForm(
-                queryset=members_qs, call_type=call_type, initial={"users": list(members_qs)}
-            )
-        else:
-            initial_calls = VacancyUserCall.objects.filter(
-                vacancy_user__in=members_qs, status=CallStatus.CONFIRM, call_type=call_type
-            )
-            rollcall_form = VacancyCallForm(
-                queryset=members_qs, call_type=call_type, initial={"users": list(initial_calls)}
-            )
-
-    return render(
-        request,
-        "vacancy/vacancy_members.html",
-        {
-            "vacancy": vacancy,
-            "members_list": members_list,
-            "work_profile": getattr(request.user, "work_profile", None),
-            "user_role": user_role,
-            "is_rollcall_mode": is_rollcall_mode,
-            "is_start_rollcall": is_start_rollcall,
-            "is_end_rollcall": is_end_rollcall,
-            "call_type": call_type.value if call_type else None,
-            "scenario": scenario,
-            "can_search": can_search,
-            "rollcall_form": rollcall_form,
-            "members_count": members_count,
-            "people_count": people_count,
-        },
-    )
+    """Redirect to vacancy detail page (members section is now embedded there)."""
+    return redirect("vacancy:detail", pk=pk)
 
 
 @login_required
@@ -1301,7 +1183,7 @@ def vacancy_feedback_redirect(request, pk):
 def vacancy_kick_member(request, pk, user_id):
     """Kick a worker from vacancy group."""
     if request.method != "POST":
-        return redirect("vacancy:members", pk=pk)
+        return redirect("vacancy:detail", pk=pk)
 
     if request.user.is_staff:
         vacancy = get_object_or_404(Vacancy, pk=pk)

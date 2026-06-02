@@ -71,15 +71,15 @@ class TestMembersPageMode:
 
     def test_normal_mode_before_start_time(self, factory, vacancy_with_members, employer):
         """Before start_time: normal mode with kick buttons, no rollcall."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_with_members.start_time = time(23, 59)
         vacancy_with_members.save(update_fields=["start_time"])
 
-        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_with_members.pk)
+        response = vacancy_detail(request, vacancy_with_members.pk)
         content = response.content.decode()
 
         assert "Видалити з групи" in content
@@ -87,16 +87,16 @@ class TestMembersPageMode:
 
     def test_rollcall_mode_after_start_time(self, factory, vacancy_with_members, employer):
         """After start_time: rollcall mode with checkboxes."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_with_members.start_time = time(0, 1)
         vacancy_with_members.extra["sent_start_call"] = True
         vacancy_with_members.save(update_fields=["start_time", "extra"])
 
-        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_with_members.pk)
+        response = vacancy_detail(request, vacancy_with_members.pk)
         content = response.content.decode()
 
         assert "Початок роботи" in content
@@ -111,32 +111,32 @@ class TestScenarioDetection:
 
     def test_scenario_a_no_workers(self, factory, vacancy_approved, employer):
         """Scenario A: 0 members -> show continue/close buttons."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_approved.start_time = time(0, 1)
         vacancy_approved.extra["sent_start_call"] = True
         vacancy_approved.save(update_fields=["start_time", "extra"])
 
-        request = factory.get(f"/vacancy/{vacancy_approved.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_approved.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_approved.pk)
+        response = vacancy_detail(request, vacancy_approved.pk)
         content = response.content.decode()
 
         assert "Закрити вакансію" in content
 
     def test_scenario_b_few_workers(self, factory, vacancy_with_members, employer):
         """Scenario B: members < people_count -> show checkboxes + continue search."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_with_members.start_time = time(0, 1)
         vacancy_with_members.extra["sent_start_call"] = True
         vacancy_with_members.save(update_fields=["start_time", "extra"])
 
-        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_with_members.pk)
+        response = vacancy_detail(request, vacancy_with_members.pk)
         content = response.content.decode()
 
         assert "Підтвердити" in content
@@ -145,17 +145,17 @@ class TestScenarioDetection:
 
     def test_scenario_c_enough_workers(self, factory, vacancy_with_members, employer):
         """Scenario C: members >= people_count -> just checkboxes."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_with_members.people_count = 2
         vacancy_with_members.start_time = time(0, 1)
         vacancy_with_members.extra["sent_start_call"] = True
         vacancy_with_members.save(update_fields=["start_time", "people_count", "extra"])
 
-        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_with_members.pk)
+        response = vacancy_detail(request, vacancy_with_members.pk)
         content = response.content.decode()
 
         assert "Підтвердити" in content
@@ -169,33 +169,33 @@ class TestEndRollcallGuard:
 
     def test_no_end_rollcall_without_sent_final_call(self, factory, vacancy_with_members, employer):
         """first_rollcall_passed=True but no sent_final_call -> normal mode."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_with_members.first_rollcall_passed = True
         vacancy_with_members.status = STATUS_SEARCH_STOPPED
         vacancy_with_members.save(update_fields=["first_rollcall_passed", "status"])
 
-        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_with_members.pk)
+        response = vacancy_detail(request, vacancy_with_members.pk)
         content = response.content.decode()
 
         assert "Кінець роботи" not in content
 
     def test_end_rollcall_with_sent_final_call(self, factory, vacancy_with_members, employer):
         """first_rollcall_passed=True + sent_final_call -> end rollcall mode."""
-        from vacancy.views import vacancy_members
+        from vacancy.views import vacancy_detail
 
         vacancy_with_members.first_rollcall_passed = True
         vacancy_with_members.status = STATUS_SEARCH_STOPPED
         vacancy_with_members.extra["sent_final_call"] = True
         vacancy_with_members.save(update_fields=["first_rollcall_passed", "status", "extra"])
 
-        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/members/")
+        request = factory.get(f"/vacancy/{vacancy_with_members.pk}/detail/")
         request.user = employer
 
-        response = vacancy_members(request, vacancy_with_members.pk)
+        response = vacancy_detail(request, vacancy_with_members.pk)
         content = response.content.decode()
 
         assert "Кінець роботи" in content
@@ -260,7 +260,7 @@ class TestPreCallRedirect:
         response = vacancy_pre_call_check(request, vacancy_approved.pk, CallType.START)
 
         assert response.status_code == 302
-        assert f"/vacancy/{vacancy_approved.pk}/members/" in response.url
+        assert f"/vacancy/{vacancy_approved.pk}/detail/" in response.url
 
 
 # --- Test 6: Bot URL points to members ---
