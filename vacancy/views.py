@@ -58,7 +58,14 @@ def vacancy_create(request):
             if recent:
                 return redirect("index")
             new_vacancy = vacancy_form.save(owner=request.user, status=STATUS_PENDING)
-            vacancy_publisher.notify(events.VACANCY_CREATED, data={"vacancy": new_vacancy, "request": request})
+            from vacancy.services.auto_approve import try_auto_approve
+
+            if try_auto_approve(new_vacancy):
+                from vacancy.services.observers.events import VACANCY_APPROVED
+
+                vacancy_publisher.notify(VACANCY_APPROVED, data={"vacancy": new_vacancy})
+            else:
+                vacancy_publisher.notify(events.VACANCY_CREATED, data={"vacancy": new_vacancy, "request": request})
             return redirect("index")
 
     else:
@@ -906,11 +913,16 @@ def vacancy_resume_search(request, pk):
                     vacancy=vacancy, user=request.user, defaults={"phone": _edit_phone}
                 )
             print(f"RESUME_SEARCH: saving vacancy pk={vacancy.pk} id={vacancy.id} status={vacancy.status}")
-            vacancy.status = STATUS_PENDING
-            vacancy.search_active = False
             vacancy.search_stopped_at = None  # reset stop timer
-            vacancy.save()
-            vacancy_publisher.notify(events.VACANCY_CREATED, data={"vacancy": vacancy, "request": request})
+            from vacancy.services.auto_approve import try_auto_approve
+
+            if try_auto_approve(vacancy):
+                vacancy_publisher.notify(events.VACANCY_APPROVED, data={"vacancy": vacancy})
+            else:
+                vacancy.status = STATUS_PENDING
+                vacancy.search_active = False
+                vacancy.save()
+                vacancy_publisher.notify(events.VACANCY_CREATED, data={"vacancy": vacancy, "request": request})
             return redirect("vacancy:detail", pk=pk)
     else:
         # Use original times if available, otherwise current

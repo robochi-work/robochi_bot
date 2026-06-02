@@ -19,6 +19,11 @@ class UserWorkProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
 
     # Multi-city feature for employers
+    auto_approve_vacancy = models.BooleanField(
+        default=False,
+        verbose_name=_("Auto-approve vacancies"),
+        help_text=_("Automatically approve vacancies without admin moderation"),
+    )
     multi_city_enabled = models.BooleanField(
         default=False,
         verbose_name=_("Multi-city enabled"),
