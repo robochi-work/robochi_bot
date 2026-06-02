@@ -2027,3 +2027,20 @@ class Meta:
 - `vacancy/services/call_markup.py` — ссылки на `/detail/`
 - `telegram/handlers/callback/call.py` — убрана преждевременная смена на MEMBER
 - `telegram/handlers/member/user/group.py` — исправлен `update_or_create`
+
+## Автоподтверждение вакансий (02.06.2026)
+
+- Поле `UserWorkProfile.auto_approve_vacancy` (BooleanField, default=False) — включатель на конкретного Заказчика
+- Логика в `vacancy/services/auto_approve.py` → `try_auto_approve(vacancy)`:
+  - Проверяет `work_profile.auto_approve_vacancy`
+  - Привязывает канал (если нет) и группу (если есть свободная)
+  - Ставит `status=approved`, `search_active=True`, `extra["auto_approved"]=True`
+  - Отправляет Админам «✅ Автоматично підтверджено» + текст вакансии
+  - Если нет свободных групп: уведомляет Админов «⚠️ Немає вільних груп!», вакансия уходит на обычную модерацию
+- Работает в двух местах:
+  1. `vacancy_create` — создание новой вакансии
+  2. `vacancy_resume_search` — продление на завтра (из бота)
+- НЕ затрагивает:
+  - `vacancy_continue_search` (Поновити пошук / Продовжити пошук) — уже работал без модерации
+  - Кнопки сценариев А/Б при перекличке
+- Включение: Панель управления → карточка пользователя → Work profile → «Auto-approve vacancies»
