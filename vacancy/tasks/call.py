@@ -74,6 +74,7 @@ def _send_rollcall_reminder(vacancy: Vacancy, call_type: CallType) -> None:
 def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
     """Notify admins and kick owner after max reminders exceeded."""
     from service.broadcast_service import TelegramBroadcastService
+    from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
 
     # Delete last reminder message
     for msg_key in ("start_call_msg_id", "final_call_msg_id"):
@@ -83,32 +84,20 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
             vacancy.extra.pop(msg_key, None)
     vacancy.save(update_fields=["extra"])
 
-    owner = vacancy.owner
-    phone = _get_owner_contact_phone(vacancy) or chr(8212)
-    user_block = f"<b>ID:</b> <code>{owner.pk}</code>" + chr(10)
-    user_block += f"<b>{chr(1030)}{chr(1084)}{chr(8217)}{chr(1103)}:</b> {owner.full_name or chr(8212)}" + chr(10)
-    if owner.username:
-        user_block += f"<b>Username:</b> @{owner.username}" + chr(10)
-    else:
-        user_block += "<b>Username:</b> " + chr(8212) + chr(10)
-    user_block += (
-        f"<b>{chr(1058)}{chr(1077)}{chr(1083)}{chr(1077)}{chr(1092)}{chr(1086)}{chr(1085)}:</b> {phone}" + chr(10)
-    )
+    owner_block = format_user_block_with_contact(vacancy.owner, vacancy)
+    group = format_group_link(vacancy)
     admin_text = (
-        f"{chr(9888)}{chr(65039)} {chr(1053)}{chr(1077)}{chr(1084)}{chr(1072)}{chr(1108)} {chr(1087)}{chr(1110)}{chr(1076)}{chr(1090)}{chr(1074)}{chr(1077)}{chr(1088)}{chr(1076)}{chr(1078)}{chr(1077)}{chr(1085)}{chr(1085)}{chr(1103)} {call_label}"
-        + chr(10)
-        + chr(10)
-        + f"{chr(1042)}{chr(1072)}{chr(1082)}{chr(1072)}{chr(1085)}{chr(1089)}{chr(1110)}{chr(1103)}: {vacancy.address}"
-        + chr(10)
-        + user_block
+        f"\u26a0\ufe0f \u041d\u0435\u043c\u0430\u0454 \u043f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0436\u0435\u043d\u043d\u044f {call_label}\n\n"
+        f"\u0412\u0430\u043a\u0430\u043d\u0441\u0456\u044f: {vacancy.address}\n\n"
+        f"\u0417\u0430\u043c\u043e\u0432\u043d\u0438\u043a:\n{owner_block}"
+        f"{group}"
     )
-    if vacancy.group and vacancy.group.invite_link:
-        admin_text += chr(10) + f"{chr(1043)}{chr(1088)}{chr(1091)}{chr(1087)}{chr(1072)}: {vacancy.group.invite_link}"
     try:
         broadcast = TelegramBroadcastService(notifier=telegram_notifier)
         broadcast.admin_broadcast(text=admin_text, parse_mode="HTML")
     except Exception as e:
         logger.warning(f"_escalate_rollcall ({call_label}): admin broadcast failed: {e}")
+    owner = vacancy.owner
     if vacancy.group:
         try:
             GroupService.kick_user(chat_id=vacancy.group.id, user_id=owner.id)

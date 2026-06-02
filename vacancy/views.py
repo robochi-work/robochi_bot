@@ -211,7 +211,6 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             else:
                 # START: kick employer + notify admin (existing behavior)
                 from service.broadcast_service import TelegramBroadcastService
-                from vacancy.models import VacancyContactPhone
                 from vacancy.services.call_markup import get_admin_check_rollcall_markup
 
                 if vacancy.group:
@@ -223,28 +222,9 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                         import sentry_sdk
 
                         sentry_sdk.capture_exception()
-                owner = vacancy.owner
-                cp = VacancyContactPhone.objects.filter(vacancy=vacancy, user=owner).first()
-                owner_phone = cp.phone if cp else "—"
-                username_line = f"<b>Username:</b> @{owner.username}\n" if owner.username else "<b>Username:</b> —\n"
-                employer_block = (
-                    f"<b>ID:</b> <code>{owner.pk}</code>\n"
-                    f"<b>Ім'я:</b> {owner.full_name or '—'}\n" + username_line + f"<b>Телефон:</b> {owner_phone}\n"
-                )
-                invite_line = (
-                    f"\nГрупа вакансії: {vacancy.group.invite_link}"
-                    if vacancy.group and vacancy.group.invite_link
-                    else ""
-                )
-                admin_text = (
-                    f"ЗАКРИТИ ВАКАНСІЮ\n"
-                    f"Замовник зняв усі відмітки на перекличці\n"
-                    f"Вакансія: {vacancy.address}\n\n"
-                    f"{employer_block}{invite_line}"
-                )
                 broadcast = TelegramBroadcastService()
                 broadcast.admin_broadcast(
-                    text=admin_text,
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_all_unchecked(CallType.START),
                     parse_mode="HTML",
                     reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
                 )
@@ -276,6 +256,22 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                 vacancy.save(update_fields=["second_rollcall_passed"])
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_SUCCESS, data={"vacancy": vacancy})
 
+                # Scenario B: not enough workers after confirmed rollcall
+        if call_type == CallType.START and len(selected_users) < vacancy.people_count:
+            try:
+                from service.broadcast_service import TelegramBroadcastService
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+                broadcast = TelegramBroadcastService()
+                broadcast.admin_broadcast(
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_scenario_b(
+                        confirmed=len(selected_users),
+                        needed=vacancy.people_count,
+                    ),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
         # Send bot notification about rollcall result
         try:
             from telegram.handlers.bot_instance import bot as _bot
@@ -848,6 +844,22 @@ def vacancy_resume_search(request, pk):
             vacancy.extra["calls"] = extra_calls
             vacancy.first_rollcall_passed = True
             vacancy.save(update_fields=["extra", "first_rollcall_passed"])
+            # Scenario B: not enough workers after auto-confirmed rollcall
+            if members.count() < vacancy.people_count:
+                try:
+                    from service.broadcast_service import TelegramBroadcastService
+                    from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
+                    broadcast = TelegramBroadcastService()
+                    broadcast.admin_broadcast(
+                        text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_scenario_b(
+                            confirmed=members.count(),
+                            needed=vacancy.people_count,
+                        ),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
 
     if request.method == "POST":
         form = VacancyForm(request.POST, work_profile=work_profile, resume_mode=True)
@@ -1027,16 +1039,14 @@ def vacancy_close_lifecycle(request, pk):
             # Notify admins
             try:
                 notifier = TelegramNotifier(bot)
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
                 broadcast = TelegramBroadcastService(notifier=notifier)
-                group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
                 broadcast.admin_broadcast(
-                    text=(
-                        f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk} (виставлено рахунок)\n"
-                        f"\U0001f4cd {vacancy.address}\n"
-                        f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
-                        f"\U0001f4ac Група: {group_link}\n"
-                        f"\U0001f4b0 Працівників: {len(members_in_group)}"
-                    )
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_employer_closed_invoice(
+                        len(members_in_group)
+                    ),
+                    parse_mode="HTML",
                 )
             except Exception as e:
                 import logging
@@ -1052,16 +1062,12 @@ def vacancy_close_lifecycle(request, pk):
             # Notify admins about manual close
             try:
                 notifier = TelegramNotifier(bot)
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+
                 broadcast = TelegramBroadcastService(notifier=notifier)
-                group_link = vacancy.group.invite_link if vacancy.group and vacancy.group.invite_link else "—"
                 broadcast.admin_broadcast(
-                    text=(
-                        f"\U0001f4cb Замовник закрив вакансію #{vacancy.pk}\n"
-                        f"\U0001f4cd {vacancy.address}\n"
-                        f"\U0001f464 {vacancy.owner.first_name} (@{vacancy.owner.username or chr(8212)})\n"
-                        f"\U0001f4ac Група: {group_link}\n"
-                        f"\u23f3 Групу буде розпущено через 3 години."
-                    )
+                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_employer_closed_no_workers(),
+                    parse_mode="HTML",
                 )
             except Exception as e:
                 import logging

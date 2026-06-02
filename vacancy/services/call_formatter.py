@@ -1,7 +1,5 @@
-from django.conf import settings
 from django.utils.translation import override
 
-from service.common import get_admin_url
 from telegram.choices import CallStatus, CallType
 from vacancy.models import Vacancy, VacancyUserCall
 from vacancy.services.vacancy_formatter import VacancyTelegramTextFormatter
@@ -52,21 +50,17 @@ class CallVacancyTelegramTextFormatter:
     # ─── Admin: disputed rollcall ─────────────────────────────────────────────
 
     def admin_call_fail(self, call_type: CallType) -> str:
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
         users_call = VacancyUserCall.objects.filter(
             vacancy_user__in=self.vacancy.members,
             status=CallStatus.REJECT,
             call_type=call_type,
         )
         with override("uk"):
-            owner = self.vacancy.owner
-            owner_phone = self._get_owner_contact_phone() or "\u2014"
-            employer_block = f"<b>ID:</b> <code>{owner.pk}</code>" + "\n"
-            employer_block += f"<b>\u0406\u043c\u2019\u044f:</b> {owner.full_name or chr(8212)}" + "\n"
-            if owner.username:
-                employer_block += f"<b>Username:</b> @{owner.username}" + "\n"
-            else:
-                employer_block += "<b>Username:</b> \u2014" + "\n"
-            employer_block += f"<b>\u0422\u0435\u043b\u0435\u0444\u043e\u043d:</b> {owner_phone}" + "\n"
+            call_label = "1 перекличка" if call_type == CallType.START else "2 перекличка"
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
             from vacancy.models import VacancyContactPhone
 
             contact_phones = dict(
@@ -77,50 +71,31 @@ class CallVacancyTelegramTextFormatter:
             )
             user_lines = "\n".join(
                 [
-                    f"{contact_phones.get(uc.vacancy_user.user_id, '—')} - "
-                    f"<a href='{settings.BASE_URL.rstrip('/') + get_admin_url(uc.vacancy_user.user)}'>"
-                    f"{uc.vacancy_user.user.full_name or uc.vacancy_user.user.id}</a>"
+                    f"{contact_phones.get(uc.vacancy_user.user_id, '—')} — "
+                    f"{uc.vacancy_user.user.full_name or uc.vacancy_user.user.id}"
                     for uc in users_call
                 ]
             )
-            invite = f"\n{self.vacancy.group.invite_link}" if self.vacancy.group else ""
             return (
-                f"Спірна ситуація по заявці {self.vacancy.address}. "
-                f"Замовник зняв відмітки з деяких працівників.\n"
-                f"{employer_block}\n"
-                f"{user_lines}{invite}"
+                f"⚠️ Спірна ситуація — {call_label}\n\n"
+                f"Вакансія: {self.vacancy.address}\n\n"
+                f"Замовник:\n{owner_block}\n\n"
+                f"Зняті працівники:\n{user_lines}"
+                f"{group}"
             )
 
     def admin_start_call_fail_detailed(self) -> str:
         """Admin notification with employer data for failed first rollcall."""
-        owner = self.vacancy.owner
-        phone = self._get_owner_contact_phone() or chr(8212)
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
         with override("uk"):
-            user_block = f"<b>ID:</b> <code>{owner.pk}</code>" + chr(10)
-            user_block += f"<b>{chr(1030)}{chr(1084)}{chr(8217)}{chr(1103)}:</b> {owner.full_name or chr(8212)}" + chr(
-                10
-            )
-            if owner.username:
-                user_block += f"<b>Username:</b> @{owner.username}" + chr(10)
-            else:
-                user_block += "<b>Username:</b> " + chr(8212) + chr(10)
-            user_block += (
-                f"<b>{chr(1058)}{chr(1077)}{chr(1083)}{chr(1077)}{chr(1092)}{chr(1086)}{chr(1085)}:</b> {phone}"
-                + chr(10)
-            )
-            invite = ""
-            if self.vacancy.group and self.vacancy.group.invite_link:
-                invite = chr(10) + self.vacancy.group.invite_link
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
             return (
-                f"{chr(9888)}{chr(65039)} 1 {chr(1087)}{chr(1077)}{chr(1088)}{chr(1077)}{chr(1082)}{chr(1083)}{chr(1080)}{chr(1095)}{chr(1082)}{chr(1072)}{chr(8212)} "
-                f"{chr(1085)}{chr(1077)}{chr(1076)}{chr(1086)}{chr(1089)}{chr(1090)}{chr(1072)}{chr(1090)}{chr(1085)}{chr(1100)}{chr(1086)} "
-                f"{chr(1088)}{chr(1086)}{chr(1073)}{chr(1110)}{chr(1090)}{chr(1085)}{chr(1080)}{chr(1082)}{chr(1110)}{chr(1074)}"
-                + chr(10)
-                + chr(10)
-                + f"{chr(1042)}{chr(1072)}{chr(1082)}{chr(1072)}{chr(1085)}{chr(1089)}{chr(1110)}{chr(1103)}: {self.vacancy.address}"
-                + chr(10)
-                + f"{user_block}"
-                + f"{invite}"
+                f"⚠️ 1 перекличка— недостатньо робітників\n\n"
+                f"Вакансія: {self.vacancy.address}\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}"
             )
 
     def admin_start_call_fail(self) -> str:
@@ -184,21 +159,84 @@ class CallVacancyTelegramTextFormatter:
         return cp.phone if cp else None
 
     def vacancy_closed_admin(self) -> str:
-        owner = self.vacancy.owner
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
         with override("uk"):
-            return (
-                f"🔒 Вакансію закрито\n"
-                f"Адреса: {self.vacancy.address}\n"
-                f"Замовник: {owner.full_name or str(owner.id)}\n"
-                f"Телефон: {self._get_owner_contact_phone() or '—'}"
-            )
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return f"🔒 Вакансію закрито\n\nАдреса: {self.vacancy.address}\n\nЗамовник:\n{owner_block}{group}"
 
     def vacancy_payment_no_exist_admin(self) -> str:
-        with override("uk"):
-            group_link = self.vacancy.group.invite_link if self.vacancy.group else "—"
-            return f"Вакансія не оплачена по закінченню часу.\n{group_link}"
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
 
-    # ─── Renewal (scenario 6) ─────────────────────────────────────────────────
+        with override("uk"):
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return f"💰 Вакансія не оплачена\n\nАдреса: {self.vacancy.address}\n\nЗамовник:\n{owner_block}{group}"
+
+    # ─── Admin: employer unchecked ALL workers at rollcall ─────────────────
+
+    def admin_all_unchecked(self, call_type: CallType) -> str:
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        with override("uk"):
+            call_label = "1 перекличка" if call_type == CallType.START else "2 перекличка"
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return (
+                f"🚫 Замовник зняв усі відмітки — {call_label}\n\n"
+                f"Вакансія: {self.vacancy.address}\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}"
+            )
+
+    # ─── Admin: employer manually closed vacancy ────────────────────────────
+
+    def admin_employer_closed_invoice(self, members_count: int) -> str:
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        with override("uk"):
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return (
+                f"📋 Замовник закрив вакансію (виставлено рахунок)\n\n"
+                f"Адреса: {self.vacancy.address}\n"
+                f"Працівників: {members_count}\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}"
+            )
+
+    def admin_employer_closed_no_workers(self) -> str:
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        with override("uk"):
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return (
+                f"📋 Замовник закрив вакансію\n\n"
+                f"Адреса: {self.vacancy.address}\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}\n"
+                f"⏳ Групу буде розпущено через 3 години."
+            )
+
+    # ─── Admin: scenario B — not enough workers after confirmed rollcall ───
+
+    def admin_scenario_b(self, confirmed: int, needed: int) -> str:
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        with override("uk"):
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return (
+                f"👷 Початок роботи — недостатньо робітників!\n\n"
+                f"Вакансія: {self.vacancy.address}\n"
+                f"Потрібно: {needed} | Підтверджено: {confirmed}\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}"
+            )
+
+        # ─── Renewal (scenario 6) ─────────────────────────────────────────────────
 
     def renewal_offer(self) -> str:
         with override("uk"):
