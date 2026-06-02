@@ -240,7 +240,8 @@ class TestPendingConfirmStatus:
             confirm_before_start_call(callback, user=worker)
 
         vu.refresh_from_db()
-        assert vu.status == Status.MEMBER.value
+        # Status stays PENDING_CONFIRM until worker enters the group
+        assert vu.status == Status.PENDING_CONFIRM.value
 
     @pytest.mark.django_db
     def test_pending_confirm_blocks_apply_to_other_vacancy(self, worker, vacancy, employer):

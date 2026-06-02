@@ -325,7 +325,7 @@ def handle_user_status_change(event: ChatMemberUpdated):
             GroupService.set_member_tag(chat_id=event.chat.id, user_id=event.new_chat_member.user.id, tag="Працівник")
 
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})
-        VacancyUser.objects.update_or_create(user=user, vacancy=vacancy, status=status)
+        VacancyUser.objects.update_or_create(user=user, vacancy=vacancy, defaults={"status": status})
         # Delete invite message from bot chat
         try:
             invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})

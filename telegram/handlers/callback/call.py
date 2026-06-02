@@ -98,12 +98,8 @@ def confirm_before_start_call(callback: CallbackQuery, user: User, **kwargs: dic
                     "call_confirmed",
                     extra={"user_id": user.id, "vacancy_id": vacancy.id, "call_type": data["call_type"]},
                 )
-                # Promote from PENDING_CONFIRM to MEMBER on explicit confirm
-                from telegram.choices import Status as _Status
-
-                if vacancy_user.status == _Status.PENDING_CONFIRM.value:
-                    vacancy_user.status = _Status.MEMBER.value
-                    vacancy_user.save(update_fields=["status"])
+                # Status stays PENDING_CONFIRM until worker actually enters the group
+                # (group.py chat_member handler sets MEMBER on real group entry)
 
                 # Phone confirmation flow
                 from vacancy.models import VacancyContactPhone
