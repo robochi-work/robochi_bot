@@ -279,18 +279,25 @@ def _send_cabinet_message(message):
 
 def _send_owner_action_message(message, vacancy, user) -> None:
     """Employer-owner pressed his own vacancy button.
-    If invite to group was already delivered earlier — show only card button (assumed already in group).
-    Otherwise — show group invite + card, remember that invite was delivered.
+    Check real group membership via Telegram API:
+    - In group -> 1 button: vacancy card (Керування вакансією)
+    - Not in group -> 2 buttons: group invite + vacancy card
     """
     base = settings.BASE_URL.rstrip("/")
     check_path = reverse("telegram:telegram_check_web_app")
     next_path = reverse("vacancy:detail", kwargs={"pk": vacancy.id})
     card_url = f"{base}{check_path}?next={next_path}"
 
-    invite_sent = bool(vacancy.extra and vacancy.extra.get("employer_invite_msg_id"))
+    in_group = False
+    if vacancy.group:
+        try:
+            member = get_bot().get_chat_member(chat_id=vacancy.group.id, user_id=user.id)
+            in_group = member.status in ("member", "administrator", "creator")
+        except Exception:
+            pass
 
     markup = InlineKeyboardMarkup()
-    if invite_sent:
+    if in_group:
         text = "Це Ваша вакансія. Перейдіть до керування."
         markup.add(InlineKeyboardButton(text="Керування вакансією", web_app=WebAppInfo(url=card_url)))
     else:
@@ -300,29 +307,62 @@ def _send_owner_action_message(message, vacancy, user) -> None:
         markup.add(InlineKeyboardButton(text="Керування вакансією", web_app=WebAppInfo(url=card_url)))
 
     try:
-        sent = get_bot().send_message(chat_id=message.chat.id, text=text, reply_markup=markup)
-        if not invite_sent and vacancy.group and vacancy.group.invite_link:
-            if vacancy.extra is None:
-                vacancy.extra = {}
-            vacancy.extra["employer_invite_msg_id"] = sent.message_id
-            vacancy.save(update_fields=["extra"])
+        get_bot().send_message(chat_id=message.chat.id, text=text, reply_markup=markup)
     except Exception as e:
         logger.warning(f"_send_owner_action_message failed: {e}")
 
 
-def _send_worker_my_work_message(message) -> None:
-    """Worker pressed apply on the same vacancy he is already in — redirect to 'Моя робота'."""
-    base = settings.BASE_URL.rstrip("/")
-    check_path = reverse("telegram:telegram_check_web_app")
-    next_path = reverse("work:worker_my_work")
-    url = f"{base}{check_path}?next={next_path}"
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
-    get_bot().send_message(
-        chat_id=message.chat.id,
-        text="Ви вже берете участь у цій вакансії. Перейдіть до своєї роботи.",
-        reply_markup=markup,
-    )
+def _send_worker_my_work_message(message, vacancy_id=None) -> None:
+    """Worker pressed apply on the same vacancy he is already in.
+    Check real group membership:
+    - In group -> redirect to 'Моя робота'
+    - Not in group -> send group invite link
+    """
+    in_group = False
+    vacancy = None
+    if vacancy_id:
+        try:
+            vacancy = Vacancy.objects.select_related("group").get(id=vacancy_id)
+            if vacancy.group:
+                member = get_bot().get_chat_member(chat_id=vacancy.group.id, user_id=message.chat.id)
+                in_group = member.status in ("member", "administrator", "creator")
+        except Exception:
+            pass
+
+    if in_group:
+        base = settings.BASE_URL.rstrip("/")
+        check_path = reverse("telegram:telegram_check_web_app")
+        next_path = reverse("work:worker_my_work")
+        url = f"{base}{check_path}?next={next_path}"
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
+        get_bot().send_message(
+            chat_id=message.chat.id,
+            text="Ви вже берете участь у цій вакансії. Перейдіть до своєї роботи.",
+            reply_markup=markup,
+        )
+    else:
+        invite_link = vacancy.group.invite_link if vacancy and vacancy.group else None
+        if invite_link:
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=invite_link))
+            get_bot().send_message(
+                chat_id=message.chat.id,
+                text="Перейдіть у групу Вашої вакансії.",
+                reply_markup=markup,
+            )
+        else:
+            base = settings.BASE_URL.rstrip("/")
+            check_path = reverse("telegram:telegram_check_web_app")
+            next_path = reverse("work:worker_my_work")
+            url = f"{base}{check_path}?next={next_path}"
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
+            get_bot().send_message(
+                chat_id=message.chat.id,
+                text="Ви вже берете участь у цій вакансії. Перейдіть до своєї роботи.",
+                reply_markup=markup,
+            )
 
 
 def process_start_payload(payload: str, message) -> bool:
@@ -333,7 +373,7 @@ def process_start_payload(payload: str, message) -> bool:
             return _process_apply_payload(data, message)
 
         elif data.get("type") == "already_in_vacancy":
-            _send_worker_my_work_message(message)
+            _send_worker_my_work_message(message, vacancy_id=data.get("vacancy_id"))
             return True
 
         elif data.get("type") == "admin_apply":
