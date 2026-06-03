@@ -2076,3 +2076,19 @@ class Meta:
 **Кнопка одобрения:** В `approved_user_observer.py` заменена `get_vacancy_my_list_markup()` («До поточних заявок») на `_get_detail_markup(vacancy)` («Керування вакансією» с прямой ссылкой на карточку) для всех случаев одобрения.
 
 **Тесты:** 7 тестов в `test_session_20260530_apply_button_messages.py` (полностью переписаны под get_chat_member). 422 теста всего.
+
+## Сессия 03.06.2026 (часть 3) — 4 этапа рабочего + троттлинг
+
+**Рабочий — 4 этапа при повторном нажатии «Я ГОТОВИЙ ПРАЦЮВАТИ»:**
+`_send_worker_my_work_message` теперь определяет этап по VacancyUserCall + VacancyContactPhone + get_chat_member:
+1. VacancyUserCall(SENT) → повторно «Підтвердити/Відмовитись» (с антиспамом — удаление старого)
+2. VacancyUserCall(CONFIRM) + нет VacancyContactPhone → повторно запрос телефона (Підтвердити/Змінити или «Напишіть номер»)
+3. VacancyUserCall(CONFIRM) + есть VacancyContactPhone + не в группе → `send_worker_group_invite()`
+4. В группе → «Моя робота» (WebApp)
+
+**Троттлинг 300 сек** в `apply_vacancy.py`:
+- Шаг 7 (owner нажал свою вакансию) и шаг 9b (рабочий уже в этой вакансии)
+- `django.core.cache` с ключом `apply_throttle:{user_id}:{vacancy_id}`, TTL=300
+- При повторе раньше 300 сек → тост «Зачекайте трохи» без последствий
+
+**Тесты:** 422 теста, все зелёные.
