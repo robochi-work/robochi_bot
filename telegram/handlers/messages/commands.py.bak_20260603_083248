@@ -117,16 +117,16 @@ def _process_apply_payload(data: dict, message) -> bool:
     except User.DoesNotExist:
         return False
 
+    # Owner (employer) — redirect to cabinet, not worker flow
+    work_profile = getattr(user, "work_profile", None)
+    if work_profile and work_profile.role == "employer":
+        _send_employer_cabinet_message(message)
+        return True
+
     try:
         vacancy = Vacancy.objects.select_related("group", "owner").get(id=vacancy_id, status=STATUS_APPROVED)
     except Vacancy.DoesNotExist:
         get_bot().send_message(message.chat.id, "Вакансію не знайдено або вона вже закрита.")
-        return True
-
-    # Owner (employer) — redirect to vacancy card in cabinet
-    work_profile = getattr(user, "work_profile", None)
-    if work_profile and work_profile.role == "employer":
-        _send_owner_action_message(message, vacancy, user)
         return True
 
     # Already has VacancyUser for THIS vacancy — re-send confirm or redirect
@@ -147,27 +147,12 @@ def _process_apply_payload(data: dict, message) -> bool:
             vacancy_user=existing_vu, call_type=CallType.WORKER_JOIN_CONFIRM.value, status=CallStatus.SENT.value
         ).first()
         if pending:
-            # Anti-spam: delete previous confirm message if still pinned in vacancy.extra
-            if vacancy.extra:
-                old_confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
-                old_msg_id = old_confirm_msgs.get(str(user.id))
-                if old_msg_id:
-                    try:
-                        get_bot().delete_message(chat_id=message.chat.id, message_id=old_msg_id)
-                    except Exception:
-                        pass
             try:
-                sent = get_bot().send_message(
+                get_bot().send_message(
                     chat_id=message.chat.id,
                     text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
                     reply_markup=get_worker_join_confirm_markup(vacancy),
                 )
-                if vacancy.extra is None:
-                    vacancy.extra = {}
-                confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
-                confirm_msgs[str(user.id)] = sent.message_id
-                vacancy.extra["confirm_msg_ids"] = confirm_msgs
-                vacancy.save(update_fields=["extra"])
             except Exception as e:
                 logger.warning(f"_process_apply_payload: re-send confirm failed: {e}")
             return True
@@ -277,54 +262,6 @@ def _send_cabinet_message(message):
     )
 
 
-def _send_owner_action_message(message, vacancy, user) -> None:
-    """Employer-owner pressed his own vacancy button.
-    If invite to group was already delivered earlier — show only card button (assumed already in group).
-    Otherwise — show group invite + card, remember that invite was delivered.
-    """
-    base = settings.BASE_URL.rstrip("/")
-    check_path = reverse("telegram:telegram_check_web_app")
-    next_path = reverse("vacancy:detail", kwargs={"pk": vacancy.id})
-    card_url = f"{base}{check_path}?next={next_path}"
-
-    invite_sent = bool(vacancy.extra and vacancy.extra.get("employer_invite_msg_id"))
-
-    markup = InlineKeyboardMarkup()
-    if invite_sent:
-        text = "Це Ваша вакансія. Перейдіть до керування."
-        markup.add(InlineKeyboardButton(text="Керування вакансією", web_app=WebAppInfo(url=card_url)))
-    else:
-        text = "Це Ваша вакансія. Перейдіть у групу вакансії та керуйте з особистого кабінету."
-        if vacancy.group and vacancy.group.invite_link:
-            markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=vacancy.group.invite_link))
-        markup.add(InlineKeyboardButton(text="Керування вакансією", web_app=WebAppInfo(url=card_url)))
-
-    try:
-        sent = get_bot().send_message(chat_id=message.chat.id, text=text, reply_markup=markup)
-        if not invite_sent and vacancy.group and vacancy.group.invite_link:
-            if vacancy.extra is None:
-                vacancy.extra = {}
-            vacancy.extra["employer_invite_msg_id"] = sent.message_id
-            vacancy.save(update_fields=["extra"])
-    except Exception as e:
-        logger.warning(f"_send_owner_action_message failed: {e}")
-
-
-def _send_worker_my_work_message(message) -> None:
-    """Worker pressed apply on the same vacancy he is already in — redirect to 'Моя робота'."""
-    base = settings.BASE_URL.rstrip("/")
-    check_path = reverse("telegram:telegram_check_web_app")
-    next_path = reverse("work:worker_my_work")
-    url = f"{base}{check_path}?next={next_path}"
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
-    get_bot().send_message(
-        chat_id=message.chat.id,
-        text="Ви вже берете участь у цій вакансії. Перейдіть до своєї роботи.",
-        reply_markup=markup,
-    )
-
-
 def process_start_payload(payload: str, message) -> bool:
     try:
         data = decode_start_param(payload)
@@ -333,7 +270,7 @@ def process_start_payload(payload: str, message) -> bool:
             return _process_apply_payload(data, message)
 
         elif data.get("type") == "already_in_vacancy":
-            _send_worker_my_work_message(message)
+            _send_cabinet_message(message)
             return True
 
         elif data.get("type") == "admin_apply":
