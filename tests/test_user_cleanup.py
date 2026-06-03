@@ -45,7 +45,7 @@ class TestCleanupUnregisteredUsers:
         from user.models import User
 
         user = User.objects.create(id=900000002, telegram_id=900000002, username="fresh1")
-        User.objects.filter(id=user.id).update(date_joined=timezone.now() - timedelta(days=3))
+        User.objects.filter(id=user.id).update(date_joined=timezone.now() - timedelta(hours=1))
         cleanup_unregistered_users_task()
         assert User.objects.filter(id=900000002).exists()
 

@@ -11,7 +11,7 @@ from telegram.handlers.bot_instance import bot
 logger = logging.getLogger(__name__)
 
 INACTIVE_DAYS = 180
-UNREGISTERED_DAYS = 7
+UNREGISTERED_DAYS = 1
 TELEGRAM_API_DELAY = 0.05
 
 
