@@ -123,13 +123,6 @@ def handle_apply_vacancy(call: CallbackQuery):
 
         # 7. Owner вакансии — автоперехід в бот через deep link
         if vacancy.owner == user:
-            from django.core.cache import cache
-
-            throttle_key = f"apply_throttle:{user.id}:{vacancy_id}"
-            if cache.get(throttle_key):
-                bot.answer_callback_query(call.id, text="Зачекайте трохи")
-                return
-            cache.set(throttle_key, True, timeout=300)
             payload = _encode_start_payload({"type": "apply", "vacancy_id": vacancy_id})
             deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
             try:
@@ -163,13 +156,6 @@ def handle_apply_vacancy(call: CallbackQuery):
         if VacancyUser.objects.filter(
             user=user, vacancy=vacancy, status__in=[Status.MEMBER, Status.PENDING_CONFIRM]
         ).exists():
-            from django.core.cache import cache
-
-            throttle_key = f"apply_throttle:{user.id}:{vacancy_id}"
-            if cache.get(throttle_key):
-                bot.answer_callback_query(call.id, text="Зачекайте трохи")
-                return
-            cache.set(throttle_key, True, timeout=300)
             payload = _encode_start_payload({"type": "already_in_vacancy", "vacancy_id": vacancy_id})
             deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
             try:
