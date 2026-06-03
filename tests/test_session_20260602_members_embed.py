@@ -31,8 +31,8 @@ class TestMembersEmbedded:
         assert response.status_code == 200
         # Old separate-page button must be gone
         assert "Додавання/Видалення працівників" not in content
-        # New section title present
-        assert "Робітники" in content
+        # Members section container is rendered (title appears only with members or rollcall)
+        assert "detail-members-section" in content
 
     def test_members_url_redirects_to_detail(self, client, employer_factory, vacancy_factory):
         """Legacy /members/ URL redirects to /detail/ for backward compatibility."""

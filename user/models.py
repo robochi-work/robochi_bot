@@ -153,3 +153,30 @@ class UserFeedback(models.Model):
 
     def __str__(self):
         return f"{self.owner} → {self.user} ({self.rating})"
+
+
+class WorkerVoluntaryExit(models.Model):
+    """Лог добровільних виходів рабочого з групи вакансії."""
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="voluntary_exits",
+        verbose_name=_("User"),
+    )
+    vacancy = models.ForeignKey(
+        "vacancy.Vacancy",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("Vacancy"),
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("Created at"))
+
+    class Meta:
+        verbose_name = _("Добровільний вихід")
+        verbose_name_plural = _("Добровільні виходи")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} — {self.created_at}"
