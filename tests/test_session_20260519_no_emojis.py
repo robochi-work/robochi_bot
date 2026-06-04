@@ -36,7 +36,6 @@ TEMPLATES = [
     "work/templates/work/admin_dashboard.html",
     "work/templates/work/employer_cities.html",
     "work/templates/work/admin_search_results.html",
-    "work/templates/work/employer_reviews.html",
     "work/templates/work/worker_my_work.html",
     "vacancy/templates/vacancy/vacancy_detail.html",
     "vacancy/templates/vacancy/vacancy_my_list.html",
