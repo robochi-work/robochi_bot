@@ -287,7 +287,7 @@
   <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
    <button type="button" class="member-card__feedback-link"
     onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
-    Дивитися/Залишити відгук
+    Дивитися/Залишити відгук · Рейтинг {{ item.rating_percent }}%
    </button>
    <div class="member-card__info">
     <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>

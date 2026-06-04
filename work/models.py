@@ -112,3 +112,34 @@ class FaqItem(models.Model):
             video_id = url.split("youtu.be/")[1].split("?")[0]
             return f"https://www.youtube.com/embed/{video_id}" if video_id else url
         return url
+
+
+class RatingConfig(models.Model):
+    """Single-row config for rating settings, editable in admin."""
+
+    rating_threshold = models.PositiveIntegerField(
+        default=5,
+        verbose_name="Поріг рейтингу (Байєс)",
+        help_text="Кількість віртуальних голосів для нових користувачів. Рекомендовано: 3-10.",
+    )
+
+    class Meta:
+        verbose_name = "Налаштування рейтингу"
+        verbose_name_plural = "Налаштування рейтингу"
+
+    def __str__(self):
+        return f"Поріг: {self.rating_threshold}"
+
+    def save(self, *args, **kwargs):
+        # Only one row allowed
+        if not self.pk and RatingConfig.objects.exists():
+            existing = RatingConfig.objects.first()
+            self.pk = existing.pk
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_threshold(cls):
+        obj = cls.objects.first()
+        if obj:
+            return obj.rating_threshold
+        return 5

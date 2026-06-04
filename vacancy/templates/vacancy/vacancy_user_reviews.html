@@ -8,7 +8,11 @@
  <div class="reviews-container">
 
  <div class="reviews-header">
- <a href="{% url 'vacancy:user_list' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+ {% if user_role == "worker" %}
+ <a href="{% url 'work:worker_my_work' %}" class="page-back-btn">← Назад</a>
+ {% else %}
+ <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+ {% endif %}
  <h2>{{ target_user.full_name|default:"Без імені" }}</h2>
  </div>
 
@@ -20,21 +24,21 @@
  {% else %}
  <div class="rating-row">
  <div class="rating-item rating-item--like">
- <span class="rating-icon"></span>
+ <span class="rating-icon">👍</span>
  <span class="rating-count">{{ likes }}</span>
  </div>
  <div class="rating-divider"></div>
  <div class="rating-item rating-item--dislike">
- <span class="rating-icon"></span>
+ <span class="rating-icon">👎</span>
  <span class="rating-count">{{ dislikes }}</span>
  </div>
  </div>
  {% if total > 0 %}
  <div class="rating-bar-wrap">
- <div class="rating-bar-fill" style="width: {% widthratio likes total 100 %}%"></div>
+ <div class="rating-bar-fill" style="width: {{ rating_percent }}%"></div>
  </div>
  <div class="rating-percent">
- {% widthratio likes total 100 %}% позитивних
+ Рейтинг {{ rating_percent }}%
  </div>
  {% endif %}
  {% endif %}

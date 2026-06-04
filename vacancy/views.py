@@ -349,7 +349,18 @@ def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpRe
     vacancy = get_object_or_404(Vacancy, pk=pk)
     target_user = get_object_or_404(User, pk=user_id)
 
+    # Check if user already left feedback for this person on this vacancy
+    already_exists = UserFeedback.objects.filter(
+        owner=request.user,
+        user=target_user,
+        is_auto=False,
+        extra__vacancy_id=vacancy.pk,
+    ).exists()
+
     if request.method == "POST":
+        if already_exists:
+            messages.error(request, _("Ви вже залишили відгук цьому користувачу."))
+            return redirect("vacancy:detail", pk=pk)
         form = VacancyUserFeedbackForm(request.POST)
         if form.is_valid():
             rating = form.cleaned_data.get("rating") or "none"
@@ -359,9 +370,12 @@ def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpRe
             )
             vacancy_publisher.notify(VACANCY_NEW_FEEDBACK, data={"vacancy": vacancy, "feedback": feedback})
             messages.success(request, _("Feedback has been sent."))
-            return redirect("index")
+            return redirect("vacancy:detail", pk=pk)
     else:
         form = VacancyUserFeedbackForm()
+
+    work_profile = getattr(request.user, "work_profile", None)
+    user_role = work_profile.role if work_profile else None
 
     return render(
         request,
@@ -370,6 +384,7 @@ def vacancy_user_feedback(request: WSGIRequest, pk: int, user_id: int) -> HttpRe
             "form": form,
             "vacancy": vacancy,
             "target_user": target_user,
+            "user_role": user_role,
         },
     )
 
@@ -409,6 +424,13 @@ def vacancy_user_reviews(request: WSGIRequest, pk: int, user_id: int) -> HttpRes
     likes = feedbacks.filter(rating="like").count()
     dislikes = feedbacks.filter(rating="dislike").count()
 
+    from user.rating import bayesian_rating
+
+    rating_percent = bayesian_rating(likes, dislikes)
+
+    work_profile = getattr(request.user, "work_profile", None)
+    user_role = work_profile.role if work_profile else None
+
     return render(
         request,
         "vacancy/vacancy_user_reviews.html",
@@ -418,6 +440,8 @@ def vacancy_user_reviews(request: WSGIRequest, pk: int, user_id: int) -> HttpRes
             "feedbacks": feedbacks,
             "likes": likes,
             "dislikes": dislikes,
+            "rating_percent": rating_percent,
+            "user_role": user_role,
         },
     )
 
@@ -565,9 +589,12 @@ def _build_members_context(vacancy, request):
 
     contact_phones = dict(VacancyContactPhone.objects.filter(vacancy=vacancy).values_list("user_id", "phone"))
 
+    from user.rating import bayesian_rating
+
     members_list = []
     for vu in all_users_qs:
-        feedbacks = UserFeedback.objects.filter(user=vu.user).count()
+        likes = UserFeedback.objects.filter(user=vu.user, rating="like").count()
+        dislikes = UserFeedback.objects.filter(user=vu.user, rating="dislike").count()
         is_user_blocked = BlockService.is_blocked(vu.user)
         members_list.append(
             {
@@ -576,7 +603,7 @@ def _build_members_context(vacancy, request):
                 "status": vu.get_status_display(),
                 "is_member": vu.status == "member",
                 "is_blocked": is_user_blocked,
-                "feedbacks_count": feedbacks,
+                "rating_percent": bayesian_rating(likes, dislikes),
                 "contact_phone": contact_phones.get(vu.user_id, ""),
             }
         )
@@ -1209,10 +1236,18 @@ def vacancy_kick_member(request, pk, user_id):
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
+    from telegram.choices import Status
     from telegram.service.group import GroupService
 
     if vacancy.group:
         GroupService.kick_user(chat_id=vacancy.group.id, user_id=user_id)
+
+    # Update VacancyUser status so kicked worker can still see vacancy for 1 hour
+    from django.utils import timezone as kick_tz
+
+    from vacancy.models import VacancyUser
+
+    VacancyUser.objects.filter(vacancy=vacancy, user_id=user_id).update(status=Status.KICKED, updated_at=kick_tz.now())
 
     return redirect("vacancy:detail", pk=pk)
 

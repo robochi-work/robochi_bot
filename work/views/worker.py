@@ -14,7 +14,10 @@ def worker_reviews(request):
     likes_count = UserFeedback.objects.filter(user=request.user, rating="like").count()
     dislikes_count = UserFeedback.objects.filter(user=request.user, rating="dislike").count()
     total_count = likes_count + dislikes_count
-    rating_percent = round(likes_count / total_count * 100) if total_count > 0 else 0
+
+    from user.rating import bayesian_rating
+
+    rating_percent = bayesian_rating(likes_count, dislikes_count)
 
     enriched_reviews = []
     for review in reviews:
@@ -71,6 +74,9 @@ def worker_my_work(request):
     from vacancy.models import VacancyContactPhone, VacancyUser
 
     user = request.user
+    is_kicked = False
+
+    # 1. Active vacancy (member + in group)
     vacancy_user = (
         VacancyUser.objects.filter(user=user, status=Status.MEMBER)
         .select_related("vacancy", "vacancy__group", "vacancy__channel")
@@ -78,7 +84,6 @@ def worker_my_work(request):
         .first()
     )
 
-    # Show vacancy only if worker is actually in the Telegram group
     if vacancy_user and vacancy_user.vacancy.group:
         from telegram.models import UserInGroup
 
@@ -87,6 +92,24 @@ def worker_my_work(request):
         ).exists()
         if not in_group:
             vacancy_user = None
+
+    # 2. Recently kicked/left — show for 1 hour so worker can leave feedback
+    if not vacancy_user:
+        from django.utils import timezone as _kicked_tz
+
+        one_hour_ago = _kicked_tz.now() - timedelta(hours=1)
+        vacancy_user = (
+            VacancyUser.objects.filter(
+                user=user,
+                status__in=[Status.KICKED, Status.LEFT],
+                updated_at__gte=one_hour_ago,
+            )
+            .select_related("vacancy", "vacancy__group", "vacancy__channel")
+            .order_by("-updated_at")
+            .first()
+        )
+        if vacancy_user:
+            is_kicked = True
 
     if not vacancy_user:
         return render(
@@ -135,5 +158,6 @@ def worker_my_work(request):
             "show_contact_phone": show_contact_phone,
             "contact_phone": contact_phone,
             "work_profile": getattr(user, "work_profile", None),
+            "is_kicked": is_kicked,
         },
     )

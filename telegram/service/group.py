@@ -67,11 +67,13 @@ class GroupService:
 
                 vacancy = Vacancy.objects.filter(group_id=chat_id).first()
                 if vacancy:
+                    from django.utils import timezone as kick_tz
+
                     VacancyUser.objects.filter(
                         vacancy=vacancy,
                         user_id=user_id,
                         status=Status.MEMBER,
-                    ).update(status=Status.KICKED)
+                    ).update(status=Status.KICKED, updated_at=kick_tz.now())
             except Group.DoesNotExist:
                 pass
             except Exception as e:

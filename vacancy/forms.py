@@ -423,7 +423,7 @@ class VacancyUserFeedbackForm(forms.Form):
         cleaned_data = super().clean()
         rating = cleaned_data.get("rating")
         text = (cleaned_data.get("text") or "").strip()
-        if not rating and not text:
-            raise forms.ValidationError("Вкажіть оцінку або залиште відгук.")
+        if not rating:
+            raise forms.ValidationError("Оберіть оцінку — лайк або дизлайк.")
         cleaned_data["text"] = text
         return cleaned_data

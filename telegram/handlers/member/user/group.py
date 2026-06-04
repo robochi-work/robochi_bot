@@ -351,7 +351,9 @@ def handle_user_status_change(event: ChatMemberUpdated):
             logger.info("voluntary_exit_logged", extra={"user_id": user.id, "vacancy_id": vacancy.id})
 
         UserInGroup.objects.filter(user=user, group=group).delete()
-        VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
+        from django.utils import timezone as left_tz
+
+        VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT, updated_at=left_tz.now())
         # Delete invite message from bot chat
         try:
             invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})

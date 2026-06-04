@@ -12,11 +12,8 @@
  <span class="worker-btn__text">
  <span class="worker-btn__title">Мій рейтинг / Мої відгуки</span>
  <span class="worker-btn__sub">
- {% if reviews_count %}
- {{ reviews_count }} відгук{{ reviews_count|pluralize:"ів,и,ів" }}
- {% else %}
- Поки немає
- {% endif %}
+ Рейтинг {{ rating_percent }}%
+ · {{ text_reviews_count }} відгук{{ text_reviews_count|pluralize:"ів,и,ів" }}
  </span>
  </span>
  </a>

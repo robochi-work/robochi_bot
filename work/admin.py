@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from work.models import AgreementText, FaqItem
+from work.models import AgreementText, FaqItem, RatingConfig
 
 
 @admin.register(AgreementText)
@@ -28,3 +28,15 @@ class FaqItemAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description="Відео")
     def has_video(self, obj):
         return bool(obj.video_url)
+
+
+@admin.register(RatingConfig)
+class RatingConfigAdmin(admin.ModelAdmin):
+    list_display = ("rating_threshold",)
+
+    def has_add_permission(self, request):
+        # Only one row allowed
+        return not RatingConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

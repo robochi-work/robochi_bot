@@ -2092,3 +2092,70 @@ class Meta:
 - При повторе раньше 300 сек → тост «Зачекайте трохи» без последствий
 
 **Тесты:** 422 теста, все зелёные.
+
+## Session 03.06.2026 (доповнення) — cleanup window 7d -> 1d
+
+- `UNREGISTERED_DAYS` в `user/tasks.py` змінено з 7 на 1.
+- Тепер `cleanup_unregistered_users_task` (Celery beat, 03:30 щодня) видаляє за 24 години:
+  - юзерів-«обрубків», які дали не-+380 номер і отримали відмову (work_profile=None);
+  - юзерів, які натиснули /start, але не закінчили реєстрацію.
+- Підкручений тест `test_keeps_user_without_profile_before_7_days`: days=3 -> hours=1.
+- Новий тест `tests/test_session_20260603_cleanup_1day.py` фіксує нове вікно (3 кейси).
+- Деплой: рестарт `celery-worker.service` + `celery-beat.service`. Gunicorn не чіпали.
+
+
+## Сесія 04.06.2026 — Байесовський рейтинг, захист відгуків, кікнуті робітники
+
+### Зміни
+
+1. Байесовський рейтинг замість простого відсотка
+   - Новий файл user/rating.py — функція bayesian_rating(likes, dislikes)
+   - Формула: (C * m + likes) / (C + total) * 100, де C = поріг з БД, m = середній рейтинг по платформі
+   - Поріг керується з адмін-панелі: модель RatingConfig в work/models.py (розділ Work, Налаштування рейтингу). Метод RatingConfig.get_threshold()
+   - Байесовський рейтинг застосовано у всіх місцях відображення
+
+2. Форма відгуку — оцінка обовязкова
+   - VacancyUserFeedbackForm: rating (лайк/дизлайк) обовязковий, text необовязковий
+
+3. Захист від дублікатів ручних відгуків
+   - vacancy_user_feedback view: 1 ручний відгук від 1 користувача іншому за 1 вакансію
+
+4. Виправлені шаблони
+   - employer_reviews.html, vacancy_user_reviews.html — додані значки лайк/дизлайк (були порожні)
+   - vacancy_feedback.html — додані значки на кнопках Лайк/Дизлайк
+   - Позитивних перейменовано на Рейтинг N відсотків на всіх сторінках
+   - vacancy_user_list.html — прибрані зайві теги else/endif (TemplateSyntaxError)
+
+5. Кнопка в ЛК (обидва дашборди)
+   - Замість reviews_count тепер: rating_percent (Байес) + text_reviews_count (тільки з текстом)
+   - Відображення: Рейтинг N відсотків та N відгуків
+
+6. Рейтинг в карточці робітника (vacancy_detail)
+   - _build_members_context рахує rating_percent для кожного робітника
+   - На кнопці: Дивитися/Залишити відгук та Рейтинг N відсотків
+
+7. Навігація Назад за роллю
+   - vacancy_feedback.html, vacancy_user_reviews.html, vacancy_user_list.html — worker йде на Моя робота, employer/admin на карточку вакансії
+   - vacancy_user_feedback і vacancy_user_reviews views — додано user_role в контекст
+
+8. Кікнуті/вийшовші робітники бачать вакансію 1 годину
+   - worker_my_work view: шукає VacancyUser зі статусом kicked/left та updated_at за останню годину
+   - worker_dashboard (index.py): та сама логіка для кнопки Моя робота
+   - Ссилка на групу прихована при is_kicked=True
+   - vacancy_kick_member view: оновлює VacancyUser.status=KICKED + updated_at
+   - GroupService.kick_user: додано updated_at при оновленні VacancyUser
+   - handle_user_status_change webhook: додано updated_at при Status.LEFT
+
+### Файли змінені
+- user/rating.py — НОВИЙ, bayesian_rating()
+- work/models.py — RatingConfig модель
+- work/admin.py — RatingConfigAdmin
+- vacancy/forms.py — валідація rating обовязковий
+- vacancy/views.py — захист дублікатів, user_role, kick_member оновлює VacancyUser
+- work/views/index.py — Байес рейтинг + kicked/left пошук
+- work/views/worker.py — Байес рейтинг + kicked/left пошук
+- work/views/employer.py — Байес рейтинг
+- work/templates/work/ — оновлені дашборди і сторінки відгуків
+- vacancy/templates/vacancy/ — оновлені шаблони відгуків і навігація
+- telegram/service/group.py — updated_at при kick
+- telegram/handlers/member/user/group.py — updated_at при left
