@@ -131,6 +131,31 @@ AuthIdentity модель (user/models.py) — связывает User с про
 
 ## История изменений
 
+### 05.06.2026 — Фикс повторного кика на перекличке + race condition в публикации канала
+
+**Баг-фикс 1: повторный кик после разблокировки**
+- Сценарий: рабочий проигнорировал BEFORE_START перекличку (за 2ч до начала), кикнут + создан `UserBlock(ROLLCALL_REJECT)`. Админ снял блок в админ-панели, рабочий заново нажал «Я ГОТОВИЙ ПРАЦЮВАТИ» — система мгновенно кикала его повторно.
+- Причина: в БД оставалась запись `VacancyUserCall(BEFORE_START, status=SENT)` со старым `created_at`. `check_before_5_start` видел её, `elapsed >> 300s` → кик.
+- Фикс: `vacancy/services/observers/call_observer.py::check_before_5_start`:
+  - Пропуск если `member.updated_at > user_answer.created_at` (рабочий зашёл уже после переклички)
+  - Пропуск если статус уже `CONFIRM` или `REJECT`
+  - При кике записываем `call.status = REJECT` (финализация)
+
+**Баг-фикс 2: дубль публикации вакансии в канале**
+- Сценарий: рабочий выходит из группы ровно когда `resend_vacancies_to_channel_task` подходит на тике с `last_msg age >= 300s` → оба пути (`VacancySlotFreedObserver` + Celery rotation) читают список `ChannelMessage` одновременно, удаляют по своей копии, публикуют каждый свой пост → в канале два одинаковых сообщения.
+- Фикс: добавлен короткий мьютекс через Django cache `vacancy_publish_lock:{id}` (TTL 15с), общий между `vacancy/tasks/resend.py::resend_vacancy_to_channel` и `vacancy/services/observers/member_observer.py::VacancySlotFreedObserver`. Кто первым взял замок — публикует, второй пишет лог-пропуск и выходит.
+
+**Тесты:** `tests/test_session_20260605_rollcall_rejoin.py` (5 тестов, все зелёные):
+- skip при rejoin (updated_at > call.created_at)
+- skip при REJECT/CONFIRM
+- финализация в REJECT при кике
+- rotation skip при удержанном lock
+- rotation публикует при свободном lock + освобождает lock
+
+**Связанная правка теста:** `vacancy_feedback.html` и `vacancy_user_reviews.html` исключены из `test_no_emoji_in_template` (теперь содержат функциональные кнопки 👍/👎 из фичи рейтинга от 04.06).
+
+Коммиты: `8a52261` (rollcall), `e2b2681` (channel race), `520c487` (no-emoji test).
+
 ### 01.04.2026 (вечер) — Аудит 10 функциональных блоков + критический баг-фикс
 
 **Полный аудит кода подтвердил реализацию всех заявленных функций:**
