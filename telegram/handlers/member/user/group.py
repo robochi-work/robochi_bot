@@ -326,6 +326,24 @@ def handle_user_status_change(event: ChatMemberUpdated):
 
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})
         VacancyUser.objects.update_or_create(user=user, vacancy=vacancy, defaults={"status": status})
+
+        # Kick worker from old groups of finished vacancies
+        if status == Status.MEMBER.value:
+            from vacancy.choices import STATUS_AWAITING_PAYMENT, STATUS_CLOSED, STATUS_PAID
+
+            old_uigs = UserInGroup.objects.filter(user=user).exclude(group=group).select_related("group")
+            for old_uig in old_uigs:
+                old_vacancy = Vacancy.objects.filter(group_id=old_uig.group_id).first()
+                if old_vacancy and old_vacancy.status in (STATUS_CLOSED, STATUS_AWAITING_PAYMENT, STATUS_PAID):
+                    try:
+                        GroupService.kick_user(chat_id=old_uig.group_id, user_id=user.id)
+                        logger.info(
+                            "kicked_from_old_group",
+                            extra={"user_id": user.id, "old_group": old_uig.group_id, "new_group": group.id},
+                        )
+                    except Exception:
+                        sentry_sdk.capture_exception()
+
         # Delete invite message from bot chat
         try:
             invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})

@@ -2184,3 +2184,18 @@ class Meta:
 - vacancy/templates/vacancy/ — оновлені шаблони відгуків і навігація
 - telegram/service/group.py — updated_at при kick
 - telegram/handlers/member/user/group.py — updated_at при left
+
+
+## Сесія 05.06.2026 — Кік з старої групи при вході в нову
+
+### Зміни
+
+1. При вході робітника в нову групу вакансії — автоматичний кік з груп старих вакансій
+   - Тільки якщо стара вакансія в статусі closed/awaiting/paid
+   - Якщо стара вакансія approved/stopped — робітника не пускає в нову (існуюча логіка)
+   - Реалізовано в handle_user_status_change (telegram/handlers/member/user/group.py)
+   - Після успішного входу (status=MEMBER) шукає всі UserInGroup крім поточної групи
+   - Для кожної перевіряє статус вакансії, кікає через GroupService.kick_user
+
+### Файли змінені
+- telegram/handlers/member/user/group.py — кік з старих груп після входу в нову
