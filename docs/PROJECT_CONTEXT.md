@@ -131,6 +131,54 @@ AuthIdentity модель (user/models.py) — связывает User с про
 
 ## История изменений
 
+### 05.06.2026 (3) — Фикс дубля рассылки «Через 2 години» после continue_search
+
+**Баг:** после нажатия «Продовжити пошук» (быстрая докомплектация) рабочим повторно приходило сообщение «Через 2 години початок роботи».
+
+**Причина:**
+- `continue_search` сдвигал `start_time` вперёд (если время начала уже прошло) и стирал ВСЕ записи `VacancyUserCall` для вакансии, включая `BEFORE_START`.
+- Следующий тик `before_start_call_task` (Celery): новый `start_time` снова попадал в окно «2 часа до начала», `check_before_start` не находил записей `BEFORE_START` → отправлял рассылку повторно.
+
+**Фикс — два слоя защиты в `vacancy.extra`:**
+1. `original_start_datetime` (ISO-строка) — якорь, выставляется при создании цикла, не меняется `continue_search`. Используется в `get_before_start_vacancies` (фильтр окна) и `check_before_start` (вычисление `two_hours_before`).
+2. `pre_call_done` (bool) — флаг, выставляется в `check_before_start` после хотя бы одной успешной отправки. Фильтр и observer оба ранний-`return` при `True`.
+
+**Хелпер `vacancy/services/call.py::reset_before_start_cycle(vacancy)`** — сбрасывает оба ключа и перезаписывает `original_start_datetime` на текущий `start_time`. Вызывается при старте НОВОГО цикла поиска:
+- `vacancy_create` (vacancy/forms.py) — изначально
+- `vacancy_resume_search` (vacancy/views.py) — после ЗУПИНИТИ/ПОНОВИТИ через модерацию, заказчик мог изменить время
+- `admin_moderate_vacancy` (work/views/admin_panel.py) — админ мог изменить время
+
+**`continue_search` (vacancy/views.py) хелпер НЕ вызывает** — это тот же цикл (просто докомплектация), флаги остаются неизменными.
+
+**Сводная таблица:**
+
+| Точка входа | Что меняется | `pre_call_done` |
+|---|---|---|
+| Створити вакансію | Всё | сбрасывается |
+| Поновити пошук (с модерацией) | Время, дата, кол-во, оплата | сбрасывается → новая рассылка |
+| Продовжити на завтра (renewal) | Время, дата=завтра, оплата | сбрасывается |
+| Модерация админом | Любое | сбрасывается |
+| **Продовжити пошук** (continue_search) | Только сдвиг `start_time` если просрочено | **остаётся** → без повторной рассылки |
+
+**Изменённые файлы:**
+- `vacancy/services/call.py` — добавлен хелпер `reset_before_start_cycle`
+- `vacancy/forms.py` — вызов хелпера после создания
+- `vacancy/views.py` — вызов хелпера в `vacancy_resume_search`
+- `work/views/admin_panel.py` — вызов хелпера в `admin_moderate_vacancy`
+- `vacancy/tasks/call.py` — `get_before_start_vacancies` учитывает оба слоя
+- `vacancy/services/observers/call_observer.py` — `check_before_start` учитывает оба слоя + ставит флаг
+
+**Тесты:** `tests/test_session_20260605_before_start_no_repeat.py` — 7 тестов, все зелёные:
+- filter skip при `pre_call_done=True`
+- filter использует якорь `original_start_datetime`, а не live `start_time`
+- continue_search не трогает оба ключа
+- end-to-end: notice → continue_search → filter возвращает пусто
+- check_before_start ставит `pre_call_done` после рассылки
+- check_before_start ранний-return при `pre_call_done=True`
+- `reset_before_start_cycle` сбрасывает флаг и обновляет якорь
+
+Соседние 18 тестов (continue_search_time, members_rollcall, auto_approve_regression) тоже зелёные — регрессий нет.
+
 ### 05.06.2026 — Фикс повторного кика на перекличке + race condition в публикации канала
 
 **Баг-фикс 1: повторный кик после разблокировки**
