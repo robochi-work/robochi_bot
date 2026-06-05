@@ -90,15 +90,31 @@ class VacancySlotFreedObserver(Observer):
             vacancy.save(update_fields=["search_active"])
             logger.info("slot_freed_republish", extra={"vacancy_id": vacancy.id})
 
-            # Immediate republish with button
-            try:
-                channel_message = (
-                    ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
-                    .order_by("-id")
-                    .first()
+            # Acquire publish lock to avoid race with rotation task
+            from django.core.cache import cache
+
+            lock_key = f"vacancy_publish_lock:{vacancy.id}"
+            if not cache.add(lock_key, True, timeout=15):
+                logger.info(
+                    "slot_freed_skip_publish",
+                    extra={"vacancy_id": vacancy.id, "reason": "lock_held"},
                 )
-                if channel_message:
-                    MessageDeleter(bot_instance=bot).delete_message(channel_message)
-            except Exception:
-                sentry_sdk.capture_exception()
-            VacancyApprovedChannelObserver(telegram_notifier).update("VACANCY_SLOT_FREED", data={"vacancy": vacancy})
+                return
+
+            try:
+                # Immediate republish with button
+                try:
+                    channel_message = (
+                        ChannelMessage.objects.filter(channel_id=vacancy.channel.id, extra__vacancy_id=vacancy.id)
+                        .order_by("-id")
+                        .first()
+                    )
+                    if channel_message:
+                        MessageDeleter(bot_instance=bot).delete_message(channel_message)
+                except Exception:
+                    sentry_sdk.capture_exception()
+                VacancyApprovedChannelObserver(telegram_notifier).update(
+                    "VACANCY_SLOT_FREED", data={"vacancy": vacancy}
+                )
+            finally:
+                cache.delete(lock_key)
