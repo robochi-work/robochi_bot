@@ -41,8 +41,6 @@ TEMPLATES = [
     "vacancy/templates/vacancy/vacancy_my_list.html",
     "vacancy/templates/vacancy/vacancy_payment.html",
     "vacancy/templates/vacancy/vacancy_members.html",
-    "vacancy/templates/vacancy/vacancy_feedback.html",
-    "vacancy/templates/vacancy/vacancy_user_reviews.html",
     "vacancy/templates/vacancy/pre_call.html",
     "vacancy/templates/vacancy/vacancy_form.html",
     "work/templates/work/includes/dashboard_bottom.html",
