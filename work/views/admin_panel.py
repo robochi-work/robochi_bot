@@ -276,6 +276,10 @@ def admin_moderate_vacancy(request, vacancy_id):
 
                 vacancy.status = STATUS_APPROVED
                 vacancy.save()
+                # New cycle: admin moderation may have changed start_time; re-anchor.
+                from vacancy.services.call import reset_before_start_cycle as _reset_pre_call_adm
+
+                _reset_pre_call_adm(vacancy)
                 logger.info("moderation_approved", extra={"admin_id": request.user.id, "vacancy_id": vacancy.id})
                 # Delete admin moderation messages from bot
                 admin_msgs = vacancy.extra.get("admin_moderation_messages", {}) if vacancy.extra else {}

@@ -36,9 +36,25 @@ class VacancyBeforeCallObserver(Observer):
 
         from telegram.choices import Status as _Status
 
-        start_naive = datetime.combine(vacancy.date, vacancy.start_time)
-        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        # Layer 1: never re-dispatch the 2h notice within one cycle.
+        if (vacancy.extra or {}).get("pre_call_done"):
+            return
+
+        # Layer 2: anchor the 2h mark to the original cycle start.
+        orig_iso = (vacancy.extra or {}).get("original_start_datetime")
+        if orig_iso:
+            try:
+                start_aware = datetime.fromisoformat(orig_iso)
+                if timezone.is_naive(start_aware):
+                    start_aware = timezone.make_aware(start_aware, timezone.get_current_timezone())
+            except (ValueError, TypeError):
+                start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+                start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        else:
+            start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+            start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
         two_hours_before = start_aware - timedelta(hours=2)
+        any_dispatched = False
 
         for member in vacancy.members:
             user_answer_exists = VacancyUserCall.objects.filter(
@@ -85,6 +101,16 @@ class VacancyBeforeCallObserver(Observer):
                     bs_msgs[str(member.user.id)] = new_msg_id
                     vacancy.extra["before_start_msg_ids"] = bs_msgs
                     vacancy.save(update_fields=["extra"])
+                    any_dispatched = True
+
+        # Mark cycle as done so the next Celery tick won't re-send.
+        # Survives continue_search (which does not touch this key);
+        # cleared only by resume_before_start_cycle on a NEW cycle.
+        if any_dispatched:
+            if not vacancy.extra:
+                vacancy.extra = {}
+            vacancy.extra["pre_call_done"] = True
+            vacancy.save(update_fields=["extra"])
 
     @staticmethod
     def check_before_5_start(vacancy: Vacancy):

@@ -941,6 +941,10 @@ def vacancy_resume_search(request, pk):
                 )
             print(f"RESUME_SEARCH: saving vacancy pk={vacancy.pk} id={vacancy.id} status={vacancy.status}")
             vacancy.search_stopped_at = None  # reset stop timer
+            # New cycle begins: clear pre_call_done, re-anchor original_start_datetime.
+            from vacancy.services.call import reset_before_start_cycle as _reset_pre_call_resume
+
+            _reset_pre_call_resume(vacancy)
             from vacancy.services.auto_approve import try_auto_approve
 
             if try_auto_approve(vacancy):

@@ -196,13 +196,36 @@ def _update_channel_search_stopped(vacancy: Vacancy) -> None:
 
 
 def get_before_start_vacancies(delay: Minutes = 120) -> Iterable[Vacancy]:
+    """Vacancies inside the 2h-before-start window for BEFORE_START rollcall.
+
+    Two defense layers against re-sending the notice after continue_search:
+    (1) extra["pre_call_done"] flag — set after first successful dispatch,
+        cleared only when a NEW cycle begins (resume_search/renewal/moderation).
+    (2) extra["original_start_datetime"] anchor — used instead of the live
+        start_time, which continue_search may shift forward.
+    """
     vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, date=date.today())
 
     naive_now = datetime.now()
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     filtered_vacancies = []
     for vacancy in vacancies:
-        start_aware = _get_start_aware(vacancy)
+        # Layer 1: skip if 2h notice already dispatched in current cycle.
+        if (vacancy.extra or {}).get("pre_call_done"):
+            continue
+
+        # Layer 2: anchor window to the original cycle start, not live start_time.
+        orig_iso = (vacancy.extra or {}).get("original_start_datetime")
+        if orig_iso:
+            try:
+                start_aware = datetime.fromisoformat(orig_iso)
+                if timezone.is_naive(start_aware):
+                    start_aware = timezone.make_aware(start_aware, timezone.get_current_timezone())
+            except (ValueError, TypeError):
+                start_aware = _get_start_aware(vacancy)
+        else:
+            # Legacy fallback for vacancies created before this field existed.
+            start_aware = _get_start_aware(vacancy)
 
         before_start_time = start_aware - timedelta(minutes=delay)
         if before_start_time < aware_now < start_aware:

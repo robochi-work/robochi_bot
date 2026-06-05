@@ -362,6 +362,10 @@ class VacancyForm(forms.Form):
             "vacancy_created",
             extra={"owner_id": owner.id, "city": str(selected_city), "people_count": data.get("people_count")},
         )
+        # Anchor the 2h-before-start notice to the originally requested start time.
+        from vacancy.services.call import reset_before_start_cycle as _reset_pre_call
+
+        _reset_pre_call(vacancy)
         # Save employer contact phone to VacancyContactPhone
         employer_phone = data.get("contact_phone", "")
         if employer_phone:
