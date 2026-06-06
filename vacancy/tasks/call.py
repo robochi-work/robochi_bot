@@ -827,3 +827,60 @@ def renewal_worker_check_task():
 @shared_task(name="vacancy.tasks.call.test_heartbeat")
 def test_heartbeat():
     logger.warning("✅ test_heartbeat work")
+
+
+@shared_task
+def disputed_rollcall_reminders_task():
+    """Stage 3.C: send up to 12 reminders (every 5 min) to employers stuck in
+    a partially-unchecked 2nd rollcall (Scenario Б).
+
+    Triggered every 30 seconds. Only acts when 5 minutes have passed since
+    the previous reminder, and stops after 12 reminders (then admin is
+    the only path forward).
+    """
+    from vacancy.services.call_markup import get_rollcall_reminder_markup
+    from vacancy.services.disputed_rollcall import DISPUTED_KEY, increment_reminders
+
+    logger.info("task_started", extra={"task": "disputed_rollcall_reminders_task"})
+    connection.close()
+
+    REMINDER_INTERVAL_MIN = 5
+    MAX_REMINDERS = 12
+    now = timezone.now()
+    processed = 0
+
+    candidates = Vacancy.objects.filter(extra__has_key=DISPUTED_KEY)
+    for vacancy in candidates:
+        state = (vacancy.extra or {}).get(DISPUTED_KEY) or {}
+        # Skip Scenario В (full uncheck) — employer is blocked, no reminders
+        if state.get("is_full_uncheck"):
+            continue
+        if int(state.get("reminders_count", 0)) >= MAX_REMINDERS:
+            continue
+
+        last_iso = state.get("last_reminder_at")
+        if last_iso:
+            try:
+                last_dt = datetime.fromisoformat(last_iso)
+                if (now - last_dt) < timedelta(minutes=REMINDER_INTERVAL_MIN):
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            from telegram.handlers.bot_instance import bot as _bot
+
+            _bot.send_message(
+                chat_id=vacancy.owner.id,
+                text="Підтвердіть наявність робочих у другій перекличці.",
+                reply_markup=get_rollcall_reminder_markup(vacancy, CallType.AFTER_START),
+            )
+            increment_reminders(vacancy)
+            processed += 1
+        except Exception:
+            sentry_sdk.capture_exception()
+
+    logger.info(
+        "task_completed",
+        extra={"task": "disputed_rollcall_reminders_task", "processed": processed},
+    )

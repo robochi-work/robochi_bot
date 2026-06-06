@@ -30,6 +30,10 @@ app.conf.beat_schedule = {
         "task": "vacancy.tasks.call.final_call_check_task",
         "schedule": timedelta(seconds=30),
     },
+    "disputed_rollcall_reminders_task": {
+        "task": "vacancy.tasks.call.disputed_rollcall_reminders_task",
+        "schedule": timedelta(seconds=30),
+    },
     "close_vacancy_task": {
         "task": "vacancy.tasks.call.close_vacancy_task",
         "schedule": timedelta(seconds=30),

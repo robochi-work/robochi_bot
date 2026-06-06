@@ -48,6 +48,7 @@ def mark_disputed(
         "rejected_ids": list({int(x) for x in rejected_user_ids}),
         "is_full_uncheck": bool(is_full_uncheck),
         "reminders_count": 0,
+        "last_reminder_at": None,
         "admin_buttons_disabled": False,
     }
     vacancy.extra[DISPUTED_KEY] = state
@@ -70,10 +71,13 @@ def disable_admin_buttons(vacancy: Vacancy) -> None:
 
 
 def increment_reminders(vacancy: Vacancy) -> int:
+    from django.utils import timezone
+
     state = get_disputed(vacancy)
     if not state:
         return 0
     state["reminders_count"] = int(state.get("reminders_count", 0)) + 1
+    state["last_reminder_at"] = timezone.now().isoformat()
     vacancy.extra[DISPUTED_KEY] = state
     vacancy.save(update_fields=["extra"])
     return state["reminders_count"]
