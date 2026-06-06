@@ -166,8 +166,8 @@
  </button>
  {% endif %}
 
- {# Group invite link — renamed #}
- {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle %}
+ {# Group invite link — renamed; hidden if owner was kicked from group #}
+ {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle and owner_in_group %}
  <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
  <span class="worker-btn__icon"></span>
  <span class="worker-btn__text">
@@ -181,7 +181,7 @@
 
  {# ═══ MEMBERS / ROLLCALL SECTION ═══ #}
  {% if not is_pending and not is_closed_lifecycle %}
- <div class="detail-members-section">
+ <div class="detail-members-section" id="rollcall-block">
 
  {% if is_rollcall_mode %}
  {# ── ROLLCALL MODE ── #}
@@ -243,7 +243,7 @@
        Дивитися/Залишити відгук
       </button>
       <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
-      {% if item.contact_phone %}
+      {% if item.contact_phone and item.is_member %}
       <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
       {% endif %}
      </div>
@@ -292,11 +292,11 @@
    <div class="member-card__info">
     <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
     {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;">Заблоковано</span>{% endif %}
-    {% if item.contact_phone %}
+    {% if item.contact_phone and item.is_member %}
     <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
     {% endif %}
    </div>
-   {% if item.is_member and not work_time_started %}
+   {% if item.is_member and not vacancy.first_rollcall_passed %}
    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="margin:0;">
     {% csrf_token %}
     <button type="submit" class="btn-secondary btn-block"
@@ -645,4 +645,20 @@ function closeFeedbackModalOutside(event) {
  .detail-card { padding: 16px 12px; border-radius: 24px; }
 }
 </style>
+
+<script>
+(function() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get("focus") === "rollcall") {
+      var target = document.getElementById("rollcall-block");
+      if (target) {
+        setTimeout(function() {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    }
+  } catch (e) {}
+})();
+</script>
 {% endblock %}

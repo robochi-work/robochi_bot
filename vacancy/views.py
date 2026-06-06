@@ -719,6 +719,17 @@ def vacancy_detail(request, pk):
     is_paid = vacancy.extra.get("is_paid", False)
     show_payment = vacancy.second_rollcall_passed and not is_paid and vacancy.status != STATUS_PAID
 
+    # Is the owner currently inside the vacancy's telegram group?
+    # Used to hide the 'group invite' button if the owner was kicked.
+    owner_in_group = False
+    if vacancy.group:
+        from telegram.choices import Status as _TgStatus
+        from telegram.models import UserInGroup
+
+        owner_in_group = UserInGroup.objects.filter(
+            user=vacancy.owner, group=vacancy.group, status=_TgStatus.MEMBER
+        ).exists()
+
     context = {
         "vacancy": vacancy,
         "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
@@ -731,6 +742,7 @@ def vacancy_detail(request, pk):
         "is_closed_lifecycle": is_closed_lifecycle,
         "is_paid": is_paid,
         "show_payment": show_payment,
+        "owner_in_group": owner_in_group,
         "channel_invite_link": vacancy.channel.invite_link if vacancy.channel else None,
         "channel_title": vacancy.channel.title if vacancy.channel else "",
         "is_pending": vacancy.status == "pending",
