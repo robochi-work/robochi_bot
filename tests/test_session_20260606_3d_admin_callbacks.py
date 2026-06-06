@@ -224,4 +224,4 @@ def test_edit_sends_link(vacancy_factory, employer_factory, worker_factory, grou
 
     _stub_bot.send_message.assert_called_once()
     text = _stub_bot.send_message.call_args.kwargs.get("text", "")
-    assert "Перейти" in text or "focus=rollcall" in text
+    assert "Перевірити перекличку" in text or "moderate-rollcall" in text

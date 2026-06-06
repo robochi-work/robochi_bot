@@ -498,3 +498,86 @@ def admin_block_user(request, user_id):
     if referer and "/block/" not in referer:
         return HttpResponseRedirect(referer)
     return redirect("work:admin_dashboard")
+
+
+@staff_required
+def admin_moderate_rollcall(request, vacancy_id, call_type):
+    """Stage 4: admin form for finalizing a disputed 2nd rollcall.
+
+    The admin can ADD checkboxes (over the employer's last selection).
+    Unchecking is allowed only when the original dispute was full-uncheck
+    (Scenario В) — otherwise the admin can only widen the confirmed set.
+
+    Submitting calls finalize_rollcall(...) and clears the disputed state.
+    """
+    from telegram.choices import CallType as _CallType
+    from vacancy.forms import VacancyCallForm
+    from vacancy.models import Vacancy
+    from vacancy.services.disputed_rollcall import (
+        disable_admin_buttons,
+        finalize_rollcall,
+        get_disputed,
+        is_disputed,
+    )
+    from vacancy.services.rollcall_snapshot import get_snapshot_vacancy_users
+
+    vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
+
+    # Normalize call_type
+    try:
+        ct = _CallType(call_type)
+    except ValueError:
+        return redirect("work:admin_dashboard")
+    if ct != _CallType.AFTER_START:
+        return redirect("work:admin_dashboard")
+
+    if not is_disputed(vacancy):
+        # Already resolved (employer self-submitted or another admin acted)
+        return redirect("work:admin_dashboard")
+
+    state = get_disputed(vacancy)
+    is_full_uncheck = bool(state.get("is_full_uncheck"))
+    prev_selected_ids = set(state.get("selected_ids") or [])
+
+    rollcall_qs = get_snapshot_vacancy_users(vacancy)
+
+    if request.method == "POST":
+        form = VacancyCallForm(request.POST, queryset=rollcall_qs, call_type=ct)
+        if form.is_valid():
+            selected = list(form.cleaned_data.get("users", []))
+            new_ids = {vu.user_id for vu in selected}
+
+            # Admin can only ADD checkboxes — unless Scenario В (full uncheck) allows zero/edit
+            if not is_full_uncheck:
+                removed = prev_selected_ids - new_ids
+                if removed:
+                    form.add_error(
+                        "users",
+                        "Адміністратор може лише додавати чекбокси, не знімати.",
+                    )
+                    return render(
+                        request,
+                        "work/admin_moderate_rollcall.html",
+                        {"form": form, "vacancy": vacancy, "is_full_uncheck": is_full_uncheck},
+                    )
+
+            disable_admin_buttons(vacancy)
+            finalize_rollcall(vacancy, final_selected_user_ids=list(new_ids), finalized_by="admin")
+            return redirect("work:admin_dashboard")
+    else:
+        # Pre-fill with employer's last selection
+        initial_qs = rollcall_qs.filter(user_id__in=prev_selected_ids)
+        form = VacancyCallForm(queryset=rollcall_qs, call_type=ct, initial={"users": list(initial_qs)})
+
+    return render(
+        request,
+        "work/admin_moderate_rollcall.html",
+        {
+            "form": form,
+            "vacancy": vacancy,
+            "rollcall_qs": rollcall_qs,
+            "is_full_uncheck": is_full_uncheck,
+            "prev_count": state.get("first_count", 0),
+            "prev_selected": state.get("second_count", 0),
+        },
+    )

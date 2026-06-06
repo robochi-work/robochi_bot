@@ -6,6 +6,7 @@ from work.views.admin_panel import (
     admin_close_vacancy,
     admin_dashboard,
     admin_delete_vacancy,
+    admin_moderate_rollcall,
     admin_moderate_vacancy,
     admin_search_users,
     admin_search_vacancies,
@@ -42,6 +43,11 @@ urlpatterns = [
     path("admin-panel/user/<int:user_id>/vacancies/", admin_vacancy_card, name="admin_vacancy_card"),
     path("admin-panel/user/<int:user_id>/block/", admin_block_user, name="admin_block_user"),
     path("admin-panel/vacancy/<int:vacancy_id>/moderate/", admin_moderate_vacancy, name="admin_moderate_vacancy"),
+    path(
+        "admin-panel/vacancy/<int:vacancy_id>/moderate-rollcall/<str:call_type>/",
+        admin_moderate_rollcall,
+        name="admin_moderate_rollcall",
+    ),
     path("admin-panel/vacancy/<int:vacancy_id>/close/", admin_close_vacancy, name="admin_close_vacancy"),
     path("admin-panel/vacancy/<int:vacancy_id>/delete/", admin_delete_vacancy, name="admin_delete_vacancy"),
     # Apply vacancy (WebApp entry point for channel button)

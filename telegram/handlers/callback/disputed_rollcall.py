@@ -109,10 +109,13 @@ def _handle_edit(call: CallbackQuery, vacancy: Vacancy) -> None:
     Full admin-moderation view is in Stage 4. For now, send a link.
     """
     try:
-        url = settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]) + "?focus=rollcall"
+        url = settings.BASE_URL.rstrip("/") + reverse(
+            "work:admin_moderate_rollcall",
+            kwargs={"vacancy_id": vacancy.id, "call_type": "after_start"},
+        )
         bot.send_message(
             chat_id=call.from_user.id,
-            text=f"Перейти до переклички: {url}",
+            text=f"Перевірити перекличку: {url}",
         )
         bot.answer_callback_query(call.id)
     except Exception:
