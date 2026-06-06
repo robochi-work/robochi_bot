@@ -180,6 +180,10 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
         if call_type == CallType.START:
             vacancy.first_rollcall_passed = True
             vacancy.save(update_fields=["first_rollcall_passed"])
+            # Save snapshot of confirmed workers for the 2nd rollcall
+            from vacancy.services.rollcall_snapshot import save_first_rollcall_snapshot
+
+            save_first_rollcall_snapshot(vacancy, [vu.user_id for vu in selected_users])
         # AFTER_START: second_rollcall_passed set only on success (see else branch below)
 
         all_unchecked = len(selected_users) == 0 and users_queryset.exists()
@@ -307,7 +311,13 @@ def vacancy_start_refind(request: WSGIRequest, pk: int):
 
 def vacancy_call(request: WSGIRequest, pk: int, call_type: CallType) -> HttpResponse:
     vacancy = get_object_or_404(Vacancy, pk=pk)
-    users_queryset = vacancy.members
+    # 2nd rollcall uses snapshot from the 1st rollcall (workers who left are still shown)
+    if call_type == CallType.AFTER_START:
+        from vacancy.services.rollcall_snapshot import get_snapshot_vacancy_users
+
+        users_queryset = get_snapshot_vacancy_users(vacancy)
+    else:
+        users_queryset = vacancy.members
     form = VacancyCallForm(request.POST, queryset=users_queryset, call_type=call_type)
 
     if request.method == "POST":
@@ -564,6 +574,15 @@ def _build_members_context(vacancy, request):
     m_members_count = members_qs.count()
     m_people_count = vacancy.people_count
 
+    # For the 2nd rollcall use snapshot from the 1st rollcall so that
+    # workers who left/were kicked between rollcalls are still shown.
+    if call_type == CallType.AFTER_START:
+        from vacancy.services.rollcall_snapshot import get_snapshot_vacancy_users
+
+        rollcall_qs = get_snapshot_vacancy_users(vacancy)
+    else:
+        rollcall_qs = members_qs
+
     scenario = None
     can_search_members = False
     if is_start_rollcall:
@@ -577,9 +596,14 @@ def _build_members_context(vacancy, request):
             scenario = "C"
 
     if is_rollcall_mode:
-        all_users_qs = (
-            VacancyUser.objects.filter(vacancy=vacancy, status="member").select_related("user").order_by("-created_at")
-        )
+        if call_type == CallType.AFTER_START:
+            all_users_qs = rollcall_qs.order_by("-created_at")
+        else:
+            all_users_qs = (
+                VacancyUser.objects.filter(vacancy=vacancy, status="member")
+                .select_related("user")
+                .order_by("-created_at")
+            )
         if not request.user.is_staff:
             all_users_qs = all_users_qs.exclude(user=vacancy.owner)
     else:
@@ -610,17 +634,17 @@ def _build_members_context(vacancy, request):
 
     rollcall_form = None
     if is_rollcall_mode and scenario in ("B", "C", None) and call_type:
-        any_records_exist = VacancyUserCall.objects.filter(vacancy_user__in=members_qs, call_type=call_type).exists()
+        any_records_exist = VacancyUserCall.objects.filter(vacancy_user__in=rollcall_qs, call_type=call_type).exists()
         if call_type == CallType.AFTER_START or not any_records_exist:
             rollcall_form = VacancyCallForm(
-                queryset=members_qs, call_type=call_type, initial={"users": list(members_qs)}
+                queryset=rollcall_qs, call_type=call_type, initial={"users": list(rollcall_qs)}
             )
         else:
             initial_calls = VacancyUserCall.objects.filter(
-                vacancy_user__in=members_qs, status=CallStatus.CONFIRM, call_type=call_type
+                vacancy_user__in=rollcall_qs, status=CallStatus.CONFIRM, call_type=call_type
             )
             rollcall_form = VacancyCallForm(
-                queryset=members_qs, call_type=call_type, initial={"users": list(initial_calls)}
+                queryset=rollcall_qs, call_type=call_type, initial={"users": list(initial_calls)}
             )
 
     # Attach checkbox HTML to each member for unified rollcall cards

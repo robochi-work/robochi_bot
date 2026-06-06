@@ -70,17 +70,18 @@ def worker_my_work(request):
     from django.utils import timezone as _tz
 
     from telegram.choices import Status
-    from vacancy.choices import STATUS_APPROVED
+    from vacancy.choices import STATUS_APPROVED, STATUS_AWAITING_PAYMENT, STATUS_PAID, STATUS_SEARCH_STOPPED
     from vacancy.models import VacancyContactPhone, VacancyUser
+    from vacancy.services.rollcall_snapshot import is_user_in_snapshot
 
     user = request.user
     is_kicked = False
 
-    # 1. Active vacancy (member + in group)
+    # 1. Active vacancy (member + in group), status approved or search-stopped
     vacancy_user = (
         VacancyUser.objects.filter(user=user, status=Status.MEMBER)
         .select_related("vacancy", "vacancy__group", "vacancy__channel")
-        .filter(vacancy__status=STATUS_APPROVED)
+        .filter(vacancy__status__in=[STATUS_APPROVED, STATUS_SEARCH_STOPPED])
         .first()
     )
 
@@ -93,7 +94,30 @@ def worker_my_work(request):
         if not in_group:
             vacancy_user = None
 
-    # 2. Recently kicked/left — show for 1 hour so worker can leave feedback
+    # 2. Worker is in 1st-rollcall snapshot — show vacancy until it is closed,
+    # so he can leave feedback even after leaving the group.
+    if not vacancy_user:
+        candidate_vus = (
+            VacancyUser.objects.filter(user=user)
+            .filter(
+                vacancy__status__in=[
+                    STATUS_APPROVED,
+                    STATUS_SEARCH_STOPPED,
+                    STATUS_AWAITING_PAYMENT,
+                    STATUS_PAID,
+                ]
+            )
+            .select_related("vacancy", "vacancy__group", "vacancy__channel")
+            .order_by("-vacancy__date", "-vacancy__start_time")[:20]
+        )
+        for vu in candidate_vus:
+            if is_user_in_snapshot(vu.vacancy, user):
+                vacancy_user = vu
+                if vu.status in [Status.KICKED, Status.LEFT]:
+                    is_kicked = True
+                break
+
+    # 3. Recently kicked/left without snapshot — 1h window for feedback
     if not vacancy_user:
         from django.utils import timezone as _kicked_tz
 
