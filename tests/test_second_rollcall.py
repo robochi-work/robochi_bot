@@ -6,8 +6,6 @@ import pytest
 from django.urls import reverse
 
 from telegram.choices import CallStatus, CallType, Status
-from user.choices import BlockReason
-from user.models import UserBlock
 from user.services import BlockService
 from vacancy.choices import STATUS_SEARCH_STOPPED
 from vacancy.models import VacancyUser, VacancyUserCall
@@ -54,28 +52,36 @@ class TestSecondRollcall:
         assert vacancy.second_rollcall_passed is True
         assert BlockService.is_blocked(owner) is False
 
-    def test_second_rollcall_partial_uncheck_blocks_employer(self, client, rollcall_setup):
+    def test_second_rollcall_partial_uncheck_marks_disputed_no_block(self, client, rollcall_setup):
+        """Stage 3.B: partial uncheck (Scenario Б) -> disputed state, employer NOT blocked."""
+        from vacancy.services.disputed_rollcall import get_disputed, is_disputed
+
         owner = rollcall_setup["owner"]
         vacancy = rollcall_setup["vacancy"]
         vu1 = rollcall_setup["vu1"]
 
         client.force_login(owner)
-        response = client.post(
-            _call_url(vacancy.pk),
-            {"users": [vu1.pk], "call_type": "after_start"},
-        )
+        with patch("service.broadcast_service.TelegramBroadcastService") as mock_cls:
+            mock_cls.return_value = MagicMock()
+            response = client.post(
+                _call_url(vacancy.pk),
+                {"users": [vu1.pk], "call_type": "after_start"},
+            )
 
         assert response.status_code == 200
         vacancy.refresh_from_db()
         assert vacancy.second_rollcall_passed is False
-        assert BlockService.is_blocked(owner) is True
-        assert UserBlock.objects.filter(
-            user=owner,
-            reason=BlockReason.EMPLOYER_ROLLCALL_FAIL,
-            is_active=True,
-        ).exists()
+        # Employer must NOT be blocked at the dispute stage
+        assert BlockService.is_blocked(owner) is False
+        # Disputed state is recorded
+        assert is_disputed(vacancy)
+        state = get_disputed(vacancy)
+        assert state["is_full_uncheck"] is False
+        assert state["second_count"] == 1
 
-    def test_second_rollcall_all_unchecked_blocks_employer_no_kick(self, client, rollcall_setup):
+    def test_second_rollcall_all_unchecked_kicks_and_blocks_employer(self, client, rollcall_setup):
+        """Stage 3.B: full uncheck (Scenario В) -> employer kicked AND blocked."""
+
         owner = rollcall_setup["owner"]
         vacancy = rollcall_setup["vacancy"]
 

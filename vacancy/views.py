@@ -199,7 +199,7 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             from service.notifications_impl import TelegramNotifier
             from telegram.handlers.bot_instance import bot as _bot
             from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
-            from vacancy.services.call_markup import get_admin_check_rollcall_markup
+            from vacancy.services.call_markup import get_admin_disputed_rollcall_markup
             from vacancy.services.disputed_rollcall import mark_disputed
             from vacancy.services.rollcall_snapshot import get_snapshot_user_ids
 
@@ -273,7 +273,7 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             broadcast.admin_broadcast(
                 text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_after_start_call_fail_detailed(),
                 parse_mode="HTML",
-                reply_markup=get_admin_check_rollcall_markup(vacancy),
+                reply_markup=get_admin_disputed_rollcall_markup(vacancy),
             )
         elif all_unchecked:
             # START rollcall: kick employer + notify admin (existing behavior)
