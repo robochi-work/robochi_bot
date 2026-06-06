@@ -22,7 +22,6 @@ from vacancy.models import Vacancy, VacancyUser, VacancyUserCall
 from vacancy.services.call import create_vacancy_call
 from vacancy.services.observers import events
 from vacancy.services.observers.events import (
-    VACANCY_AFTER_START_CALL_FAIL,
     VACANCY_AFTER_START_CALL_SUCCESS,
     VACANCY_NEW_FEEDBACK,
     VACANCY_REFIND,
@@ -194,36 +193,30 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             from vacancy.services.observers.events import VACANCY_CLOSE
 
             vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
-        elif all_unchecked:
-            if call_type == CallType.AFTER_START:
-                # Don't kick employer; block them and send detailed admin notification
-                from service.broadcast_service import TelegramBroadcastService
-                from user.services import BlockService
-                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
-                from vacancy.services.call_markup import get_admin_check_rollcall_markup
+        elif call_type == CallType.AFTER_START and (all_unchecked or rejected_users > 0):
+            # === Disputed 2nd rollcall: Scenario Б (partial uncheck) or В (full uncheck) ===
+            from service.broadcast_service import TelegramBroadcastService
+            from service.notifications_impl import TelegramNotifier
+            from telegram.handlers.bot_instance import bot as _bot
+            from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+            from vacancy.services.call_markup import get_admin_check_rollcall_markup
+            from vacancy.services.disputed_rollcall import mark_disputed
+            from vacancy.services.rollcall_snapshot import get_snapshot_user_ids
 
-                BlockService.auto_block_employer_rollcall_fail(user=vacancy.owner)
-                try:
-                    from telegram.handlers.bot_instance import bot as _bot
+            selected_ids = [vu.user_id for vu in selected_users]
+            snapshot_ids = get_snapshot_user_ids(vacancy) or [vu.user_id for vu in vacancy.members]
+            rejected_ids = [uid for uid in snapshot_ids if uid not in set(selected_ids)]
 
-                    _bot.send_message(
-                        chat_id=vacancy.owner.id,
-                        text="Друга перекличка не пройдена— Вас заблоковано! Зв'яжіться з Адміністратором для вирішення проблеми! @robochi_work_admin",
-                    )
-                except Exception:
-                    pass
-                broadcast = TelegramBroadcastService()
-                broadcast.admin_broadcast(
-                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_after_start_call_fail_detailed(),
-                    parse_mode="HTML",
-                    reply_markup=get_admin_check_rollcall_markup(vacancy),
-                )
-                vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
-            else:
-                # START: kick employer + notify admin (existing behavior)
-                from service.broadcast_service import TelegramBroadcastService
-                from vacancy.services.call_markup import get_admin_check_rollcall_markup
+            mark_disputed(
+                vacancy,
+                first_count=len(snapshot_ids),
+                selected_user_ids=selected_ids,
+                rejected_user_ids=rejected_ids,
+                is_full_uncheck=all_unchecked,
+            )
 
+            if all_unchecked:
+                # Scenario В: kick employer + block + replace bot message with 'Ви заблоковані!'
                 if vacancy.group:
                     try:
                         from telegram.service.group import GroupService
@@ -233,30 +226,82 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                         import sentry_sdk
 
                         sentry_sdk.capture_exception()
-                broadcast = TelegramBroadcastService()
-                broadcast.admin_broadcast(
-                    text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_all_unchecked(CallType.START),
-                    parse_mode="HTML",
-                    reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
-                )
-                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
-        elif rejected_users > 0:
-            if call_type == CallType.START:
-                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
-            elif call_type == CallType.AFTER_START:
                 from user.services import BlockService
 
                 BlockService.auto_block_employer_rollcall_fail(user=vacancy.owner)
-                try:
-                    from telegram.handlers.bot_instance import bot as _bot
 
-                    _bot.send_message(
-                        chat_id=vacancy.owner.id,
-                        text="Друга перекличка не пройдена— Вас заблоковано! Зв'яжіться з Адміністратором для вирішення проблеми! @robochi_work_admin",
+                # Delete the old 'final_call' message (now obsolete)
+                old_msg_id = (vacancy.extra or {}).get("final_call_msg_id")
+                if old_msg_id:
+                    try:
+                        _bot.delete_message(chat_id=vacancy.owner.id, message_id=old_msg_id)
+                    except Exception:
+                        pass
+                # Send new 'blocked' message with 2 buttons
+                try:
+                    from django.conf import settings
+                    from django.urls import reverse
+                    from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+                    detail_url = (
+                        settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]) + "?focus=rollcall"
                     )
+                    kb = InlineKeyboardMarkup()
+                    kb.row(InlineKeyboardButton("До переклички", web_app=WebAppInfo(url=detail_url)))
+                    kb.row(InlineKeyboardButton("Зв'язатися з адміністратором", url="https://t.me/robochi_work_admin"))
+                    sent = _bot.send_message(
+                        chat_id=vacancy.owner.id,
+                        text=(
+                            "Ви заблоковані! Пройдіть другу перекличку повторно "
+                            "або зв'яжіться з Адміністратором для розблокування."
+                        ),
+                        reply_markup=kb,
+                    )
+                    if sent and hasattr(sent, "message_id"):
+                        vacancy.extra["final_call_msg_id"] = sent.message_id
+                        vacancy.save(update_fields=["extra"])
                 except Exception:
-                    pass
-                vacancy_publisher.notify(VACANCY_AFTER_START_CALL_FAIL, data={"vacancy": vacancy})
+                    import sentry_sdk
+
+                    sentry_sdk.capture_exception()
+            else:
+                # Scenario Б: employer not touched; remind via Celery task (3.C)
+                pass
+
+            # Notify admins (both scenarios) — FIX 500: pass notifier to broadcast service
+            broadcast = TelegramBroadcastService(notifier=TelegramNotifier(_bot))
+            broadcast.admin_broadcast(
+                text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_after_start_call_fail_detailed(),
+                parse_mode="HTML",
+                reply_markup=get_admin_check_rollcall_markup(vacancy),
+            )
+        elif all_unchecked:
+            # START rollcall: kick employer + notify admin (existing behavior)
+            from service.broadcast_service import TelegramBroadcastService
+            from service.notifications_impl import TelegramNotifier
+            from telegram.handlers.bot_instance import bot as _bot
+            from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+            from vacancy.services.call_markup import get_admin_check_rollcall_markup
+
+            if vacancy.group:
+                try:
+                    from telegram.service.group import GroupService
+
+                    GroupService.kick_user(chat_id=vacancy.group.id, user_id=vacancy.owner.id)
+                except Exception:
+                    import sentry_sdk
+
+                    sentry_sdk.capture_exception()
+            broadcast = TelegramBroadcastService(notifier=TelegramNotifier(_bot))
+            broadcast.admin_broadcast(
+                text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_all_unchecked(CallType.START),
+                parse_mode="HTML",
+                reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
+            )
+            vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
+        elif rejected_users > 0:
+            if call_type == CallType.START:
+                vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
         else:
             if call_type == CallType.AFTER_START:
                 if is_repeat_after_start:
@@ -271,9 +316,11 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
         if call_type == CallType.START and len(selected_users) < vacancy.people_count:
             try:
                 from service.broadcast_service import TelegramBroadcastService
+                from service.notifications_impl import TelegramNotifier
+                from telegram.handlers.bot_instance import bot as _bot_b
                 from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
-                broadcast = TelegramBroadcastService()
+                broadcast = TelegramBroadcastService(notifier=TelegramNotifier(_bot_b))
                 broadcast.admin_broadcast(
                     text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_scenario_b(
                         confirmed=len(selected_users),
@@ -925,9 +972,11 @@ def vacancy_resume_search(request, pk):
             if members.count() < vacancy.people_count:
                 try:
                     from service.broadcast_service import TelegramBroadcastService
+                    from service.notifications_impl import TelegramNotifier
+                    from telegram.handlers.bot_instance import bot as _bot_b
                     from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
-                    broadcast = TelegramBroadcastService()
+                    broadcast = TelegramBroadcastService(notifier=TelegramNotifier(_bot_b))
                     broadcast.admin_broadcast(
                         text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_scenario_b(
                             confirmed=members.count(),
