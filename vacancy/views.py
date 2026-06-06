@@ -193,6 +193,50 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
             from vacancy.services.observers.events import VACANCY_CLOSE
 
             vacancy_publisher.notify(VACANCY_CLOSE, data={"vacancy": vacancy})
+        elif call_type == CallType.AFTER_START and ((vacancy.extra or {}).get("disputed_rollcall")):
+            # === Repeat submit after a previous disputed rollcall ===
+            from service.broadcast_service import TelegramBroadcastService
+            from service.notifications_impl import TelegramNotifier
+            from telegram.handlers.bot_instance import bot as _bot
+            from vacancy.services.disputed_rollcall import (
+                disable_admin_buttons,
+                finalize_rollcall,
+                get_disputed,
+            )
+
+            prev = get_disputed(vacancy)
+            prev_count = int(prev.get("second_count", 0))
+            new_count = len(selected_users)
+
+            # Scenario В re-submit must have at least 1 checkbox
+            if prev.get("is_full_uncheck") and new_count == 0:
+                form.add_error("users", "Оберіть хоча б одного робітника.")
+                return render(
+                    request,
+                    "vacancy/call_confirm.html",
+                    {"vacancy": vacancy, "form": form},
+                )
+
+            # Disable admin buttons BEFORE finalize to make the race window small
+            disable_admin_buttons(vacancy)
+
+            final_ids = [vu.user_id for vu in selected_users]
+            finalize_rollcall(vacancy, final_selected_user_ids=final_ids, finalized_by="employer")
+
+            # Notify admins that the employer self-completed the rollcall
+            try:
+                broadcast = TelegramBroadcastService(notifier=TelegramNotifier(_bot))
+                broadcast.admin_broadcast(
+                    text=(
+                        f"Замовник #{vacancy.owner_id} сам пройшов другу перекличку "
+                        f"за вакансією #{vacancy.id}. Було: {prev_count}, "
+                        f"стало: {new_count}. Кнопки відключено."
+                    ),
+                )
+            except Exception:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
         elif call_type == CallType.AFTER_START and (all_unchecked or rejected_users > 0):
             # === Disputed 2nd rollcall: Scenario Б (partial uncheck) or В (full uncheck) ===
             from service.broadcast_service import TelegramBroadcastService
