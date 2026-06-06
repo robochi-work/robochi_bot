@@ -581,3 +581,99 @@ def admin_moderate_rollcall(request, vacancy_id, call_type):
             "prev_selected": state.get("second_count", 0),
         },
     )
+
+
+@staff_required
+def admin_debtors_list(request):
+    """Stage 5.A: list of vacancies awaiting payment (debtors)."""
+    from django.utils import timezone
+
+    from user.choices import BlockReason
+    from user.models import UserBlock
+    from vacancy.models import Vacancy
+
+    now = timezone.now()
+    vacancies = Vacancy.objects.filter(status=STATUS_AWAITING_PAYMENT).select_related("owner").order_by("-date", "-id")
+    # Filter out paid in Python (more reliable than SQLite JSONField .exclude)
+    vacancies = [v for v in vacancies if not (v.extra or {}).get("is_paid")]
+
+    rows = []
+    for v in vacancies:
+        last_payment = v.monobank_payments.order_by("-created_at").first() if hasattr(v, "monobank_payments") else None
+        invoice_date = last_payment.created_at if last_payment else None
+        if invoice_date:
+            days_overdue = (now - invoice_date).days
+        else:
+            days_overdue = (now.date() - v.date).days if v.date else 0
+
+        owner_block = (
+            UserBlock.objects.filter(
+                user=v.owner, is_active=True, reason__in=[BlockReason.UNPAID, BlockReason.EMPLOYER_ROLLCALL_FAIL]
+            )
+            .order_by("-created_at")
+            .first()
+        )
+
+        rows.append(
+            {
+                "vacancy": v,
+                "owner": v.owner,
+                "amount_uah": (last_payment.amount / 100) if last_payment else (v.payment_amount * v.people_count),
+                "invoice_date": invoice_date,
+                "days_overdue": days_overdue,
+                "owner_block": owner_block,
+                "reminders": (v.extra or {}).get("unpaid_reminders", 0),
+            }
+        )
+
+    return render(
+        request,
+        "work/admin_debtors.html",
+        {
+            "rows": rows,
+            "work_profile": getattr(request.user, "work_profile", None),
+        },
+    )
+
+
+@staff_required
+def admin_mark_paid(request, vacancy_id):
+    """Stage 5.A: admin manually confirms payment for a vacancy."""
+    from django.contrib import messages
+
+    from telegram.handlers.bot_instance import bot as _bot
+    from user.choices import BlockReason
+    from user.models import UserBlock
+    from vacancy.choices import STATUS_PAID
+    from vacancy.models import Vacancy
+
+    if request.method != "POST":
+        return redirect("work:admin_debtors")
+
+    vacancy = get_object_or_404(Vacancy, pk=vacancy_id)
+    if (vacancy.extra or {}).get("is_paid"):
+        messages.info(request, f"Вакансія #{vacancy.id} вже оплачена.")
+        return redirect("work:admin_debtors")
+
+    vacancy.extra = dict(vacancy.extra or {})
+    vacancy.extra["is_paid"] = True
+    vacancy.extra["paid_manually_by"] = request.user.pk
+    vacancy.status = STATUS_PAID
+    vacancy.save(update_fields=["extra", "status"])
+
+    # Lift UNPAID block if it exists
+    UserBlock.objects.filter(user=vacancy.owner, is_active=True, reason=BlockReason.UNPAID).update(is_active=False)
+
+    # Notify the employer
+    try:
+        _bot.send_message(
+            chat_id=vacancy.owner.id,
+            text=f"Дякуємо! Оплату по вакансії #{vacancy.id} підтверджено адміністратором.",
+        )
+    except Exception:
+        import sentry_sdk
+
+        sentry_sdk.capture_exception()
+
+    messages.success(request, f"Вакансію #{vacancy.id} позначено як оплачену.")
+    return redirect("work:admin_debtors")

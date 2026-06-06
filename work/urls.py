@@ -5,7 +5,9 @@ from work.views.admin_panel import (
     admin_block_user,
     admin_close_vacancy,
     admin_dashboard,
+    admin_debtors_list,
     admin_delete_vacancy,
+    admin_mark_paid,
     admin_moderate_rollcall,
     admin_moderate_vacancy,
     admin_search_users,
@@ -48,6 +50,8 @@ urlpatterns = [
         admin_moderate_rollcall,
         name="admin_moderate_rollcall",
     ),
+    path("admin-panel/debtors/", admin_debtors_list, name="admin_debtors"),
+    path("admin-panel/debtors/<int:vacancy_id>/mark-paid/", admin_mark_paid, name="admin_mark_paid"),
     path("admin-panel/vacancy/<int:vacancy_id>/close/", admin_close_vacancy, name="admin_close_vacancy"),
     path("admin-panel/vacancy/<int:vacancy_id>/delete/", admin_delete_vacancy, name="admin_delete_vacancy"),
     # Apply vacancy (WebApp entry point for channel button)
