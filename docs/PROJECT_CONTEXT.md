@@ -2247,3 +2247,194 @@ class Meta:
 
 ### Файли змінені
 - telegram/handlers/member/user/group.py — кік з старих груп після входу в нову
+
+
+
+## Сесія 06-07.06.2026 — Етапи 1-5: snapshot, UI, спір-перекличка, авто-підтвердження, боржники
+
+Велика сесія в 5 етапів, що вирішила:
+- Баг 500 у 2-й перекличці без галочок
+- Відсутність даних на стор. «Моя робота» під час робочого дня
+- Сценарії А/Б/В для 2-ї переклички (спір, бан, авто-підтвердження)
+- Ручне підтвердження оплати адміністратором
+- Постійний бан за неоплату
+
+### Етап 1 — Snapshot 1-ї переклички (merged в develop)
+- Новий сервіс `vacancy/services/rollcall_snapshot.py`:
+  - `save_first_rollcall_snapshot(vacancy, user_ids)` — зберігає в `vacancy.extra["rollcall_snapshot"]`
+  - `get_snapshot_user_ids(vacancy)` — повертає список user_id
+  - `get_snapshot_vacancy_users(vacancy)` — QuerySet VacancyUser
+  - `is_user_in_snapshot(vacancy, user_id)`
+  - Константа `SNAPSHOT_KEY = "rollcall_snapshot"`
+- `vacancy/views.py` lines 181-187: збереження snapshot після успішної 1-ї переклички
+- `vacancy/views.py` lines 317-318 (`vacancy_call`): для AFTER_START використовуємо snapshot замість members
+- `vacancy/views.py` lines 580-583 (`_build_members_context`): rollcall_qs з snapshot для 2-ї переклички
+- `work/views/worker.py` lines 80-130: розширений фільтр для «Моя робота» — `STATUS_APPROVED, STATUS_SEARCH_STOPPED` + snapshot fallback для кікнутих/тих, що пішли
+- Тести: `tests/test_session_20260606_rollcall_snapshot.py` (5 тестів)
+
+### Етап 2 — UI карткі вакансії
+- `vacancy/views.py`: `owner_in_group` обчислюється через `UserInGroup.objects.filter(user=vacancy.owner, group=vacancy.group, status=MEMBER)`
+- `vacancy/templates/vacancy/vacancy_detail.html`:
+  - Кнопка групи прихована якщо `not owner_in_group`
+  - Телефон у картці учасника видно тільки `if is_member`
+  - Кнопка «Видалити з групи» — тільки до `first_rollcall_passed`
+  - Якорь `id="rollcall-block"` + JS-скрол при `?focus=rollcall`
+- `vacancy/services/call_markup.py`: 3 бот-кнопки переклички тепер додають `?focus=rollcall` до URL
+- Тести: `tests/test_session_20260606_card_ui.py` (7 тестів)
+
+### Етап 3 — Спірна перекличка (Сценарії Б+В, баг 500, повторний submit)
+**Гілка `feature/disputed-rollcall`, 5 коммітів (3.A-3.E)**
+
+#### 3.A — сервіс `vacancy/services/disputed_rollcall.py`
+- `mark_disputed(vacancy, first_count, selected_user_ids, rejected_user_ids, is_full_uncheck)` — створює стан спору в `vacancy.extra["disputed_rollcall"]`
+- `is_disputed(vacancy)`, `get_disputed(vacancy)`, `clear_disputed(vacancy)`
+- `disable_admin_buttons(vacancy)` — захист від гонки
+- `increment_reminders(vacancy)` — інкремент лічильника + timestamp
+- `finalize_rollcall(vacancy, final_selected_user_ids, finalized_by)`:
+  - Оновлює `VacancyUserCall` статуси (CONFIRM/REJECT)
+  - Банить REJECT робітників через `BlockService.auto_block_rollcall_reject`
+  - `second_rollcall_passed = True`, `status = STATUS_AWAITING_PAYMENT`
+  - Викликає `send_vacancy_invoice` (lazy import)
+  - Розблоковує замовника (`unblock_employer_rollcall_fail`)
+  - Очищає disputed стан
+- Константа `DISPUTED_KEY = "disputed_rollcall"`
+- Структура стану: `{first_count, second_count, selected_ids, rejected_ids, is_full_uncheck, reminders_count, last_reminder_at, admin_buttons_disabled}`
+
+#### 3.B — обробник `vacancy_check_call` для 2-ї переклички
+- **Виправлено баг 500**: всі 4 виклики `TelegramBroadcastService()` в `vacancy/views.py` тепер передають `notifier=TelegramNotifier(_bot)` (рядки 211, 232, 272, 894)
+- Єдина гілка `elif call_type == CallType.AFTER_START and (all_unchecked or rejected_users > 0)`:
+  - Викликає `mark_disputed(...)`
+  - **Сценарій В** (всі зняті): кік замовника з групи (`GroupService.kick_user`), `BlockService.auto_block_employer_rollcall_fail`, видалення старого `final_call_msg_id`, нове повідомлення «Ви заблоковані!» з 2 кнопками (WebApp на `?focus=rollcall` + URL на `t.me/robochi_work_admin`)
+  - **Обидва сценарії**: уведомлення адмінам через `get_admin_disputed_rollcall_markup`
+- Робітники **НЕ банять одразу** — бан відкладений до `finalize_rollcall`
+
+#### 3.C — Celery-таска `disputed_rollcall_reminders_task`
+- Запускається кожні 30 сек (`config/settings/celery.py`)
+- Тільки для Сценарію Б (`is_full_uncheck=False`)
+- Інтервал 5 хв, макс 12 нагадувань
+- Шле «Підтвердіть наявність робочих у другій перекличці» з `get_rollcall_reminder_markup`
+- Тести: `tests/test_session_20260606_3c_reminders.py` (6 тестів)
+
+#### 3.D — callback-обробники адміна
+- Новий `CallbackData`: `disputed_action = CallbackData("action", "vacancy_id", prefix="disputed")` в `telegram/handlers/common.py`
+- Дії: `confirm`, `edit`, `unblock_yes`, `unblock_no`
+- Файл: `telegram/handlers/callback/disputed_rollcall.py`
+- Markups в `vacancy/services/call_markup.py`:
+  - `get_admin_disputed_rollcall_markup(vacancy)` — 2 кнопки (Підтвердити кількість / Редагувати кількість)
+  - `get_admin_unblock_employer_modal_markup(vacancy)` — Так/Ні модалка
+- Захист від гонки через `admin_buttons_disabled` flag
+- Зареєстровано в `telegram/handlers/callback/__init__.py`
+- Тести: `tests/test_session_20260606_3d_admin_callbacks.py` (6 тестів)
+
+#### 3.E — повторний submit замовника після спору
+- Нова гілка в `vacancy_check_call` ПЕРЕД обробкою спору: перевіряє чи `vacancy.extra["disputed_rollcall"]` вже існує
+- Сценарій В повторний з 0 чекбоксів → `form.add_error` + re-render `vacancy/call_confirm.html`
+- 1+ чекбокс → `disable_admin_buttons` + `finalize_rollcall` + broadcast адмінам «Замовник X сам пройшов...»
+- Тести: `tests/test_session_20260606_3e_repeat_submit.py` (4 тести)
+
+#### 3.* — оновлено старі тести
+- `tests/test_second_rollcall.py`: 2 тести переписані під нову поведінку (часткове зняття НЕ блокує замовника)
+
+### Етап 4 — Адмін-модерація переклички (merged)
+**Гілка `feature/admin-moderate-rollcall`**
+
+- `work/views/admin_panel.py` line ~504: `admin_moderate_rollcall(request, vacancy_id, call_type)`:
+  - Декоратор `@staff_required` (404 для не-staff)
+  - Pre-fill формою з останнім вибором замовника
+  - Валідація: адмін може ЛИШЕ ДОДАВАТИ чекбокси (не знімати), окрім Сценарія В де можна вибрати будь-яку кількість
+  - Submit → `disable_admin_buttons` + `finalize_rollcall`
+- `work/templates/work/admin_moderate_rollcall.html` (новий)
+- `work/urls.py`: `admin_moderate_rollcall` path `admin-panel/vacancy/<int:vacancy_id>/moderate-rollcall/<str:call_type>/`
+- `telegram/handlers/callback/disputed_rollcall.py`: `_handle_edit` шле посилання на цей view
+- Тести: `tests/test_session_20260606_4_admin_moderate_rollcall.py` (5 тестів)
+
+### Етап 5 — Ігнор переклички + боржники + перм-бан (merged)
+**Гілка `feature/rollcall-ignore-and-debtors`, 2 комміти (5.A, 5.C-F)**
+
+#### 5.A — розділ «Боржники» + ручне підтвердження оплати
+- `work/views/admin_panel.py`:
+  - `admin_debtors_list(request)` — список вакансій в `STATUS_AWAITING_PAYMENT` з полями: замовник, сума, дата рахунку, днів просрочки, нагадування, активний блок
+  - `admin_mark_paid(request, vacancy_id)` — POST-only, ставить `is_paid=True`, `status=STATUS_PAID`, знімає UNPAID-блок, шле бот-повідомлення
+  - **Важливо**: фільтр `is_paid` в Python (не `.exclude(extra__is_paid=True)`) — SQLite JSONField має ненадійну поведінку з відсутніми ключами
+- `work/templates/work/admin_debtors.html` (новий)
+- `work/templates/work/admin_dashboard.html`: кнопка «Боржники» в `admin-top-bar`
+- `work/urls.py`: `admin_debtors` path `admin-panel/debtors/`, `admin_mark_paid` path `admin-panel/debtors/<int:vacancy_id>/mark-paid/`
+- Management command `python manage.py mark_vacancy_paid <id> [--keep-block]`:
+  - Файл `vacancy/management/commands/mark_vacancy_paid.py`
+  - Створено `vacancy/management/__init__.py` та `vacancy/management/commands/__init__.py`
+  - Вимагає `set -a && source .env && set +a` перед запуском
+- Тести: `tests/test_session_20260606_5a_debtors.py` (6 тестів)
+
+#### 5.C — авто-підтвердження через 3 години ігнору
+- Нова таска `auto_confirm_ignored_rollcall_task` в `vacancy/tasks/call.py`:
+  - Запуск кожні 60 сек
+  - Умови: `status=STATUS_SEARCH_STOPPED`, `second_rollcall_passed=False`, є `rollcall_snapshot`, немає `disputed_rollcall`, `end_time + 3h < now`, не `auto_confirmed_at_ignore`
+  - Поведінка: Сценарій А — викликає `finalize_rollcall` зі всім snapshot
+- Зареєстровано в beat: `config/settings/celery.py`
+- Тести: `tests/test_session_20260606_5c_auto_confirm.py` (5 тестів)
+
+#### 5.D — нагадування про оплату 24× за годину
+- Нова таска `send_unpaid_reminders_task`:
+  - Запуск кожні 60 сек
+  - Умови: `status=STATUS_AWAITING_PAYMENT`, `is_paid=False`, `unpaid_reminders < 24`, минув час від `unpaid_last_reminder_at`
+  - Інтервал 1 година, макс 24 нагадування
+  - Лічильник в `vacancy.extra["unpaid_reminders"]`, timestamp `unpaid_last_reminder_at`
+- Тести: `tests/test_session_20260606_5d_unpaid_reminders.py` (5 тестів)
+
+#### 5.E — постійний бан після 24 нагадувань
+- Розширення `send_unpaid_reminders_task`:
+  - Коли `unpaid_reminders >= 24` і не `permanent_ban_done`:
+    - `BlockService.block_user(user=owner, block_type=BlockType.PERMANENT, reason=BlockReason.UNPAID)`
+    - Фінальне повідомлення замовнику з сумою
+    - Broadcast адмінам
+  - `BlockType.PERMANENT` автоматично деактивує `user.is_active`
+- Flag `vacancy.extra["permanent_ban_done"]` — ідемпотентність
+- Тести: `tests/test_session_20260606_5e_permanent_ban.py` (3 тести)
+
+#### 5.F — видалено legacy 2nd-rollcall auto-confirm з `_escalate_rollcall`
+- В `_escalate_rollcall` (vacancy/tasks/call.py) гілка `elif not vacancy.second_rollcall_passed` тепер тільки логує — 3-годинне вікно ігнору тепер обробляється виключно через `auto_confirm_ignored_rollcall_task`
+- Auto-confirm 1-ї переклички в тій же функції — НЕ змінено
+- Оновлено 3 старих тести під нову поведінку:
+  - `tests/test_regression_invoice_autopay.py::test_invoice_workers_count_after_auto_confirm`
+  - `tests/test_regression_lifecycle_stuck.py::test_auto_confirm_2nd_rollcall_changes_status_to_awaiting`
+  - `tests/test_session_20260527_invoice_fix.py::test_escalate_second_rollcall_writes_after_start_calls`
+- Нові тести: `tests/test_session_20260606_5f_legacy_auto_confirm_removed.py` (2 тести)
+
+### Celery beat schedule — додано 3 нові задачі
+- `disputed_rollcall_reminders_task` — кожні 30 сек
+- `auto_confirm_ignored_rollcall_task` — кожні 60 сек
+- `send_unpaid_reminders_task` — кожні 60 сек
+
+### Ключові уроки сесії
+- **Pre-commit hook patterns**: ruff може форматувати імпорти/строки — патчити треба під реальний формат файлу через `cat -A`
+- **SQLite JSONField обмеження**: `.exclude(extra__is_paid=True)` НЕ працює надійно — використовувати фільтр в Python
+- **Timezone в тестах з `_get_end_aware`**: треба `(now - delta).astimezone(tz)` перед `.time()` — інакше naive time інтерпретується як локальний Київ
+- **`finalize_rollcall` повинен виконувати lazy import `send_vacancy_invoice`**: тести моніторять через `monkeypatch.setattr("vacancy.services.invoice.send_vacancy_invoice", ...)`
+- **`VacancyCallForm.users` приймає `VacancyUser.pk`**, не `user.id` (немає to_field_name)
+- **Stage 5.A SQLite quirk**: `admin_debtors_list` фільтрує в Python через `[v for v in vacancies if not v.extra.get("is_paid")]`
+
+## Тех. борг та flaky-тести — для майбутніх сесій
+- **Flaky-тести**, що падають тільки після 23:00 Київ (start_time переходить на наступний день а date залишається сьогодні):
+  - `tests/test_session_20260430.py::TestBeforeStartCall::test_before_start_created_for_early_joiner`
+  - `tests/test_session_20260602_members_embed.py::TestBeforeStartRecentJoiner::test_early_joiner_gets_call`
+  - Проблема: `start_time_local = (now + 1h).astimezone(tz).time()` втрачає дату, тоді `vacancy.date=date.today() + time` дає вчорашній час замість завтрашнього
+  - Фікс: правильно обчислювати vacancy.date коли (now+1h) переходить через північ
+- **Баг continue_search після 1-ї переклички** (визначено 07.06.2026):
+  - Кнопка «Підтвердити наявних + шукати ще» в `vacancy_detail.html:269` веде на `vacancy:continue_search?confirm_rollcall=1`
+  - Але обробник `?confirm_rollcall=1` живе в `vacancy_resume_search`, не в `vacancy_continue_search`
+  - В результаті `vacancy_continue_search` ігнорує параметр, скидає `first_rollcall_passed=False`, видаляє всі VacancyUserCall, snapshot НЕ зберігається
+  - Кнопка фактично працює як «Просто шукати ще», без підтвердження 1-ї переклички
+- **План Етапу 6 (continue_search після 1-ї переклички, не виконано):**
+  - Сценарії підтверджені користувачем:
+    1. За ≤1ч набралось `people_count` → стоп refind, snapshot готовий
+    2. За 1ч ніхто новий не зайшов → таймер експ., snapshot = ті хто був
+    3. За 1ч зайшли частково → таймер експ., snapshot = (initial + ті хто встигли) [варіант b]
+    4. Замовник «Зупинити пошук» → snapshot = поточні, якщо 0 → закрити вакансію
+  - При `members.count() == people_count` → негайно зупиняти refind (зайвих відрізати)
+  - Snapshot динамічний — кожне додавання/видалення робітника в 1ч оновлює snapshot
+  - Підетапи:
+    - 6.A: новий view `vacancy_confirm_and_continue_search(pk)` + переключити шаблонну кнопку
+    - 6.B: Celery-таска «refind 1h timer» + логіка 4 сценаріїв
+    - 6.C: модифікація `vacancy_stop_search` — якщо після start_time і `first_rollcall_passed=False` → авто-підтвердити з фактичними
+    - 6.D: тести на всі 4 сценарії + регрес
+  - Відкрите питання: 1 година відраховується від моменту натискання чи від start_time? (наступне уточнення з користувачем)
