@@ -822,6 +822,31 @@ def renewal_worker_check_task():
     logger.info("task_completed", extra={"task": "renewal_worker_check_task", "processed": None})
 
 
+@shared_task
+def finalize_continue_after_rollcall_task(vacancy_id: int):
+    """Stage 6.A: auto-finalize the 1h continue-search window after 1st rollcall.
+
+    Scheduled via apply_async(countdown=3600) when employer presses
+    "Підтвердити наявних + шукати ще". Idempotent — if continue-mode already
+    cleared (e.g. employer pressed "Зупинити пошук" earlier), returns noop.
+    """
+    logger.info(f"finalize_continue_after_rollcall_task: starting vacancy {vacancy_id}")
+    connection.close()
+    from vacancy.services.continue_after_rollcall import (
+        finalize_continue_after_first_rollcall,
+    )
+
+    try:
+        vacancy = Vacancy.objects.get(pk=vacancy_id)
+    except Vacancy.DoesNotExist:
+        logger.warning(f"finalize_continue_after_rollcall_task: vacancy {vacancy_id} not found")
+        return {"action": "not_found"}
+
+    result = finalize_continue_after_first_rollcall(vacancy)
+    logger.info(f"finalize_continue_after_rollcall_task: {result}")
+    return result
+
+
 @shared_task(name="vacancy.tasks.call.test_heartbeat")
 def test_heartbeat():
     logger.warning("✅ test_heartbeat work")

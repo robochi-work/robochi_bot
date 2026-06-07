@@ -45,6 +45,40 @@
  </span>
  </div>
 
+ {# Stage 6.A: "Триває добір" banner — 1h continue-search window after 1st rollcall #}
+ {% if continue_mode and continue_ends_at %}
+ <div class="continue-banner" style="background:var(--accent-soft, #fff8e1);border:1px solid var(--accent, #f0b400);border-radius:8px;padding:12px 14px;margin:0 0 16px;">
+  <div style="font-weight:600;color:var(--accent-strong, #8a6500);margin-bottom:4px;">
+   Триває добір працівників
+  </div>
+  <div style="color:var(--muted-foreground);font-size:14px;">
+   Завершиться о <strong>{{ continue_ends_at|time:"H:i" }}</strong>
+   <span data-continue-remaining style="margin-left:6px;"></span>
+  </div>
+ </div>
+ <script>
+  (function () {
+   var endIso = "{{ continue_ends_at|date:'c' }}";
+   var endTs = endIso ? new Date(endIso).getTime() : 0;
+   var label = document.querySelector("[data-continue-remaining]");
+   if (!endTs || !label) return;
+   function tick() {
+    var diff = endTs - Date.now();
+    if (diff <= 0) {
+     label.textContent = "(завершується...)";
+     setTimeout(function () { window.location.reload(); }, 5000);
+     return;
+    }
+    var mins = Math.floor(diff / 60000);
+    var secs = Math.floor((diff % 60000) / 1000);
+    label.textContent = "(залишилось " + mins + " хв " + (secs < 10 ? "0" : "") + secs + " с)";
+   }
+   tick();
+   setInterval(tick, 1000);
+  })();
+ </script>
+ {% endif %}
+
  {# 1. Close vacancy — above info card, hidden during rollcall and after invoice #}
  {% if can_close %}
  <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
