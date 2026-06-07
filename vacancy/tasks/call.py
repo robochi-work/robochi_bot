@@ -136,16 +136,14 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
             vacancy.extra["calls"] = extra_calls
             vacancy.first_rollcall_passed = True
             vacancy.save(update_fields=["first_rollcall_passed", "extra"])
+        # Stage 5.F: 2nd rollcall is NOT auto-confirmed here anymore.
+        # The 3-hour ignore window is handled by auto_confirm_ignored_rollcall_task.
+        # Old behaviour (12 reminders x 5 min -> auto-confirm) is intentionally removed.
         elif not vacancy.second_rollcall_passed:
-            ct = CallType.AFTER_START
-            create_vacancy_call(vacancy=vacancy, call_type=ct, status=CallStatus.CREATED)
-            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=ct).update(status=CallStatus.CONFIRM)
-            # Save confirmed workers to extra for invoice calculation
-            extra_calls = vacancy.extra.get("calls", {})
-            extra_calls[ct] = list(members.values_list("user_id", flat=True))
-            vacancy.extra["calls"] = extra_calls
-            vacancy.second_rollcall_passed = True
-            vacancy.save(update_fields=["second_rollcall_passed", "extra"])
+            logger.info(
+                "escalate_after_start_handled_elsewhere",
+                extra={"vacancy_id": vacancy.pk, "reason": "5.F removed legacy auto-confirm"},
+            )
         from telegram.handlers.bot_instance import bot as _bot
 
         try:
@@ -883,4 +881,172 @@ def disputed_rollcall_reminders_task():
     logger.info(
         "task_completed",
         extra={"task": "disputed_rollcall_reminders_task", "processed": processed},
+    )
+
+
+@shared_task
+def auto_confirm_ignored_rollcall_task():
+    """Stage 5.C: auto-confirm 2nd rollcall after 3h of employer ignoring it.
+
+    Triggers when:
+      - end_time + 3h <= now
+      - second_rollcall_passed = False
+      - no disputed_rollcall (employer didn't submit anything)
+      - not already auto-confirmed
+      - status == STATUS_SEARCH_STOPPED (work was running)
+
+    Behaves as Scenario A: all snapshot workers -> CONFIRM, invoice sent,
+    employer NOT blocked, workers NOT blocked. Then unpaid reminders begin (5.D).
+    """
+    from vacancy.services.disputed_rollcall import DISPUTED_KEY
+    from vacancy.services.rollcall_snapshot import (
+        SNAPSHOT_KEY,
+        get_snapshot_user_ids,
+    )
+
+    logger.info("task_started", extra={"task": "auto_confirm_ignored_rollcall_task"})
+    connection.close()
+    now = timezone.now()
+    processed = 0
+
+    candidates = Vacancy.objects.filter(
+        status=STATUS_SEARCH_STOPPED,
+        second_rollcall_passed=False,
+        extra__has_key=SNAPSHOT_KEY,
+    ).exclude(extra__has_key=DISPUTED_KEY)
+
+    for vacancy in candidates:
+        if (vacancy.extra or {}).get("auto_confirmed_at_ignore"):
+            continue
+        end_aware = _get_end_aware(vacancy)
+        if now < end_aware + timedelta(hours=3):
+            continue
+
+        snapshot_ids = get_snapshot_user_ids(vacancy)
+        if not snapshot_ids:
+            continue
+
+        try:
+            from vacancy.services.disputed_rollcall import finalize_rollcall
+
+            finalize_rollcall(
+                vacancy,
+                final_selected_user_ids=snapshot_ids,
+                finalized_by="auto_ignore",
+            )
+            vacancy.extra = dict(vacancy.extra or {})
+            vacancy.extra["auto_confirmed_at_ignore"] = now.isoformat()
+            vacancy.save(update_fields=["extra"])
+            processed += 1
+        except Exception:
+            sentry_sdk.capture_exception()
+
+    logger.info(
+        "task_completed",
+        extra={"task": "auto_confirm_ignored_rollcall_task", "processed": processed},
+    )
+
+
+@shared_task
+def send_unpaid_reminders_task():
+    """Stage 5.D: send hourly unpaid-invoice reminders, max 24 per vacancy.
+
+    For each vacancy in STATUS_AWAITING_PAYMENT (not paid, not yet at 24),
+    sends a reminder if the last one was sent more than 1 hour ago.
+    After the 24th, stops here — Stage 5.E permanently blocks the employer.
+    """
+    logger.info("task_started", extra={"task": "send_unpaid_reminders_task"})
+    connection.close()
+
+    from vacancy.choices import STATUS_AWAITING_PAYMENT as _AWAITING
+
+    UNPAID_INTERVAL = timedelta(hours=1)
+    UNPAID_MAX = 24
+    now = timezone.now()
+    processed = 0
+
+    candidates = Vacancy.objects.filter(status=_AWAITING).select_related("owner")
+    for vacancy in candidates:
+        extra = vacancy.extra or {}
+        if extra.get("is_paid"):
+            continue
+        sent_count = int(extra.get("unpaid_reminders", 0))
+        if sent_count >= UNPAID_MAX:
+            # Stage 5.E: after 24 reminders -> permanent ban + final messages
+            if extra.get("permanent_ban_done"):
+                continue
+            try:
+                from service.broadcast_service import TelegramBroadcastService
+                from service.notifications_impl import TelegramNotifier
+                from telegram.handlers.bot_instance import bot as _bot_e
+                from user.choices import BlockReason, BlockType
+                from user.services import BlockService
+
+                BlockService.block_user(
+                    user=vacancy.owner,
+                    block_type=BlockType.PERMANENT,
+                    reason=BlockReason.UNPAID,
+                )
+                final_amount = vacancy.payment_amount * vacancy.people_count
+                try:
+                    _bot_e.send_message(
+                        chat_id=vacancy.owner.id,
+                        text=(
+                            f"Вас заблоковано на постійній основі за несплачений рахунок "
+                            f"за вакансією #{vacancy.id}.\n"
+                            f"Сума до сплати: {final_amount} грн.\n"
+                            f"Для розблокування зв'яжіться з адміністратором: @robochi_work_admin"
+                        ),
+                    )
+                except Exception:
+                    sentry_sdk.capture_exception()
+                try:
+                    bc = TelegramBroadcastService(notifier=TelegramNotifier(_bot_e))
+                    bc.admin_broadcast(
+                        text=(
+                            f"\u26a0\ufe0f Боржник: вакансія #{vacancy.id}, "
+                            f"замовник #{vacancy.owner_id}, сума {final_amount} грн. "
+                            f"Постійний бан виставлено."
+                        ),
+                    )
+                except Exception:
+                    sentry_sdk.capture_exception()
+                vacancy.extra = dict(extra)
+                vacancy.extra["permanent_ban_done"] = True
+                vacancy.save(update_fields=["extra"])
+            except Exception:
+                sentry_sdk.capture_exception()
+            continue
+
+        last_iso = extra.get("unpaid_last_reminder_at")
+        if last_iso:
+            try:
+                last_dt = datetime.fromisoformat(last_iso)
+                if (now - last_dt) < UNPAID_INTERVAL:
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            from telegram.handlers.bot_instance import bot as _bot
+
+            _bot.send_message(
+                chat_id=vacancy.owner.id,
+                text=(
+                    f"Нагадування про оплату вакансії #{vacancy.id}.\n"
+                    f"Сума: {vacancy.payment_amount * vacancy.people_count} грн.\n"
+                    f"Нагадування {sent_count + 1} з {UNPAID_MAX}."
+                ),
+            )
+            vacancy.extra = dict(extra)
+            vacancy.extra["unpaid_reminders"] = sent_count + 1
+            vacancy.extra["unpaid_last_reminder_at"] = now.isoformat()
+            vacancy.save(update_fields=["extra"])
+            processed += 1
+        except Exception:
+            sentry_sdk.capture_exception()
+
+    logger.info(
+        "task_completed",
+        extra={"task": "send_unpaid_reminders_task", "processed": processed},
     )
