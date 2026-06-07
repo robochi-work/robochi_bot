@@ -2438,3 +2438,88 @@ class Meta:
     - 6.C: модифікація `vacancy_stop_search` — якщо після start_time і `first_rollcall_passed=False` → авто-підтвердити з фактичними
     - 6.D: тести на всі 4 сценарії + регрес
   - Відкрите питання: 1 година відраховується від моменту натискання чи від start_time? (наступне уточнення з користувачем)
+
+
+## Сесія 07.06.2026 (вечір) — Етап 6.A + фікс flaky-тестів
+
+### Етап 6.A: continue_search після 1-ї переклички — РЕАЛІЗОВАНО
+
+**Контекст:** до цього кнопка «Підтвердити наявних + шукати ще» в шаблоні переклички вела на `vacancy:continue_search?confirm_rollcall=1`, але обробник `?confirm_rollcall=1` жив у `vacancy_resume_search`. У результаті `continue_search` ігнорував параметр, скидав `first_rollcall_passed=False` і знищував усі `VacancyUserCall` — кнопка фактично ламала 1-у перекличку.
+
+#### Узгоджені бізнес-правила (Q1–Q5)
+- **Таймер 1 година** замість 2-х (правка ТЗ).
+- Таймер відраховується **від моменту натискання кнопки**.
+- Snapshot 1-ї переклички зберігається **на момент фінализації**, не натискання — щоб робітники, які зайшли за цей 1 год, теж потрапили в snapshot.
+- При досягненні `people_count` всередині вікна — НЕ фіналізуємо одразу, чекаємо таймер (на випадок виходу).
+- `Зупинити пошук` під час вікна:
+  - ≥1 робітник → негайна фіналізація (snapshot = поточний склад).
+  - 0 робітників → автозакриття як «Закрити вакансію» (CLOSED + таймер 3 год очищення групи).
+
+#### Що зроблено
+
+**Новий хелпер** `vacancy/services/continue_after_rollcall.py`:
+- `is_in_continue_mode(vacancy)` — перевірка прапора в `extra`.
+- `clear_continue_flags(vacancy)` — видалення прапорів (без save).
+- `finalize_continue_after_first_rollcall(vacancy)` — ідемпотентна фіналізація:
+  - 0 робітників → `STATUS_CLOSED`, `closed_at=now`, очищення прапорів, повідомлення адміну `admin_employer_closed_no_workers`.
+  - ≥1 робітник → snapshot через `save_first_rollcall_snapshot`, `extra["calls"][START]`, `VacancyUserCall(START)→CONFIRM`, статус `SEARCH_STOPPED`, `search_active=False`. Якщо `count<plan` — `scenario_b` повідомлення адміну.
+
+**Нова ветка в `vacancy_continue_search`** (vacancy/views.py):
+- При `?confirm_rollcall=1 + first_rollcall_passed=False` викликається `_continue_search_after_first_rollcall(request, vacancy)`.
+- Зсуває `start_time` на `now+1h` (округлення до 15 хв), `end_time` тільки якщо зсув робить зміну < 3 год.
+- Встановлює `first_rollcall_passed=True` одразу (зупиняє нагадувачі переклички).
+- Записує в `extra`: `continue_after_first_rollcall=True`, `continue_started_at`, `continue_deadline`.
+- Перепубліковує вакансію в канал.
+- Планує `finalize_continue_after_rollcall_task.apply_async(countdown=3600)`.
+- Шле повідомлення замовнику в бот: «Триває добір… Завершиться о HH:MM».
+
+**Новий Celery-таск** `vacancy/tasks/call.py::finalize_continue_after_rollcall_task(vacancy_id)`:
+- Не в beat schedule — викликається через `apply_async(countdown=3600)`.
+- Викликає `finalize_continue_after_first_rollcall`, який ідемпотентний.
+
+**Правка `vacancy_stop_search`** (vacancy/views.py):
+- На вході перевіряє `is_in_continue_mode(vacancy)` — якщо так, викликає `finalize_continue_after_first_rollcall` і повертається. Решта старої логіки без змін.
+
+**UI-баннер** в `vacancy/templates/vacancy/vacancy_detail.html`:
+- Виводиться між заголовком і кнопкою «Закрити», коли `continue_mode=True`.
+- Текст «Триває добір працівників. Завершиться о HH:MM».
+- JS-лічильник тікає кожну секунду: «(залишилось 47 хв 12 с)».
+- Коли таймер дійшов до 0 — текст «(завершується…)», авто-перезавантаження сторінки через 5 сек.
+
+**Контекст view `vacancy_detail`** доповнено полями `continue_mode` і `continue_ends_at` (парсимо `extra["continue_deadline"]` у `datetime`).
+
+**Правка `search_deadline`** — `2h → 1h` (правка ТЗ).
+
+**Регресійні тести** (`tests/test_continue_search_bug_07062026.py`, 7 тестів):
+1. GET `?confirm_rollcall=1` встановлює прапори і відкладає snapshot.
+2. Сценарій 1: ліміт досягнуто → snapshot містить ВСІХ поточних.
+3. Сценарій 2: ніхто не зайшов → snapshot = початкові.
+4. Сценарій 3: дозайшли частково → snapshot оновлений.
+5. Сценарій 4: `stop_search` з ≥1 робітником → негайна фіналізація + ідемпотентність повторної.
+6. Edge case: `stop_search` з 0 робітниками → авто-закриття як CLOSED.
+7. Перевірка `VacancyUserCall.START.CONFIRM` після фіналізації.
+
+### Фікс 2 flaky-тестів після 23:00 Київ
+
+**Тести:**
+- `tests/test_session_20260430.py::test_before_start_created_for_early_joiner`
+- `tests/test_session_20260602_members_embed.py::test_early_joiner_gets_call`
+
+**Діагноз:** `now = timezone.now()`, потім `start_time_local = (now+1h).astimezone(tz).time()` — час, але дата втрачена. `vacancy_factory(date=date.today(), start_time=start_time_local)`. Якщо `now+1h` після 23:00 Києва переходить через північ — `date.today()` залишає вчорашню дату Києва, а `start_time` вже відноситься до завтра → вакансія створюється «23 години тому» → 2-годинне вікно «до початку» давно прошло → нагадування не створюється → assert падає.
+
+**Фікс:** взяти дату з того ж зсунутого datetime:
+```python
+target_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone())
+vacancy_factory(date=target_local.date(), start_time=target_local.time())
+```
+
+### Ключові уроки сесії
+
+- **Memory edit limit 500 chars** — при оновленні запис у пам'ять Claude інколи треба робити декілька проб щоб вкластися.
+- **Ідемпотентні фіналізатори** — `finalize_continue_after_first_rollcall` повертає `{"action": "noop"|"finalized"|"auto_closed"}`, що дозволяє безпечно викликати з двох тригерів (Celery + view).
+- **`save_first_rollcall_snapshot` сам викликає `vacancy.save()`** — порядок викликів важливий, щоб `update_fields` не затирав snapshot.
+- **Telegram payment timer pattern**: `apply_async(countdown=3600)` краще за beat-schedule для одноразових таймерів.
+- **Date-boundary в тестах**: завжди отримувати `date` і `time` з ОДНОГО datetime, не комбінувати `date.today()` із зсунутим часом.
+
+### Дата та автор
+Сесія 07.06.2026 завершена о 2026-06-07 17:17 EEST. Гілка `feature/continue-after-first-rollcall` смержена в `develop` (commit 36d043a + merge 8131a78); `fix/flaky-date-boundary` смержена в `develop`. Деплой: `collectstatic` + рестарт `gunicorn.service` + `celery-worker.service`. Підтверджено: таска `finalize_continue_after_rollcall_task` зареєстрована.
