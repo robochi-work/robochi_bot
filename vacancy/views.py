@@ -677,7 +677,7 @@ def _build_members_context(vacancy, request):
     scenario = None
     can_search_members = False
     if is_start_rollcall:
-        search_deadline = start_aware + timedelta(hours=2)
+        search_deadline = start_aware + timedelta(hours=1)  # Stage 6.A: 2h→1h
         can_search_members = now < search_deadline
         if m_members_count == 0:
             scenario = "A"
@@ -821,6 +821,20 @@ def vacancy_detail(request, pk):
             user=vacancy.owner, group=vacancy.group, status=_TgStatus.MEMBER
         ).exists()
 
+    # Stage 6.A: "Триває добір" banner state
+    _extra = vacancy.extra or {}
+    continue_mode = bool(_extra.get("continue_after_first_rollcall"))
+    continue_ends_at = None
+    if continue_mode:
+        from datetime import datetime as _dt_parse
+
+        deadline_iso = _extra.get("continue_deadline")
+        if deadline_iso:
+            try:
+                continue_ends_at = _dt_parse.fromisoformat(deadline_iso)
+            except (ValueError, TypeError):
+                continue_ends_at = None
+
     context = {
         "vacancy": vacancy,
         "status_label": STATUS_LABELS.get(vacancy.status, vacancy.get_status_display()),
@@ -838,6 +852,8 @@ def vacancy_detail(request, pk):
         "channel_title": vacancy.channel.title if vacancy.channel else "",
         "is_pending": vacancy.status == "pending",
         "is_admin_view": is_admin_view,
+        "continue_mode": continue_mode,
+        "continue_ends_at": continue_ends_at,
     }
     context.update(mc)
 
@@ -851,6 +867,17 @@ def vacancy_stop_search(request, pk):
         vacancy = get_object_or_404(Vacancy, pk=pk)
     else:
         vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    # Stage 6.A: if employer stops search during the 1h continue-window,
+    # finalize the rollcall immediately (or auto-close if 0 workers).
+    from vacancy.services.continue_after_rollcall import (
+        finalize_continue_after_first_rollcall,
+        is_in_continue_mode,
+    )
+
+    if is_in_continue_mode(vacancy):
+        finalize_continue_after_first_rollcall(vacancy)
+        return redirect("vacancy:detail", pk=pk)
 
     if vacancy.status == STATUS_APPROVED:
         from django.utils import timezone
@@ -896,6 +923,10 @@ def vacancy_continue_search(request, pk):
     from django.utils import timezone as _tz
 
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
+
+    # Stage 6.A: "Підтвердити наявних + шукати ще" from 1st rollcall page.
+    if request.GET.get("confirm_rollcall") == "1" and not vacancy.first_rollcall_passed:
+        return _continue_search_after_first_rollcall(request, vacancy)
 
     # 1. Auto-adjust start_time ONLY if work time has already passed.
     #    Before work start: keep original time, just re-publish search.
@@ -985,6 +1016,101 @@ def vacancy_continue_search(request, pk):
         pass
 
     return redirect("vacancy:detail", pk=pk)
+
+
+def _continue_search_after_first_rollcall(request, vacancy):
+    """Stage 6.A: handle 'Підтвердити наявних + шукати ще' from 1st rollcall page.
+
+    Sets first_rollcall_passed=True immediately (stops rollcall reminders),
+    shifts start_time to now+1h (rounded), schedules a 1-hour auto-finalize task.
+    The snapshot of who-was-present is saved AT FINALIZATION, not now — workers
+    who join during the 1-hour window are also counted.
+    """
+    from datetime import datetime as _dt
+    from datetime import timedelta as _td
+
+    from django.utils import timezone as _tz
+
+    from vacancy.choices import STATUS_APPROVED
+    from vacancy.services.observers.events import VACANCY_APPROVED as _VACANCY_APPROVED
+    from vacancy.services.observers.subscriber_setup import (
+        vacancy_publisher as _vp,
+    )
+
+    now = _tz.localtime(_tz.now())
+    tz = _tz.get_current_timezone()
+
+    # 1. Shift start_time to now + 1h (rounded up to next 15-min mark)
+    new_start_dt = now + _td(hours=1)
+    minute = (new_start_dt.minute // 15 + 1) * 15
+    if minute >= 60:
+        new_start_dt = (new_start_dt + _td(hours=1)).replace(minute=0, second=0, microsecond=0)
+    else:
+        new_start_dt = new_start_dt.replace(minute=minute, second=0, microsecond=0)
+    vacancy.start_time = new_start_dt.time()
+    vacancy.date = now.date()
+
+    # 2. Ensure min 3h shift on end_time (only if shift makes shift < 3h)
+    start_aware = _tz.make_aware(_dt.combine(vacancy.date, vacancy.start_time), tz)
+    end_aware = _tz.make_aware(_dt.combine(vacancy.date, vacancy.end_time), tz)
+    if vacancy.end_time < vacancy.start_time:
+        end_aware += _td(days=1)
+    if end_aware - start_aware < _td(hours=3):
+        new_end = start_aware + _td(hours=3)
+        vacancy.end_time = _tz.localtime(new_end).time()
+
+    # 3. Mark 1st rollcall as passed (snapshot deferred to finalize)
+    vacancy.first_rollcall_passed = True
+    vacancy.status = STATUS_APPROVED
+    vacancy.search_active = True
+    vacancy.search_stopped_at = None
+
+    # 4. Set continue-mode flags in extra; preserve VacancyUserCall records
+    extra = vacancy.extra or {}
+    extra["continue_after_first_rollcall"] = True
+    extra["continue_started_at"] = now.isoformat()
+    extra["continue_deadline"] = (now + _td(hours=1)).isoformat()
+    vacancy.extra = extra
+
+    vacancy.save(
+        update_fields=[
+            "start_time",
+            "end_time",
+            "date",
+            "first_rollcall_passed",
+            "status",
+            "search_active",
+            "search_stopped_at",
+            "extra",
+        ]
+    )
+
+    # 5. Republish vacancy in channel
+    _vp.notify(_VACANCY_APPROVED, data={"vacancy": vacancy})
+
+    # 6. Schedule auto-finalize after 1 hour
+    try:
+        from vacancy.tasks.call import finalize_continue_after_rollcall_task
+
+        finalize_continue_after_rollcall_task.apply_async(args=[vacancy.pk], countdown=3600)
+    except Exception:
+        import logging
+
+        logging.warning(f"Failed to schedule finalize task for vacancy {vacancy.pk}", exc_info=True)
+
+    # 7. Notify employer in bot
+    try:
+        from telegram.handlers.bot_instance import bot
+
+        deadline_str = (now + _td(hours=1)).strftime("%H:%M")
+        bot.send_message(
+            chat_id=vacancy.owner.id,
+            text=(f"Триває добір працівників за вакансією: {vacancy.address}.\nЗавершиться о {deadline_str}."),
+        )
+    except Exception:
+        pass
+
+    return redirect("vacancy:detail", pk=vacancy.pk)
 
 
 def vacancy_resume_search(request, pk):
