@@ -148,9 +148,15 @@ class TestBeforeStartRecentJoiner:
         worker = worker_factory()
         group = group_factory()
         now = timezone.now()
-        start_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone()).time()
+        # Use date from the same shifted datetime — otherwise after 23:00 Kyiv
+        # now+1h crosses midnight and start_time lands in the past.
+        target_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone())
         v = vacancy_factory(
-            owner=worker_factory(), status=STATUS_APPROVED, group=group, date=date.today(), start_time=start_local
+            owner=worker_factory(),
+            status=STATUS_APPROVED,
+            group=group,
+            date=target_local.date(),
+            start_time=target_local.time(),
         )
         vu = VacancyUser.objects.create(user=worker, vacancy=v, status=Status.MEMBER)
         VacancyUser.objects.filter(pk=vu.pk).update(updated_at=now - timedelta(hours=3))

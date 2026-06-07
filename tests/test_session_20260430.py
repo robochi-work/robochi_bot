@@ -7,7 +7,7 @@ Regression tests for session 2026-04-30:
 - worker_phone handler finds correct vacancy without saved contact phone
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 from django.test import RequestFactory
@@ -68,13 +68,15 @@ class TestBeforeStartCall:
         worker = worker_factory()
         group = group_factory()
         now = timezone.now()
-        start_time_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone()).time()
+        # Use date from the same shifted datetime — otherwise after 23:00 Kyiv
+        # now+1h crosses midnight and start_time lands in the past.
+        target_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone())
         vacancy = vacancy_factory(
             owner=worker_factory(),
             status=STATUS_APPROVED,
             group=group,
-            date=date.today(),
-            start_time=start_time_local,
+            date=target_local.date(),
+            start_time=target_local.time(),
         )
         vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
         UserInGroup.objects.create(user=worker, group=group, status=Status.MEMBER)
@@ -98,13 +100,15 @@ class TestBeforeStartCall:
         worker = worker_factory()
         group = group_factory()
         now = timezone.now()
-        start_time_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone()).time()
+        # Use date from the same shifted datetime — otherwise after 23:00 Kyiv
+        # now+1h crosses midnight and start_time lands in the past.
+        target_local = (now + timedelta(hours=1)).astimezone(timezone.get_current_timezone())
         vacancy = vacancy_factory(
             owner=worker_factory(),
             status=STATUS_APPROVED,
             group=group,
-            date=date.today(),
-            start_time=start_time_local,
+            date=target_local.date(),
+            start_time=target_local.time(),
         )
         vu = VacancyUser.objects.create(user=worker, vacancy=vacancy, status=Status.MEMBER)
         # Joined long ago (before the 2h-before mark) — updated_at reflects entry time
