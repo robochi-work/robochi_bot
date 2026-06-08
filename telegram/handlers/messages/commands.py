@@ -64,7 +64,7 @@ def ask_phone(message: Message, user: User, **kwargs):
     except Exception as e:
         logger.error(f"RESET_MENU_BUTTON FAILED: {e}")
     markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True, style="constructive"))
+    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True))
     logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
     try:
         bot.send_message(
@@ -117,16 +117,16 @@ def _process_apply_payload(data: dict, message) -> bool:
     except User.DoesNotExist:
         return False
 
-    # Owner (employer) — redirect to cabinet, not worker flow
-    work_profile = getattr(user, "work_profile", None)
-    if work_profile and work_profile.role == "employer":
-        _send_employer_cabinet_message(message)
-        return True
-
     try:
         vacancy = Vacancy.objects.select_related("group", "owner").get(id=vacancy_id, status=STATUS_APPROVED)
     except Vacancy.DoesNotExist:
         get_bot().send_message(message.chat.id, "Вакансію не знайдено або вона вже закрита.")
+        return True
+
+    # Owner (employer) — redirect to vacancy card in cabinet
+    work_profile = getattr(user, "work_profile", None)
+    if work_profile and work_profile.role == "employer":
+        _send_owner_action_message(message, vacancy, user)
         return True
 
     # Already has VacancyUser for THIS vacancy — re-send confirm or redirect
@@ -147,12 +147,27 @@ def _process_apply_payload(data: dict, message) -> bool:
             vacancy_user=existing_vu, call_type=CallType.WORKER_JOIN_CONFIRM.value, status=CallStatus.SENT.value
         ).first()
         if pending:
+            # Anti-spam: delete previous confirm message if still pinned in vacancy.extra
+            if vacancy.extra:
+                old_confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
+                old_msg_id = old_confirm_msgs.get(str(user.id))
+                if old_msg_id:
+                    try:
+                        get_bot().delete_message(chat_id=message.chat.id, message_id=old_msg_id)
+                    except Exception:
+                        pass
             try:
-                get_bot().send_message(
+                sent = get_bot().send_message(
                     chat_id=message.chat.id,
                     text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
                     reply_markup=get_worker_join_confirm_markup(vacancy),
                 )
+                if vacancy.extra is None:
+                    vacancy.extra = {}
+                confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
+                confirm_msgs[str(user.id)] = sent.message_id
+                vacancy.extra["confirm_msg_ids"] = confirm_msgs
+                vacancy.save(update_fields=["extra"])
             except Exception as e:
                 logger.warning(f"_process_apply_payload: re-send confirm failed: {e}")
             return True
@@ -262,6 +277,167 @@ def _send_cabinet_message(message):
     )
 
 
+def _send_owner_action_message(message, vacancy, user) -> None:
+    """Employer-owner pressed his own vacancy button.
+    Check real group membership via Telegram API:
+    - In group -> 1 button: vacancy card (Керування вакансією)
+    - Not in group -> 2 buttons: group invite + vacancy card
+    """
+    base = settings.BASE_URL.rstrip("/")
+    check_path = reverse("telegram:telegram_check_web_app")
+    next_path = reverse("vacancy:detail", kwargs={"pk": vacancy.id})
+    card_url = f"{base}{check_path}?next={next_path}"
+
+    in_group = False
+    if vacancy.group:
+        try:
+            member = get_bot().get_chat_member(chat_id=vacancy.group.id, user_id=user.id)
+            in_group = member.status in ("member", "administrator", "creator")
+        except Exception:
+            pass
+
+    markup = InlineKeyboardMarkup()
+    if in_group:
+        text = "Це Ваша вакансія. Перейдіть до керування."
+        markup.add(InlineKeyboardButton(text="Керування вакансією", web_app=WebAppInfo(url=card_url)))
+    else:
+        text = "Це Ваша вакансія. Перейдіть у групу вакансії та керуйте з особистого кабінету."
+        if vacancy.group and vacancy.group.invite_link:
+            markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=vacancy.group.invite_link))
+        markup.add(InlineKeyboardButton(text="Керування вакансією", web_app=WebAppInfo(url=card_url)))
+
+    try:
+        get_bot().send_message(chat_id=message.chat.id, text=text, reply_markup=markup)
+    except Exception as e:
+        logger.warning(f"_send_owner_action_message failed: {e}")
+
+
+def _send_worker_my_work_message(message, vacancy_id=None) -> None:
+    """Worker pressed apply on the same vacancy he is already in.
+    Determines the worker's current stage and re-sends the appropriate message:
+    - Stage 1: VacancyUserCall SENT -> re-send confirm (Підтвердити/Відмовитись)
+    - Stage 2: VacancyUserCall CONFIRM, no phone -> re-send phone prompt
+    - Stage 3: VacancyUserCall CONFIRM, has phone, not in group -> re-send group invite
+    - Stage 4: In group -> redirect to 'Моя робота'
+    """
+    in_group = False
+    vacancy = None
+    user = None
+    if vacancy_id:
+        try:
+            vacancy = Vacancy.objects.select_related("group").get(id=vacancy_id)
+            user = User.objects.get(id=message.chat.id)
+            if vacancy.group:
+                member = get_bot().get_chat_member(chat_id=vacancy.group.id, user_id=message.chat.id)
+                in_group = member.status in ("member", "administrator", "creator")
+        except Exception:
+            pass
+
+    # Stage 4: already in group -> "Моя робота"
+    if in_group:
+        base = settings.BASE_URL.rstrip("/")
+        check_path = reverse("telegram:telegram_check_web_app")
+        next_path = reverse("work:worker_my_work")
+        url = f"{base}{check_path}?next={next_path}"
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
+        get_bot().send_message(
+            chat_id=message.chat.id,
+            text="Ви вже берете участь у цій вакансії. Перейдіть до своєї роботи.",
+            reply_markup=markup,
+        )
+        return
+
+    # Not in group — determine stage
+    if vacancy and user:
+        vu = VacancyUser.objects.filter(user=user, vacancy=vacancy, status=Status.PENDING_CONFIRM.value).first()
+        if vu:
+            call = VacancyUserCall.objects.filter(vacancy_user=vu, call_type=CallType.WORKER_JOIN_CONFIRM.value).first()
+
+            if call and call.status == CallStatus.SENT.value:
+                # Stage 1: hasn't pressed Підтвердити yet -> re-send confirm
+                if vacancy.extra:
+                    old_msg_id = vacancy.extra.get("confirm_msg_ids", {}).get(str(user.id))
+                    if old_msg_id:
+                        try:
+                            get_bot().delete_message(chat_id=message.chat.id, message_id=old_msg_id)
+                        except Exception:
+                            pass
+                try:
+                    sent = get_bot().send_message(
+                        chat_id=message.chat.id,
+                        text=CallVacancyTelegramTextFormatter(vacancy).worker_join_confirm(),
+                        reply_markup=get_worker_join_confirm_markup(vacancy),
+                    )
+                    if vacancy.extra is None:
+                        vacancy.extra = {}
+                    confirm_msgs = vacancy.extra.get("confirm_msg_ids", {})
+                    confirm_msgs[str(user.id)] = sent.message_id
+                    vacancy.extra["confirm_msg_ids"] = confirm_msgs
+                    vacancy.save(update_fields=["extra"])
+                except Exception as e:
+                    logger.warning(f"_send_worker_my_work_message: re-send confirm failed: {e}")
+                return
+
+            if call and call.status == CallStatus.CONFIRM.value:
+                from vacancy.models import VacancyContactPhone
+
+                phone_exists = VacancyContactPhone.objects.filter(vacancy=vacancy, user=user).exists()
+
+                if phone_exists:
+                    # Stage 3: phone confirmed, not in group -> re-send group invite
+                    from vacancy.services.worker_invite import send_worker_group_invite
+
+                    send_worker_group_invite(user, vacancy)
+                    return
+
+                # Stage 2: phone NOT confirmed -> re-send phone prompt
+                import json as _json
+
+                if user.contact_phone:
+                    confirm_data = _json.dumps({"t": "phone_confirm", "v": vacancy.id, "s": "confirm"})
+                    change_data = _json.dumps({"t": "phone_confirm", "v": vacancy.id, "s": "change"})
+                    markup = InlineKeyboardMarkup()
+                    markup.row(
+                        InlineKeyboardButton("Підтвердити", callback_data=confirm_data),
+                        InlineKeyboardButton("Змінити", callback_data=change_data),
+                    )
+                    get_bot().send_message(
+                        chat_id=message.chat.id,
+                        text=f"Ваш контактний номер: {user.contact_phone}",
+                        reply_markup=markup,
+                    )
+                else:
+                    get_bot().send_message(
+                        chat_id=message.chat.id,
+                        text="Напишіть актуальний номер телефону",
+                    )
+                return
+
+    # Fallback: send group invite if available
+    invite_link = vacancy.group.invite_link if vacancy and vacancy.group else None
+    if invite_link:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Перейти в групу вакансії", url=invite_link))
+        get_bot().send_message(
+            chat_id=message.chat.id,
+            text="Перейдіть у групу Вашої вакансії.",
+            reply_markup=markup,
+        )
+    else:
+        base = settings.BASE_URL.rstrip("/")
+        check_path = reverse("telegram:telegram_check_web_app")
+        next_path = reverse("work:worker_my_work")
+        url = f"{base}{check_path}?next={next_path}"
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Перейти", web_app=WebAppInfo(url=url)))
+        get_bot().send_message(
+            chat_id=message.chat.id,
+            text="Ви вже берете участь у цій вакансії. Перейдіть до своєї роботи.",
+            reply_markup=markup,
+        )
+
+
 def process_start_payload(payload: str, message) -> bool:
     try:
         data = decode_start_param(payload)
@@ -270,7 +446,7 @@ def process_start_payload(payload: str, message) -> bool:
             return _process_apply_payload(data, message)
 
         elif data.get("type") == "already_in_vacancy":
-            _send_cabinet_message(message)
+            _send_worker_my_work_message(message, vacancy_id=data.get("vacancy_id"))
             return True
 
         elif data.get("type") == "admin_apply":

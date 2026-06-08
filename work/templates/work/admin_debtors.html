@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--admin-debtors">
+    <a href="{% url 'work:admin_dashboard' %}" class="page-back-btn">← Назад</a>
+    <h2 class="moderate-title">Боржники ({{ rows|length }})</h2>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="flash-msg flash-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if not rows %}
+        <p class="empty">Боржників немає.</p>
+    {% else %}
+        <div class="debtors-list">
+            {% for row in rows %}
+            <div class="debtor-card">
+                <div class="debtor-row">
+                    <span class="debtor-label">Вакансія:</span>
+                    <span class="debtor-value">
+                        <a href="{% url 'vacancy:detail' row.vacancy.pk %}">#{{ row.vacancy.pk }} — {{ row.vacancy.address }}</a>
+                    </span>
+                </div>
+                <div class="debtor-row">
+                    <span class="debtor-label">Замовник:</span>
+                    <span class="debtor-value">
+                        {{ row.owner.full_name|default:'-' }} (#{{ row.owner.pk }})
+                        {% if row.owner.username %}@{{ row.owner.username }}{% endif %}
+                    </span>
+                </div>
+                <div class="debtor-row">
+                    <span class="debtor-label">Сума:</span>
+                    <span class="debtor-value"><strong>{{ row.amount_uah }} грн</strong></span>
+                </div>
+                <div class="debtor-row">
+                    <span class="debtor-label">Дата рахунку:</span>
+                    <span class="debtor-value">
+                        {% if row.invoice_date %}{{ row.invoice_date|date:"d.m.Y H:i" }}{% else %}—{% endif %}
+                    </span>
+                </div>
+                <div class="debtor-row">
+                    <span class="debtor-label">Просрочка:</span>
+                    <span class="debtor-value">{{ row.days_overdue }} дн.</span>
+                </div>
+                <div class="debtor-row">
+                    <span class="debtor-label">Нагадування:</span>
+                    <span class="debtor-value">{{ row.reminders }}/24</span>
+                </div>
+                <div class="debtor-row">
+                    <span class="debtor-label">Блокування:</span>
+                    <span class="debtor-value">
+                        {% if row.owner_block %}
+                            <span class="badge badge-blocked">{{ row.owner_block.get_reason_display }} ({{ row.owner_block.get_block_type_display }})</span>
+                        {% else %}—{% endif %}
+                    </span>
+                </div>
+                <form method="post" action="{% url 'work:admin_mark_paid' row.vacancy.pk %}" style="margin-top:10px;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-primary btn-block"
+                            onclick="return confirm('Підтвердити оплату вакансії #{{ row.vacancy.pk }}?')">
+                        Підтвердити оплату
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</main>
+
+<style>
+.page--admin-debtors { padding: 20px 14px; }
+.moderate-title { margin-bottom: 16px; }
+.empty { text-align: center; opacity: 0.6; padding: 40px; }
+.debtors-list { display: flex; flex-direction: column; gap: 14px; }
+.debtor-card {
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow);
+}
+.debtor-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 14px; }
+.debtor-label { font-weight: 600; flex-shrink: 0; }
+.debtor-value { text-align: right; word-break: break-word; }
+.badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.badge-blocked { background: var(--destructive); color: white; }
+.btn-block { width: 100%; }
+.flash-msg { padding: 10px 14px; border-radius: var(--radius); margin-bottom: 12px; }
+.flash-success { background: var(--message-success-bg); }
+.flash-info { background: var(--message-warning-bg); }
+</style>
+{% endblock %}

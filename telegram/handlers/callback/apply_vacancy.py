@@ -1,8 +1,10 @@
 import base64
 import json
 import logging
+from datetime import timedelta
 
 import sentry_sdk
+from django.utils import timezone
 from telebot.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from telegram.handlers.bot_instance import bot
@@ -76,6 +78,42 @@ def handle_apply_vacancy(call: CallbackQuery):
             )
             return
 
+        # 5.5 Rate limit: max 2 voluntary exits per hour
+        from user.models import WorkerVoluntaryExit
+
+        one_hour_ago = timezone.now() - timedelta(hours=1)
+        exit_count = WorkerVoluntaryExit.objects.filter(
+            user=user,
+            created_at__gte=one_hour_ago,
+        ).count()
+        if exit_count >= 2:
+            # Create auto-dislike only once per rate-limit window
+            from user.models import UserFeedback
+
+            already_penalized = UserFeedback.objects.filter(
+                user=user,
+                is_auto=True,
+                extra__reason="excessive_exits",
+                created_at__gte=one_hour_ago,
+            ).exists()
+            if not already_penalized:
+                UserFeedback.objects.create(
+                    owner=user,
+                    user=user,
+                    rating="dislike",
+                    is_auto=True,
+                    text="",
+                    extra={"reason": "excessive_exits"},
+                )
+                logger.info("rate_limit_dislike", extra={"user_id": user.id, "exit_count": exit_count})
+            bot.answer_callback_query(
+                call.id,
+                show_alert=True,
+                text="Багато спроб обрати вакансію! Спробуйте через годину!",
+            )
+            logger.warning("apply_rate_limited", extra={"user_id": user.id, "exit_count": exit_count})
+            return
+
         # 6. Получаем вакансию
         try:
             vacancy = Vacancy.objects.select_related("group", "owner").get(id=vacancy_id, status=STATUS_APPROVED)
@@ -85,6 +123,13 @@ def handle_apply_vacancy(call: CallbackQuery):
 
         # 7. Owner вакансии — автоперехід в бот через deep link
         if vacancy.owner == user:
+            from django.core.cache import cache
+
+            throttle_key = f"apply_throttle:{user.id}:{vacancy_id}"
+            if cache.get(throttle_key):
+                bot.answer_callback_query(call.id, text="Зачекайте трохи")
+                return
+            cache.set(throttle_key, True, timeout=300)
             payload = _encode_start_payload({"type": "apply", "vacancy_id": vacancy_id})
             deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
             try:
@@ -118,6 +163,13 @@ def handle_apply_vacancy(call: CallbackQuery):
         if VacancyUser.objects.filter(
             user=user, vacancy=vacancy, status__in=[Status.MEMBER, Status.PENDING_CONFIRM]
         ).exists():
+            from django.core.cache import cache
+
+            throttle_key = f"apply_throttle:{user.id}:{vacancy_id}"
+            if cache.get(throttle_key):
+                bot.answer_callback_query(call.id, text="Зачекайте трохи")
+                return
+            cache.set(throttle_key, True, timeout=300)
             payload = _encode_start_payload({"type": "already_in_vacancy", "vacancy_id": vacancy_id})
             deep_link = f"https://t.me/riznorobochi_ua_bot?start={payload}"
             try:

@@ -38,18 +38,34 @@ class TestRegressionInvoiceAfterAutoConfirm(TestCase):
         return vacancy, owner, worker
 
     def test_invoice_workers_count_after_auto_confirm(self):
+        """5.F: auto-confirm now lives in auto_confirm_ignored_rollcall_task (3h after end)."""
+        import datetime as _dt
+
+        from django.utils import timezone
+
+        from vacancy.choices import STATUS_SEARCH_STOPPED
+        from vacancy.services.rollcall_snapshot import save_first_rollcall_snapshot
+
         vacancy, owner, worker = self._create_vacancy_with_worker()
+        tz = timezone.get_current_timezone()
+        now = timezone.now()
+        end_local = (now - _dt.timedelta(hours=4)).astimezone(tz)
+        start_local = end_local - _dt.timedelta(hours=8)
+        vacancy.status = STATUS_SEARCH_STOPPED
+        vacancy.first_rollcall_passed = True
+        vacancy.date = start_local.date()
+        vacancy.start_time = start_local.time().replace(microsecond=0)
+        vacancy.end_time = end_local.time().replace(microsecond=0)
+        vacancy.save()
+        save_first_rollcall_snapshot(vacancy, [worker.id])
+
         with (
-            patch("vacancy.tasks.call.GroupService"),
-            patch("service.broadcast_service.TelegramBroadcastService"),
-            patch("vacancy.tasks.call.telegram_notifier"),
             patch("telegram.handlers.bot_instance.bot", MagicMock()),
-            patch("telegram.handlers.bot_instance.get_bot", return_value=MagicMock()),
             patch("vacancy.services.invoice.send_vacancy_invoice"),
         ):
-            from vacancy.tasks.call import _escalate_rollcall
+            from vacancy.tasks.call import auto_confirm_ignored_rollcall_task
 
-            _escalate_rollcall(vacancy, call_label="2 переклички")
+            auto_confirm_ignored_rollcall_task()
         vacancy.refresh_from_db()
         calls = vacancy.extra.get("calls", {})
         after_start = calls.get(CallType.AFTER_START) or calls.get("after_start", [])

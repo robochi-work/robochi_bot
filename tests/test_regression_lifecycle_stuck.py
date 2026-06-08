@@ -15,29 +15,43 @@ class TestRegressionEscalateIssuesInvoice(TestCase):
     """After auto-confirm of 2nd rollcall, invoice must be issued."""
 
     def test_auto_confirm_2nd_rollcall_changes_status_to_awaiting(self):
+        """5.F: auto-confirm now lives in auto_confirm_ignored_rollcall_task (3h after end)."""
+        import datetime as _dt
+
+        from django.utils import timezone
+
         from tests.factories import UserFactory, VacancyFactory
+        from vacancy.choices import STATUS_SEARCH_STOPPED
         from vacancy.models import VacancyUser
+        from vacancy.services.rollcall_snapshot import save_first_rollcall_snapshot
 
         owner = UserFactory(phone_number="+380601110001")
-        vacancy = VacancyFactory(owner=owner, has_passport=False, skills="")
-        vacancy.extra = {"sent_final_call": True}
-        vacancy.first_rollcall_passed = True
-        vacancy.save()
+        tz = timezone.get_current_timezone()
+        now = timezone.now()
+        end_local = (now - _dt.timedelta(hours=4)).astimezone(tz)
+        start_local = end_local - _dt.timedelta(hours=8)
+        vacancy = VacancyFactory(
+            owner=owner,
+            has_passport=False,
+            skills="",
+            status=STATUS_SEARCH_STOPPED,
+            first_rollcall_passed=True,
+            date=start_local.date(),
+            start_time=start_local.time().replace(microsecond=0),
+            end_time=end_local.time().replace(microsecond=0),
+        )
 
         worker = UserFactory(phone_number="+380601110002")
         VacancyUser.objects.create(vacancy=vacancy, user=worker, status="member")
+        save_first_rollcall_snapshot(vacancy, [worker.id])
 
         with (
-            patch("vacancy.tasks.call.GroupService"),
-            patch("service.broadcast_service.TelegramBroadcastService"),
-            patch("vacancy.tasks.call.telegram_notifier"),
             patch("telegram.handlers.bot_instance.bot", MagicMock()),
-            patch("telegram.handlers.bot_instance.get_bot", return_value=MagicMock()),
             patch("vacancy.services.invoice.send_vacancy_invoice") as mock_invoice,
         ):
-            from vacancy.tasks.call import _escalate_rollcall
+            from vacancy.tasks.call import auto_confirm_ignored_rollcall_task
 
-            _escalate_rollcall(vacancy, call_label="2 переклички")
+            auto_confirm_ignored_rollcall_task()
 
         vacancy.refresh_from_db()
         assert vacancy.status == STATUS_AWAITING_PAYMENT, (

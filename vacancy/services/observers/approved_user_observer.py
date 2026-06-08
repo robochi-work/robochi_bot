@@ -4,7 +4,6 @@ from typing import Any
 from service.notifications_impl import TelegramNotifier
 
 from ..call_formatter import CallVacancyTelegramTextFormatter
-from ..call_markup import get_vacancy_my_list_markup
 from .publisher import Observer
 
 logger = logging.getLogger(__name__)
@@ -46,7 +45,7 @@ class VacancyApprovedUserObserver(Observer):
                     if is_resume
                     else CallVacancyTelegramTextFormatter.vacancy_approved_user()
                 ),
-                reply_markup=(_get_detail_markup(vacancy) if is_resume else get_vacancy_my_list_markup()),
+                reply_markup=_get_detail_markup(vacancy),
             )
             vacancy.extra = vacancy.extra or {}
             vacancy.extra["approved_msg_id"] = sent.message_id

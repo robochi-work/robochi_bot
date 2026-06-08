@@ -48,7 +48,7 @@ def get_start_call_markup(vacancy: Vacancy, **kwargs):
     markup.row(
         ButtonStorage.web_app(
             label="Підтвердити перше опитування",
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]) + "?focus=rollcall",
         )
     )
     return markup
@@ -59,7 +59,7 @@ def get_final_call_markup(vacancy: Vacancy, **kwargs):
     markup.row(
         ButtonStorage.web_app(
             label="Підтвердити друге опитування",
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]) + "?focus=rollcall",
         )
     )
     return markup
@@ -86,7 +86,7 @@ def get_rollcall_reminder_markup(vacancy: Vacancy, call_type: CallType) -> Inlin
     markup.row(
         ButtonStorage.web_app(
             label="Перейти до переклички",
-            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]),
+            url=settings.BASE_URL.rstrip("/") + reverse("vacancy:detail", args=[vacancy.id]) + "?focus=rollcall",
         )
     )
     return markup
@@ -172,6 +172,47 @@ def get_worker_join_confirm_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
                 status=CallStatus.REJECT.value,
                 vacancy_id=vacancy.id,
             ),
+        ),
+    )
+    return markup
+
+
+def get_admin_disputed_rollcall_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
+    """Admin keyboard for a disputed 2nd rollcall.
+
+    Two buttons:
+    - "Підтвердити кількість" — admin confirms current count (finalizes).
+    - "Редагувати кількість" — admin opens vacancy detail form to edit.
+    """
+    from telegram.handlers.common import CallbackStorage
+
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        IKB(
+            "Підтвердити кількість",
+            callback_data=CallbackStorage.disputed_action.new(action="confirm", vacancy_id=vacancy.id),
+        ),
+        IKB(
+            "Редагувати кількість",
+            callback_data=CallbackStorage.disputed_action.new(action="edit", vacancy_id=vacancy.id),
+        ),
+    )
+    return markup
+
+
+def get_admin_unblock_employer_modal_markup(vacancy: Vacancy) -> InlineKeyboardMarkup:
+    """Yes/No modal: unblock the employer after confirming count=0?"""
+    from telegram.handlers.common import CallbackStorage
+
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        IKB(
+            "Так",
+            callback_data=CallbackStorage.disputed_action.new(action="unblock_yes", vacancy_id=vacancy.id),
+        ),
+        IKB(
+            "Ні",
+            callback_data=CallbackStorage.disputed_action.new(action="unblock_no", vacancy_id=vacancy.id),
         ),
     )
     return markup

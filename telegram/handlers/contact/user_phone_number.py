@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Any
 from urllib.parse import urlencode
 
@@ -14,6 +15,12 @@ from telegram.handlers.utils import user_required
 from user.models import AuthIdentity, User
 
 logger = logging.getLogger(__name__)
+
+
+def _is_ukrainian_phone(phone: str) -> bool:
+    """True only for Ukrainian numbers: +380XXXXXXXXX (12 digits after +)."""
+    digits = re.sub(r"\D", "", phone or "")
+    return len(digits) == 12 and digits.startswith("380")
 
 
 @bot.message_handler(content_types=["contact"])
@@ -32,37 +39,45 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                 sentry_sdk.capture_exception()
 
             phone = f"+{message.contact.phone_number.lstrip('+')}"
+
+            # GUARD: only Ukrainian numbers (+380...) are allowed
+            if not _is_ukrainian_phone(phone):
+                logger.warning(
+                    "phone_rejected_not_ua",
+                    extra={"user_id": user.id, "phone_prefix": phone[:4]},
+                )
+                bot.send_message(
+                    chat_id=message.chat.id,
+                    text="Сервіс працює для мешканців України! Хай щастить!",
+                    reply_markup=ReplyKeyboardRemove(),
+                )
+                return
+
             user.phone_number = phone
             user.save(update_fields=["phone_number"])
             logger.info("phone_received", extra={"user_id": user.id, "phone": phone[:4] + "****"})
-
             AuthIdentity.objects.get_or_create(
                 provider=AuthIdentity.Provider.PHONE,
                 provider_uid=phone,
                 defaults={"user": user},
             )
-
             bot.send_message(
                 chat_id=message.chat.id,
                 text=_("Welcome to our service!"),
                 reply_markup=ReplyKeyboardRemove(),
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
-
             # Notify admins with complete user data
             from telegram.utils import notify_admins_new_user
 
             notify_admins_new_user(user)
-
             # Set MenuButton "ПОЧАТИ" -> WebApp on wizard
             try:
                 next_path = "/" if user.work_profile.is_completed else "/work/wizard/"
             except Exception:
                 next_path = "/work/wizard/"
-
             check_url = reverse("telegram:telegram_check_web_app")
             webapp_url = settings.BASE_URL.rstrip("/") + check_url + "?" + urlencode({"next": next_path})
-
             bot.set_chat_menu_button(
                 chat_id=message.chat.id,
                 menu_button=types.MenuButtonWebApp(
@@ -72,6 +87,5 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                 ),
             )
             logger.warning(f"MENU BUTTON SET: chat_id={message.chat.id}, url={webapp_url}")
-
     except Exception as e:
         logger.error(f"CONTACT FAILED: {type(e).__name__}: {e}", exc_info=True)

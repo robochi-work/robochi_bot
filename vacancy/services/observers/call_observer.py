@@ -36,9 +36,25 @@ class VacancyBeforeCallObserver(Observer):
 
         from telegram.choices import Status as _Status
 
-        start_naive = datetime.combine(vacancy.date, vacancy.start_time)
-        start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        # Layer 1: never re-dispatch the 2h notice within one cycle.
+        if (vacancy.extra or {}).get("pre_call_done"):
+            return
+
+        # Layer 2: anchor the 2h mark to the original cycle start.
+        orig_iso = (vacancy.extra or {}).get("original_start_datetime")
+        if orig_iso:
+            try:
+                start_aware = datetime.fromisoformat(orig_iso)
+                if timezone.is_naive(start_aware):
+                    start_aware = timezone.make_aware(start_aware, timezone.get_current_timezone())
+            except (ValueError, TypeError):
+                start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+                start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
+        else:
+            start_naive = datetime.combine(vacancy.date, vacancy.start_time)
+            start_aware = timezone.make_aware(start_naive, timezone.get_current_timezone())
         two_hours_before = start_aware - timedelta(hours=2)
+        any_dispatched = False
 
         for member in vacancy.members:
             user_answer_exists = VacancyUserCall.objects.filter(
@@ -85,6 +101,16 @@ class VacancyBeforeCallObserver(Observer):
                     bs_msgs[str(member.user.id)] = new_msg_id
                     vacancy.extra["before_start_msg_ids"] = bs_msgs
                     vacancy.save(update_fields=["extra"])
+                    any_dispatched = True
+
+        # Mark cycle as done so the next Celery tick won't re-send.
+        # Survives continue_search (which does not touch this key);
+        # cleared only by resume_before_start_cycle on a NEW cycle.
+        if any_dispatched:
+            if not vacancy.extra:
+                vacancy.extra = {}
+            vacancy.extra["pre_call_done"] = True
+            vacancy.save(update_fields=["extra"])
 
     @staticmethod
     def check_before_5_start(vacancy: Vacancy):
@@ -97,7 +123,20 @@ class VacancyBeforeCallObserver(Observer):
                     vacancy_user=member,
                     call_type=CallType.BEFORE_START,
                 ).first()
-                if not user_answer or user_answer.status == CallStatus.CONFIRM:
+                if not user_answer or user_answer.status in (CallStatus.CONFIRM, CallStatus.REJECT):
+                    continue
+
+                # Skip workers who re-joined the group after the rollcall was sent.
+                # Their old BEFORE_START record is stale and must not trigger a re-kick.
+                if member.updated_at and member.updated_at > user_answer.created_at:
+                    logger.info(
+                        "before_start_5_skipped",
+                        extra={
+                            "user_id": member.user.id,
+                            "vacancy_id": vacancy.id,
+                            "reason": "rejoined_after_call",
+                        },
+                    )
                     continue
 
                 elapsed = (timezone.now() - user_answer.created_at).total_seconds()
@@ -110,6 +149,9 @@ class VacancyBeforeCallObserver(Observer):
                     delete_bot_message(member.user.id, prev_msg_id)
                     GroupService.kick_user(chat_id=member.vacancy.group.id, user_id=member.user.id)
                     BlockService.auto_block_rollcall_reject(user=member.user)
+                    # Finalize the call so it cannot be re-triggered on rejoin.
+                    user_answer.status = CallStatus.REJECT
+                    user_answer.save(update_fields=["status"])
                     try:
                         get_bot().send_message(
                             member.user.id,

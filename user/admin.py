@@ -52,6 +52,7 @@ class UserWorkProfileInline(admin.StackedInline):
         "city",
         "agreement_accepted",
         "is_completed",
+        "auto_approve_vacancy",
         "multi_city_enabled",
         "allowed_cities",
         "created_at",

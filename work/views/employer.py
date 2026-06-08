@@ -15,7 +15,10 @@ def employer_reviews(request):
     likes_count = UserFeedback.objects.filter(user=request.user, rating="like").count()
     dislikes_count = UserFeedback.objects.filter(user=request.user, rating="dislike").count()
     total_count = likes_count + dislikes_count
-    rating_percent = round(likes_count / total_count * 100) if total_count > 0 else 0
+
+    from user.rating import bayesian_rating
+
+    rating_percent = bayesian_rating(likes_count, dislikes_count)
 
     enriched_reviews = []
     for review in reviews:

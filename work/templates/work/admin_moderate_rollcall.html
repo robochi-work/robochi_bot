@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block header %}{% endblock %}
+
+{% block body %}
+<main class="page page--admin-moderate">
+    <a href="javascript:history.back()" class="page-back-btn">← Назад</a>
+    <h2 class="moderate-title">Перевірка другої переклички</h2>
+
+    <div class="owner-card">
+        <div class="owner-row">
+            <span class="owner-label">Вакансія:</span>
+            <span class="owner-value">#{{ vacancy.pk }} — {{ vacancy.address }}</span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">Замовник:</span>
+            <span class="owner-value">{{ vacancy.owner.full_name|default:'-' }} (#{{ vacancy.owner_id }})</span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">Робітників у 1-й перекличці:</span>
+            <span class="owner-value"><strong>{{ prev_count }}</strong></span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">Підтверджено замовником у 2-й:</span>
+            <span class="owner-value"><strong>{{ prev_selected }}</strong></span>
+        </div>
+        <div class="owner-row">
+            <span class="owner-label">Сценарій:</span>
+            <span class="owner-value">
+                {% if is_full_uncheck %}В (всі чекбокси зняті){% else %}Б (частково зняті){% endif %}
+            </span>
+        </div>
+    </div>
+
+    <p class="rollcall-hint">
+        {% if is_full_uncheck %}
+            Адміністратор може встановити будь-яку кількість підтверджених робітників.
+        {% else %}
+            Адміністратор може лише <strong>додати</strong> чекбокси, але не знімати.
+        {% endif %}
+    </p>
+
+    <form method="post" class="moderate-form">
+        {% csrf_token %}
+        {{ form.call_type }}
+        {% if form.users.errors %}
+            <div class="form-error">{{ form.users.errors|join:" " }}</div>
+        {% endif %}
+
+        <div class="members-cards">
+            {% for vu in form.users %}
+            <div class="member-card">
+                <label class="rollcall-checkbox-wrap">
+                    {{ vu.tag }}
+                    <span class="member-card__name">{{ vu.choice_label }}</span>
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+
+        <button type="submit" class="btn-primary btn-block">Підтвердити та виставити рахунок</button>
+    </form>
+</main>
+
+<style>
+.page--admin-moderate { padding: 20px 14px; }
+.moderate-title { margin-bottom: 16px; }
+.owner-card {
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+.owner-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+.owner-label { font-weight: 600; }
+.rollcall-hint {
+    padding: 10px 14px;
+    background: var(--message-warning-bg);
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+.moderate-form .members-cards {
+    display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;
+}
+.member-card {
+    padding: 12px 14px; border-radius: var(--btn-radius);
+    background: var(--btn-bg); box-shadow: var(--btn-shadow);
+}
+.rollcall-checkbox-wrap {
+    display: flex; align-items: center; gap: 12px; cursor: pointer;
+}
+.rollcall-checkbox-wrap input[type="checkbox"] {
+    width: 24px; height: 24px; accent-color: var(--primary);
+}
+.member-card__name { font-weight: 600; }
+.form-error {
+    padding: 10px 14px; background: var(--destructive); color: white;
+    border-radius: var(--radius); margin-bottom: 16px;
+}
+.btn-block { width: 100%; }
+</style>
+{% endblock %}

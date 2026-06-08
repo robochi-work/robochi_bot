@@ -72,7 +72,7 @@
 
  <div class="detail-actions">
 
- {% if vacancy.group and vacancy.group.invite_link %}
+ {% if vacancy.group and vacancy.group.invite_link and not is_kicked %}
  <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
  <span class="worker-btn__icon"></span>
  <span class="worker-btn__text">

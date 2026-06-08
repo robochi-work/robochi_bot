@@ -136,16 +136,14 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
             vacancy.extra["calls"] = extra_calls
             vacancy.first_rollcall_passed = True
             vacancy.save(update_fields=["first_rollcall_passed", "extra"])
+        # Stage 5.F: 2nd rollcall is NOT auto-confirmed here anymore.
+        # The 3-hour ignore window is handled by auto_confirm_ignored_rollcall_task.
+        # Old behaviour (12 reminders x 5 min -> auto-confirm) is intentionally removed.
         elif not vacancy.second_rollcall_passed:
-            ct = CallType.AFTER_START
-            create_vacancy_call(vacancy=vacancy, call_type=ct, status=CallStatus.CREATED)
-            VacancyUserCall.objects.filter(vacancy_user__in=members, call_type=ct).update(status=CallStatus.CONFIRM)
-            # Save confirmed workers to extra for invoice calculation
-            extra_calls = vacancy.extra.get("calls", {})
-            extra_calls[ct] = list(members.values_list("user_id", flat=True))
-            vacancy.extra["calls"] = extra_calls
-            vacancy.second_rollcall_passed = True
-            vacancy.save(update_fields=["second_rollcall_passed", "extra"])
+            logger.info(
+                "escalate_after_start_handled_elsewhere",
+                extra={"vacancy_id": vacancy.pk, "reason": "5.F removed legacy auto-confirm"},
+            )
         from telegram.handlers.bot_instance import bot as _bot
 
         try:
@@ -196,13 +194,36 @@ def _update_channel_search_stopped(vacancy: Vacancy) -> None:
 
 
 def get_before_start_vacancies(delay: Minutes = 120) -> Iterable[Vacancy]:
+    """Vacancies inside the 2h-before-start window for BEFORE_START rollcall.
+
+    Two defense layers against re-sending the notice after continue_search:
+    (1) extra["pre_call_done"] flag — set after first successful dispatch,
+        cleared only when a NEW cycle begins (resume_search/renewal/moderation).
+    (2) extra["original_start_datetime"] anchor — used instead of the live
+        start_time, which continue_search may shift forward.
+    """
     vacancies = Vacancy.objects.filter(status=STATUS_APPROVED, date=date.today())
 
     naive_now = datetime.now()
     aware_now = timezone.make_aware(naive_now, timezone.get_current_timezone())
     filtered_vacancies = []
     for vacancy in vacancies:
-        start_aware = _get_start_aware(vacancy)
+        # Layer 1: skip if 2h notice already dispatched in current cycle.
+        if (vacancy.extra or {}).get("pre_call_done"):
+            continue
+
+        # Layer 2: anchor window to the original cycle start, not live start_time.
+        orig_iso = (vacancy.extra or {}).get("original_start_datetime")
+        if orig_iso:
+            try:
+                start_aware = datetime.fromisoformat(orig_iso)
+                if timezone.is_naive(start_aware):
+                    start_aware = timezone.make_aware(start_aware, timezone.get_current_timezone())
+            except (ValueError, TypeError):
+                start_aware = _get_start_aware(vacancy)
+        else:
+            # Legacy fallback for vacancies created before this field existed.
+            start_aware = _get_start_aware(vacancy)
 
         before_start_time = start_aware - timedelta(minutes=delay)
         if before_start_time < aware_now < start_aware:
@@ -801,6 +822,256 @@ def renewal_worker_check_task():
     logger.info("task_completed", extra={"task": "renewal_worker_check_task", "processed": None})
 
 
+@shared_task
+def finalize_continue_after_rollcall_task(vacancy_id: int):
+    """Stage 6.A: auto-finalize the 1h continue-search window after 1st rollcall.
+
+    Scheduled via apply_async(countdown=3600) when employer presses
+    "Підтвердити наявних + шукати ще". Idempotent — if continue-mode already
+    cleared (e.g. employer pressed "Зупинити пошук" earlier), returns noop.
+    """
+    logger.info(f"finalize_continue_after_rollcall_task: starting vacancy {vacancy_id}")
+    connection.close()
+    from vacancy.services.continue_after_rollcall import (
+        finalize_continue_after_first_rollcall,
+    )
+
+    try:
+        vacancy = Vacancy.objects.get(pk=vacancy_id)
+    except Vacancy.DoesNotExist:
+        logger.warning(f"finalize_continue_after_rollcall_task: vacancy {vacancy_id} not found")
+        return {"action": "not_found"}
+
+    result = finalize_continue_after_first_rollcall(vacancy)
+    logger.info(f"finalize_continue_after_rollcall_task: {result}")
+    return result
+
+
 @shared_task(name="vacancy.tasks.call.test_heartbeat")
 def test_heartbeat():
     logger.warning("✅ test_heartbeat work")
+
+
+@shared_task
+def disputed_rollcall_reminders_task():
+    """Stage 3.C: send up to 12 reminders (every 5 min) to employers stuck in
+    a partially-unchecked 2nd rollcall (Scenario Б).
+
+    Triggered every 30 seconds. Only acts when 5 minutes have passed since
+    the previous reminder, and stops after 12 reminders (then admin is
+    the only path forward).
+    """
+    from vacancy.services.call_markup import get_rollcall_reminder_markup
+    from vacancy.services.disputed_rollcall import DISPUTED_KEY, increment_reminders
+
+    logger.info("task_started", extra={"task": "disputed_rollcall_reminders_task"})
+    connection.close()
+
+    REMINDER_INTERVAL_MIN = 5
+    MAX_REMINDERS = 12
+    now = timezone.now()
+    processed = 0
+
+    candidates = Vacancy.objects.filter(extra__has_key=DISPUTED_KEY)
+    for vacancy in candidates:
+        state = (vacancy.extra or {}).get(DISPUTED_KEY) or {}
+        # Skip Scenario В (full uncheck) — employer is blocked, no reminders
+        if state.get("is_full_uncheck"):
+            continue
+        if int(state.get("reminders_count", 0)) >= MAX_REMINDERS:
+            continue
+
+        last_iso = state.get("last_reminder_at")
+        if last_iso:
+            try:
+                last_dt = datetime.fromisoformat(last_iso)
+                if (now - last_dt) < timedelta(minutes=REMINDER_INTERVAL_MIN):
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            from telegram.handlers.bot_instance import bot as _bot
+
+            _bot.send_message(
+                chat_id=vacancy.owner.id,
+                text="Підтвердіть наявність робочих у другій перекличці.",
+                reply_markup=get_rollcall_reminder_markup(vacancy, CallType.AFTER_START),
+            )
+            increment_reminders(vacancy)
+            processed += 1
+        except Exception:
+            sentry_sdk.capture_exception()
+
+    logger.info(
+        "task_completed",
+        extra={"task": "disputed_rollcall_reminders_task", "processed": processed},
+    )
+
+
+@shared_task
+def auto_confirm_ignored_rollcall_task():
+    """Stage 5.C: auto-confirm 2nd rollcall after 3h of employer ignoring it.
+
+    Triggers when:
+      - end_time + 3h <= now
+      - second_rollcall_passed = False
+      - no disputed_rollcall (employer didn't submit anything)
+      - not already auto-confirmed
+      - status == STATUS_SEARCH_STOPPED (work was running)
+
+    Behaves as Scenario A: all snapshot workers -> CONFIRM, invoice sent,
+    employer NOT blocked, workers NOT blocked. Then unpaid reminders begin (5.D).
+    """
+    from vacancy.services.disputed_rollcall import DISPUTED_KEY
+    from vacancy.services.rollcall_snapshot import (
+        SNAPSHOT_KEY,
+        get_snapshot_user_ids,
+    )
+
+    logger.info("task_started", extra={"task": "auto_confirm_ignored_rollcall_task"})
+    connection.close()
+    now = timezone.now()
+    processed = 0
+
+    candidates = Vacancy.objects.filter(
+        status=STATUS_SEARCH_STOPPED,
+        second_rollcall_passed=False,
+        extra__has_key=SNAPSHOT_KEY,
+    ).exclude(extra__has_key=DISPUTED_KEY)
+
+    for vacancy in candidates:
+        if (vacancy.extra or {}).get("auto_confirmed_at_ignore"):
+            continue
+        end_aware = _get_end_aware(vacancy)
+        if now < end_aware + timedelta(hours=3):
+            continue
+
+        snapshot_ids = get_snapshot_user_ids(vacancy)
+        if not snapshot_ids:
+            continue
+
+        try:
+            from vacancy.services.disputed_rollcall import finalize_rollcall
+
+            finalize_rollcall(
+                vacancy,
+                final_selected_user_ids=snapshot_ids,
+                finalized_by="auto_ignore",
+            )
+            vacancy.extra = dict(vacancy.extra or {})
+            vacancy.extra["auto_confirmed_at_ignore"] = now.isoformat()
+            vacancy.save(update_fields=["extra"])
+            processed += 1
+        except Exception:
+            sentry_sdk.capture_exception()
+
+    logger.info(
+        "task_completed",
+        extra={"task": "auto_confirm_ignored_rollcall_task", "processed": processed},
+    )
+
+
+@shared_task
+def send_unpaid_reminders_task():
+    """Stage 5.D: send hourly unpaid-invoice reminders, max 24 per vacancy.
+
+    For each vacancy in STATUS_AWAITING_PAYMENT (not paid, not yet at 24),
+    sends a reminder if the last one was sent more than 1 hour ago.
+    After the 24th, stops here — Stage 5.E permanently blocks the employer.
+    """
+    logger.info("task_started", extra={"task": "send_unpaid_reminders_task"})
+    connection.close()
+
+    from vacancy.choices import STATUS_AWAITING_PAYMENT as _AWAITING
+
+    UNPAID_INTERVAL = timedelta(hours=1)
+    UNPAID_MAX = 24
+    now = timezone.now()
+    processed = 0
+
+    candidates = Vacancy.objects.filter(status=_AWAITING).select_related("owner")
+    for vacancy in candidates:
+        extra = vacancy.extra or {}
+        if extra.get("is_paid"):
+            continue
+        sent_count = int(extra.get("unpaid_reminders", 0))
+        if sent_count >= UNPAID_MAX:
+            # Stage 5.E: after 24 reminders -> permanent ban + final messages
+            if extra.get("permanent_ban_done"):
+                continue
+            try:
+                from service.broadcast_service import TelegramBroadcastService
+                from service.notifications_impl import TelegramNotifier
+                from telegram.handlers.bot_instance import bot as _bot_e
+                from user.choices import BlockReason, BlockType
+                from user.services import BlockService
+
+                BlockService.block_user(
+                    user=vacancy.owner,
+                    block_type=BlockType.PERMANENT,
+                    reason=BlockReason.UNPAID,
+                )
+                final_amount = vacancy.payment_amount * vacancy.people_count
+                try:
+                    _bot_e.send_message(
+                        chat_id=vacancy.owner.id,
+                        text=(
+                            f"Вас заблоковано на постійній основі за несплачений рахунок "
+                            f"за вакансією #{vacancy.id}.\n"
+                            f"Сума до сплати: {final_amount} грн.\n"
+                            f"Для розблокування зв'яжіться з адміністратором: @robochi_work_admin"
+                        ),
+                    )
+                except Exception:
+                    sentry_sdk.capture_exception()
+                try:
+                    bc = TelegramBroadcastService(notifier=TelegramNotifier(_bot_e))
+                    bc.admin_broadcast(
+                        text=(
+                            f"\u26a0\ufe0f Боржник: вакансія #{vacancy.id}, "
+                            f"замовник #{vacancy.owner_id}, сума {final_amount} грн. "
+                            f"Постійний бан виставлено."
+                        ),
+                    )
+                except Exception:
+                    sentry_sdk.capture_exception()
+                vacancy.extra = dict(extra)
+                vacancy.extra["permanent_ban_done"] = True
+                vacancy.save(update_fields=["extra"])
+            except Exception:
+                sentry_sdk.capture_exception()
+            continue
+
+        last_iso = extra.get("unpaid_last_reminder_at")
+        if last_iso:
+            try:
+                last_dt = datetime.fromisoformat(last_iso)
+                if (now - last_dt) < UNPAID_INTERVAL:
+                    continue
+            except (TypeError, ValueError):
+                pass
+
+        try:
+            from telegram.handlers.bot_instance import bot as _bot
+
+            _bot.send_message(
+                chat_id=vacancy.owner.id,
+                text=(
+                    f"Нагадування про оплату вакансії #{vacancy.id}.\n"
+                    f"Сума: {vacancy.payment_amount * vacancy.people_count} грн.\n"
+                    f"Нагадування {sent_count + 1} з {UNPAID_MAX}."
+                ),
+            )
+            vacancy.extra = dict(extra)
+            vacancy.extra["unpaid_reminders"] = sent_count + 1
+            vacancy.extra["unpaid_last_reminder_at"] = now.isoformat()
+            vacancy.save(update_fields=["extra"])
+            processed += 1
+        except Exception:
+            sentry_sdk.capture_exception()
+
+    logger.info(
+        "task_completed",
+        extra={"task": "send_unpaid_reminders_task", "processed": processed},
+    )

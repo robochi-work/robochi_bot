@@ -19,19 +19,19 @@
  {% else %}
  <div class="rating-row">
  <div class="rating-item">
- <span class="rating-icon"></span>
+ <span class="rating-icon">👍</span>
  <span class="rating-count">{{ likes_count }}</span>
  </div>
  <div class="rating-divider"></div>
  <div class="rating-item">
- <span class="rating-icon"></span>
+ <span class="rating-icon">👎</span>
  <span class="rating-count">{{ dislikes_count }}</span>
  </div>
  </div>
  <div class="rating-bar-wrap">
  <div class="rating-bar-fill" style="width: {{ rating_percent }}%"></div>
  </div>
- <div class="rating-percent">{{ rating_percent }}% позитивних</div>
+ <div class="rating-percent">Рейтинг {{ rating_percent }}%</div>
  {% endif %}
  </div>
 

@@ -362,6 +362,10 @@ class VacancyForm(forms.Form):
             "vacancy_created",
             extra={"owner_id": owner.id, "city": str(selected_city), "people_count": data.get("people_count")},
         )
+        # Anchor the 2h-before-start notice to the originally requested start time.
+        from vacancy.services.call import reset_before_start_cycle as _reset_pre_call
+
+        _reset_pre_call(vacancy)
         # Save employer contact phone to VacancyContactPhone
         employer_phone = data.get("contact_phone", "")
         if employer_phone:
@@ -423,7 +427,7 @@ class VacancyUserFeedbackForm(forms.Form):
         cleaned_data = super().clean()
         rating = cleaned_data.get("rating")
         text = (cleaned_data.get("text") or "").strip()
-        if not rating and not text:
-            raise forms.ValidationError("Вкажіть оцінку або залиште відгук.")
+        if not rating:
+            raise forms.ValidationError("Оберіть оцінку — лайк або дизлайк.")
         cleaned_data["text"] = text
         return cleaned_data

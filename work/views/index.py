@@ -59,15 +59,41 @@ def index(request: WSGIRequest):
             if in_group:
                 current_vacancy = vacancy_user.vacancy
 
-        # Reviews count
-        reviews_count = UserFeedback.objects.filter(user=user).count()
+        # Recently kicked/left — show vacancy for 1 hour so worker can leave feedback
+        if not current_vacancy:
+            from datetime import timedelta
+
+            from django.utils import timezone as _dash_tz
+
+            one_hour_ago = _dash_tz.now() - timedelta(hours=1)
+            kicked_vu = (
+                VacancyUser.objects.filter(
+                    user=user,
+                    status__in=[Status.KICKED, Status.LEFT],
+                    updated_at__gte=one_hour_ago,
+                )
+                .select_related("vacancy")
+                .order_by("-updated_at")
+                .first()
+            )
+            if kicked_vu:
+                current_vacancy = kicked_vu.vacancy
+
+        # Rating & text reviews count
+        from user.rating import bayesian_rating
+
+        likes = UserFeedback.objects.filter(user=user, rating="like").count()
+        dislikes = UserFeedback.objects.filter(user=user, rating="dislike").count()
+        rating_percent = bayesian_rating(likes, dislikes)
+        text_reviews_count = UserFeedback.objects.filter(user=user).exclude(text="").count()
 
         is_blocked = BlockService.is_blocked(user)
         context = {
             "work_profile": profile,
             "channel": channel,
             "current_vacancy": current_vacancy,
-            "reviews_count": reviews_count,
+            "rating_percent": rating_percent,
+            "text_reviews_count": text_reviews_count,
             "is_blocked": is_blocked,
             "active_block": BlockService.get_active_block(user) if is_blocked else None,
         }
@@ -112,8 +138,13 @@ def index(request: WSGIRequest):
             .count()
         )
 
-        # Reviews count
-        reviews_count = UserFeedback.objects.filter(user=user).count()
+        # Rating & text reviews count
+        from user.rating import bayesian_rating
+
+        likes = UserFeedback.objects.filter(user=user, rating="like").count()
+        dislikes = UserFeedback.objects.filter(user=user, rating="dislike").count()
+        rating_percent = bayesian_rating(likes, dislikes)
+        text_reviews_count = UserFeedback.objects.filter(user=user).exclude(text="").count()
 
         # City channel link (single city)
         channel = None
@@ -138,7 +169,8 @@ def index(request: WSGIRequest):
         context = {
             "work_profile": profile,
             "active_vacancies_count": active_vacancies_count,
-            "reviews_count": reviews_count,
+            "rating_percent": rating_percent,
+            "text_reviews_count": text_reviews_count,
             "channel": channel,
             "city_channels": city_channels,
             "is_blocked": is_blocked,

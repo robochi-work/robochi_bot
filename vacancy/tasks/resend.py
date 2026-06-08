@@ -17,24 +17,38 @@ logger = logging.getLogger(__name__)
 
 
 def resend_vacancy_to_channel(vacancy: Vacancy):
-    """Delete old message and republish vacancy with button."""
+    """Delete old message and republish vacancy with button.
+
+    Uses a short cache lock to avoid race conditions with VacancySlotFreedObserver
+    (which can fire from a Telegram chat_member event at the same Celery beat tick).
+    """
+    from django.core.cache import cache
+
     channel = vacancy.channel
     if not channel:
         logger.warning(f"Rotation skip: vacancy {vacancy.id} has no channel")
         return
 
-    deleter = MessageDeleter(bot)
-    service = MessageDeleteService(deleter)
-    service.delete_in_channel_by_vacancy(vacancy)
+    lock_key = f"vacancy_publish_lock:{vacancy.id}"
+    if not cache.add(lock_key, True, timeout=15):
+        logger.warning(f"Rotation skip: vacancy {vacancy.id} publish lock held")
+        return
 
-    TelegramNotifier(bot).notify(
-        recipient=SimpleNamespace(chat_id=channel.id),
-        method=NotificationMethod.TEXT,
-        text=VacancyTelegramTextFormatter(vacancy).for_channel(),
-        reply_markup=channel_vacancy_reply_markup(vacancy),
-        vacancy=vacancy,
-    )
-    logger.warning(f"Rotation: vacancy {vacancy.id} republished to channel {channel.id}")
+    try:
+        deleter = MessageDeleter(bot)
+        service = MessageDeleteService(deleter)
+        service.delete_in_channel_by_vacancy(vacancy)
+
+        TelegramNotifier(bot).notify(
+            recipient=SimpleNamespace(chat_id=channel.id),
+            method=NotificationMethod.TEXT,
+            text=VacancyTelegramTextFormatter(vacancy).for_channel(),
+            reply_markup=channel_vacancy_reply_markup(vacancy),
+            vacancy=vacancy,
+        )
+        logger.warning(f"Rotation: vacancy {vacancy.id} republished to channel {channel.id}")
+    finally:
+        cache.delete(lock_key)
 
 
 @shared_task

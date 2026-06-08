@@ -7,7 +7,7 @@ from telebot.types import ChatJoinRequest, ChatMemberUpdated
 from telegram.handlers.bot_instance import bot
 from telegram.models import Group, Status, UserInGroup
 from telegram.service.group import GroupService
-from user.models import User
+from user.models import User, WorkerVoluntaryExit
 from user.services import BlockService
 from vacancy.choices import GENDER_ANY, STATUS_APPROVED
 from vacancy.models import Vacancy, VacancyUser
@@ -326,6 +326,24 @@ def handle_user_status_change(event: ChatMemberUpdated):
 
         UserInGroup.objects.update_or_create(user=user, group=group, defaults={"status": status})
         VacancyUser.objects.update_or_create(user=user, vacancy=vacancy, defaults={"status": status})
+
+        # Kick worker from old groups of finished vacancies
+        if status == Status.MEMBER.value:
+            from vacancy.choices import STATUS_AWAITING_PAYMENT, STATUS_CLOSED, STATUS_PAID
+
+            old_uigs = UserInGroup.objects.filter(user=user).exclude(group=group).select_related("group")
+            for old_uig in old_uigs:
+                old_vacancy = Vacancy.objects.filter(group_id=old_uig.group_id).first()
+                if old_vacancy and old_vacancy.status in (STATUS_CLOSED, STATUS_AWAITING_PAYMENT, STATUS_PAID):
+                    try:
+                        GroupService.kick_user(chat_id=old_uig.group_id, user_id=user.id)
+                        logger.info(
+                            "kicked_from_old_group",
+                            extra={"user_id": user.id, "old_group": old_uig.group_id, "new_group": group.id},
+                        )
+                    except Exception:
+                        sentry_sdk.capture_exception()
+
         # Delete invite message from bot chat
         try:
             invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})
@@ -344,8 +362,16 @@ def handle_user_status_change(event: ChatMemberUpdated):
         vacancy_publisher.notify(VACANCY_NEW_MEMBER, data={"vacancy": vacancy})
     else:
         logger.info("member_left_group", extra={"user_id": user_data.id, "group_id": event.chat.id})
+
+        # Log voluntary exit (status=="left" means user left on their own, not kicked)
+        if status == "left" and vacancy.owner != user and not user.is_staff:
+            WorkerVoluntaryExit.objects.create(user=user, vacancy=vacancy)
+            logger.info("voluntary_exit_logged", extra={"user_id": user.id, "vacancy_id": vacancy.id})
+
         UserInGroup.objects.filter(user=user, group=group).delete()
-        VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT)
+        from django.utils import timezone as left_tz
+
+        VacancyUser.objects.filter(user=user, vacancy=vacancy).update(status=Status.LEFT, updated_at=left_tz.now())
         # Delete invite message from bot chat
         try:
             invites = (vacancy.extra or {}).get("apply_invite_msg_ids", {})

@@ -24,6 +24,7 @@ class CallbackStorage:
     call_handler = CallbackData("call_type", "status", "vacancy_id", prefix="call_handler")
 
     invoice_payload = CallbackData("vacancy_id", "amount", prefix="invoice_payload")
+    disputed_action = CallbackData("action", "vacancy_id", prefix="disputed")
 
 
 class ButtonStorage:

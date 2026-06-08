@@ -45,6 +45,40 @@
  </span>
  </div>
 
+ {# Stage 6.A: "Триває добір" banner — 1h continue-search window after 1st rollcall #}
+ {% if continue_mode and continue_ends_at %}
+ <div class="continue-banner" style="background:var(--accent-soft, #fff8e1);border:1px solid var(--accent, #f0b400);border-radius:8px;padding:12px 14px;margin:0 0 16px;">
+  <div style="font-weight:600;color:var(--accent-strong, #8a6500);margin-bottom:4px;">
+   Триває добір працівників
+  </div>
+  <div style="color:var(--muted-foreground);font-size:14px;">
+   Завершиться о <strong>{{ continue_ends_at|time:"H:i" }}</strong>
+   <span data-continue-remaining style="margin-left:6px;"></span>
+  </div>
+ </div>
+ <script>
+  (function () {
+   var endIso = "{{ continue_ends_at|date:'c' }}";
+   var endTs = endIso ? new Date(endIso).getTime() : 0;
+   var label = document.querySelector("[data-continue-remaining]");
+   if (!endTs || !label) return;
+   function tick() {
+    var diff = endTs - Date.now();
+    if (diff <= 0) {
+     label.textContent = "(завершується...)";
+     setTimeout(function () { window.location.reload(); }, 5000);
+     return;
+    }
+    var mins = Math.floor(diff / 60000);
+    var secs = Math.floor((diff % 60000) / 1000);
+    label.textContent = "(залишилось " + mins + " хв " + (secs < 10 ? "0" : "") + secs + " с)";
+   }
+   tick();
+   setInterval(tick, 1000);
+  })();
+ </script>
+ {% endif %}
+
  {# 1. Close vacancy — above info card, hidden during rollcall and after invoice #}
  {% if can_close %}
  <form method="post" action="{% url 'vacancy:close_lifecycle' pk=vacancy.pk %}"
@@ -153,7 +187,7 @@
  <span class="worker-btn__icon"></span>
  <span class="worker-btn__text">
  <span class="worker-btn__title">Поновити пошук</span>
- <span class="worker-btn__sub">Вакансія піде на модерацію</span>
+ <span class="worker-btn__sub">Вакансію буде опубліковано в каналі</span>
  </span>
  </a>
  {% elif vacancy.status == 'stopped' %}
@@ -166,8 +200,8 @@
  </button>
  {% endif %}
 
- {# Group invite link — renamed #}
- {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle %}
+ {# Group invite link — renamed; hidden if owner was kicked from group #}
+ {% if vacancy.group and vacancy.group.invite_link and not is_pending and not is_closed_lifecycle and owner_in_group %}
  <a href="{{ vacancy.group.invite_link }}" target="_blank" class="worker-btn">
  <span class="worker-btn__icon"></span>
  <span class="worker-btn__text">
@@ -181,7 +215,7 @@
 
  {# ═══ MEMBERS / ROLLCALL SECTION ═══ #}
  {% if not is_pending and not is_closed_lifecycle %}
- <div class="detail-members-section">
+ <div class="detail-members-section" id="rollcall-block">
 
  {% if is_rollcall_mode %}
  {# ── ROLLCALL MODE ── #}
@@ -243,7 +277,7 @@
        Дивитися/Залишити відгук
       </button>
       <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
-      {% if item.contact_phone %}
+      {% if item.contact_phone and item.is_member %}
       <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
       {% endif %}
      </div>
@@ -287,16 +321,16 @@
   <div class="member-card {% if not item.is_member %}member-card--inactive{% endif %}">
    <button type="button" class="member-card__feedback-link"
     onclick="openFeedbackModal({{ item.user.pk }}, '{{ item.user.full_name|default:"Без імені"|escapejs }}')">
-    Дивитися/Залишити відгук
+    Дивитися/Залишити відгук · Рейтинг {{ item.rating_percent }}%
    </button>
    <div class="member-card__info">
     <span class="member-card__name">{{ item.user.full_name|default:"Без імені" }}</span>
     {% if item.is_blocked %}<span style="color:#cc0000;font-weight:700;">Заблоковано</span>{% endif %}
-    {% if item.contact_phone %}
+    {% if item.contact_phone and item.is_member %}
     <a href="tel:{{ item.contact_phone }}" class="member-card__phone">{{ item.contact_phone }}</a>
     {% endif %}
    </div>
-   {% if item.is_member and not work_time_started %}
+   {% if item.is_member and not vacancy.first_rollcall_passed %}
    <form method="POST" action="{% url 'vacancy:kick_member' vacancy.pk item.user.pk %}" style="margin:0;">
     {% csrf_token %}
     <button type="submit" class="btn-secondary btn-block"
@@ -645,4 +679,20 @@ function closeFeedbackModalOutside(event) {
  .detail-card { padding: 16px 12px; border-radius: 24px; }
 }
 </style>
+
+<script>
+(function() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    if (params.get("focus") === "rollcall") {
+      var target = document.getElementById("rollcall-block");
+      if (target) {
+        setTimeout(function() {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    }
+  } catch (e) {}
+})();
+</script>
 {% endblock %}

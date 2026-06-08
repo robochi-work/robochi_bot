@@ -8,7 +8,11 @@
  <div class="feedback-container">
 
  <div class="feedback-header">
- <a href="{% url 'vacancy:user_list' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+ {% if user_role == "worker" %}
+ <a href="{% url 'work:worker_my_work' %}" class="page-back-btn">← Назад</a>
+ {% else %}
+ <a href="{% url 'vacancy:detail' pk=vacancy.pk %}" class="page-back-btn">← Назад</a>
+ {% endif %}
  <div class="feedback-header__title">
  <h1>Залишити відгук</h1>
  <span class="feedback-header__name">{{ target_user.full_name|default:"Без імені" }}</span>
@@ -31,13 +35,13 @@
  <label class="rating-btn rating-btn--like {% if form.rating.value == 'like' %}rating-btn--selected-like{% endif %}">
  <input type="radio" name="rating" value="like" hidden
  {% if form.rating.value == 'like' %}checked{% endif %}>
- <span class="rating-btn__icon"></span>
+ <span class="rating-btn__icon">👍</span>
  <span class="rating-btn__label">Лайк</span>
  </label>
  <label class="rating-btn rating-btn--dislike {% if form.rating.value == 'dislike' %}rating-btn--selected-dislike{% endif %}">
  <input type="radio" name="rating" value="dislike" hidden
  {% if form.rating.value == 'dislike' %}checked{% endif %}>
- <span class="rating-btn__icon"></span>
+ <span class="rating-btn__icon">👎</span>
  <span class="rating-btn__label">Дизлайк</span>
  </label>
  </div>

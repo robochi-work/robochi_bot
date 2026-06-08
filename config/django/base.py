@@ -296,3 +296,6 @@ SPECTACULAR_SETTINGS = {
 }
 
 MONOBANK_API_TOKEN = os.environ.get("MONOBANK_API_TOKEN", "")
+
+# Rating: Bayesian average threshold (virtual votes for newcomers)
+RATING_THRESHOLD = 5
