@@ -18,6 +18,7 @@ from .views import (
     vacancy_start_refind,
     vacancy_stop_search,
     vacancy_test_task,
+    vacancy_unpaid_invoice,
     vacancy_user_feedback,
     vacancy_user_list,
     vacancy_user_reviews,
@@ -45,4 +46,5 @@ urlpatterns = [
     path("<int:pk>/send-contact/", vacancy_send_contact, name="send_contact"),
     path("<int:pk>/payment/", vacancy_payment, name="payment"),
     path("test-task/", vacancy_test_task, name="vacancy_test_task"),
+    path("unpaid-invoice/", vacancy_unpaid_invoice, name="unpaid_invoice"),
 ]

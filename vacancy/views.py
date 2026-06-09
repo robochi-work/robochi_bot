@@ -1326,6 +1326,15 @@ def vacancy_close_lifecycle(request, pk):
                 vacancy.extra["calls"] = {}
             vacancy.extra["calls"]["after_start"] = members_in_group
             vacancy.extra["cancel_requested"] = True
+
+            # Гард на аномалію
+            from vacancy.services.invoice import validate_invoice_data as _validate_invoice
+
+            if not _validate_invoice(vacancy):
+                vacancy.save(update_fields=["extra"])
+                # Не переходимо в awaiting_payment, виходимо тихо (алерт уже надісланий)
+                return redirect("vacancy:detail", pk=vacancy.pk)
+
             vacancy.status = STATUS_AWAITING_PAYMENT
             vacancy.search_active = False
             vacancy.save(update_fields=["status", "search_active", "extra"])
@@ -1526,3 +1535,44 @@ def vacancy_members_json(request, pk):
         "status": vacancy.status,
     }
     return JsonResponse(data)
+
+
+def vacancy_unpaid_invoice(request):
+    """Сторінка-заглушка для замовника з перм-баном за неоплату.
+
+    Показує тільки адресу + суму + кнопку Сплатити. Більше нічого.
+    """
+    from django.shortcuts import redirect, render
+
+    from user.choices import BlockReason
+    from user.services import BlockService
+    from vacancy.services.invoice import get_vacancy_invoice_amount
+
+    if not request.user.is_authenticated:
+        return redirect("https://robochi.work")
+
+    active = BlockService.get_active_block(request.user)
+    # Доступ тільки для постійного бану з причиною UNPAID
+    if not (active and active.is_active and active.block_type == "permanent" and active.reason == BlockReason.UNPAID):
+        return redirect("index")
+
+    vacancy = Vacancy.objects.filter(owner=request.user, status=STATUS_AWAITING_PAYMENT).order_by("-created_at").first()
+    if not vacancy:
+        return render(
+            request,
+            "vacancy/unpaid_invoice.html",
+            {
+                "vacancy": None,
+                "amount": 0,
+            },
+        )
+
+    amount = get_vacancy_invoice_amount(vacancy)
+    return render(
+        request,
+        "vacancy/unpaid_invoice.html",
+        {
+            "vacancy": vacancy,
+            "amount": amount,
+        },
+    )

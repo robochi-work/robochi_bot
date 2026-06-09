@@ -27,6 +27,13 @@ def index(request: WSGIRequest):
     if not user.phone_number:
         return redirect("work:phone_required")
 
+    # Permanent UNPAID ban → only payment window, no LK access
+    from user.choices import BlockReason as _BR
+
+    _active = BlockService.get_active_block(user)
+    if _active and _active.is_active and _active.block_type == "permanent" and _active.reason == _BR.UNPAID:
+        return redirect("vacancy:unpaid_invoice")
+
     # Administrator — separate dashboard, skip wizard check
     if user.is_staff:
         return redirect("work:admin_dashboard")

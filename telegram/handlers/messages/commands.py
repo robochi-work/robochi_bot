@@ -481,6 +481,49 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
                 return
 
     if BlockService.is_permanently_blocked(user):
+        # Спецсценарій: перм-бан за несплачений рахунок → шлемо рахунок + кнопку Сплатити
+        try:
+            from django.conf import settings
+            from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
+            from user.choices import BlockReason
+            from vacancy.choices import STATUS_AWAITING_PAYMENT
+            from vacancy.models import Vacancy
+            from vacancy.services.invoice import get_vacancy_invoice_amount
+
+            active = BlockService.get_active_block(user)
+            if active and active.reason == BlockReason.UNPAID:
+                vacancy = (
+                    Vacancy.objects.filter(owner=user, status=STATUS_AWAITING_PAYMENT).order_by("-created_at").first()
+                )
+                if vacancy:
+                    amount = get_vacancy_invoice_amount(vacancy)
+                    payment_url = f"{settings.BASE_URL}/vacancy/{vacancy.pk}/payment/"
+                    markup = InlineKeyboardMarkup()
+                    markup.row(
+                        InlineKeyboardButton(
+                            "💳 Сплатити рахунок",
+                            web_app=WebAppInfo(url=payment_url),
+                        )
+                    )
+                    get_bot().send_message(
+                        message.chat.id,
+                        text=(
+                            f"Вас заблоковано на постійній основі за несплачений рахунок.\n"
+                            f"Вакансія — Адреса: {vacancy.address}\n"
+                            f"Сума до сплати: {amount} грн.\n"
+                            f"Для розблокування сплатіть рахунок та зв'яжіться з "
+                            f"адміністратором: @robochi_work_admin"
+                        ),
+                        reply_markup=markup,
+                    )
+                    return
+        except Exception:
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
+
+        # Усі інші перм-бани — стандартний текст
         get_bot().send_message(
             message.chat.id,
             "Вас заблоковано у сервісі robochi.work !\nДля розблокування зверніться до Адміністратора- @robochi_work_admin",

@@ -21,7 +21,11 @@ class InvoiceData(TypedDict):
     prices: list[LabeledPrice]
 
 
-def get_vacancy_invoice_amount(vacancy: Vacancy, price_per_worker: UAH = 100) -> UAH:
+def get_vacancy_invoice_amount(vacancy: Vacancy, price_per_worker: UAH | None = None) -> UAH:
+    if price_per_worker is None:
+        from work.models import PaymentConfig
+
+        price_per_worker = PaymentConfig.get_fee()
     return len(vacancy.extra.get("calls", {}).get(CallType.AFTER_START.value, [])) * price_per_worker
 
 
@@ -84,3 +88,69 @@ def send_vacancy_invoice(notifier, vacancy: Vacancy) -> None:
         vacancy.save(update_fields=["extra"])
     except Exception:
         sentry_sdk.capture_exception()
+
+
+def validate_invoice_data(vacancy: Vacancy) -> bool:
+    """Перевірка цілісності даних перед виставленням рахунку.
+
+    Повертає True якщо в extra["calls"]["after_start"] є >=1 працівник.
+    Якщо список порожній — це АНОМАЛІЯ: шле адміну діагностичний алерт,
+    логує в Sentry, повертає False.
+
+    Ідемпотентність: алерт шлеться один раз (флаг extra["anomaly_alerted"]).
+    """
+    import sentry_sdk
+
+    after_start = vacancy.extra.get("calls", {}).get(CallType.AFTER_START.value, [])
+    if after_start:
+        return True
+
+    # АНОМАЛІЯ
+    snapshot = vacancy.extra.get("rollcall_snapshot", []) or []
+    try:
+        sentry_sdk.capture_message(
+            "INVOICE_ANOMALY: awaiting_payment with 0 workers",
+            level="error",
+            extras={
+                "vacancy_id": vacancy.pk,
+                "status_before": vacancy.status,
+                "owner_id": vacancy.owner_id,
+                "first_rollcall_passed": vacancy.first_rollcall_passed,
+                "second_rollcall_passed": vacancy.second_rollcall_passed,
+                "snapshot_size": len(snapshot),
+                "extra_keys": list(vacancy.extra.keys()),
+            },
+        )
+    except Exception:
+        pass
+
+    if (vacancy.extra or {}).get("anomaly_alerted"):
+        return False
+
+    try:
+        from service.broadcast_service import TelegramBroadcastService
+        from service.notifications_impl import TelegramNotifier
+        from telegram.handlers.bot_instance import bot as _bot
+        from vacancy.services.admin_format import format_user_block_with_contact
+
+        owner_block = format_user_block_with_contact(vacancy.owner, vacancy)
+        text = (
+            f"🐛 BUG: спроба виставити рахунок на 0 грн\n\n"
+            f"Адреса: {vacancy.address}\n\n"
+            f"Замовник:\n{owner_block}\n\n"
+            f"Поточний статус: {vacancy.get_status_display()}\n"
+            f"1-а перекличка пройдена: {vacancy.first_rollcall_passed}\n"
+            f"2-а перекличка пройдена: {vacancy.second_rollcall_passed}\n"
+            f"Робочих в snapshot (1-ї переклички): {len(snapshot)}\n"
+            f"Робочих в after_start (2-ї переклички): 0\n\n"
+            "⚠️ Перехід в 'Очікує оплати' заблоковано.\n"
+            "Розберіться чому after_start порожній."
+        )
+        TelegramBroadcastService(notifier=TelegramNotifier(_bot)).admin_broadcast(text=text)
+    except Exception:
+        sentry_sdk.capture_exception()
+
+    vacancy.extra = dict(vacancy.extra or {})
+    vacancy.extra["anomaly_alerted"] = True
+    vacancy.save(update_fields=["extra"])
+    return False

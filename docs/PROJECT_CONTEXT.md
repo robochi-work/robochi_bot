@@ -2587,3 +2587,44 @@ vacancy_factory(date=target_local.date(), start_time=target_local.time())
 
 #### Принцип, на который опираемся
 Все деструктивные операции теперь fail-open: при любой неопределённости задача НЕ удаляет/НЕ блокирует. Лучше пропустить итерацию и попробовать завтра, чем стереть живого юзера каскадом.
+
+
+## Сесія 09.06.2026 — Фікс рахунку + перм-бан UNPAID flow
+
+### Проблема (зі скріна замовника)
+1. Рахунок виставлявся за формулою `payment_amount × people_count` (зарплата працівнику × план) замість `фактичних × 100`. На скріні: 65×2=130 грн замість 2×100=200 грн.
+2. Фінальне повідомлення замовнику при перм-бані не містило адресу вакансії і кнопки оплати.
+3. Повідомлення адміну («Боржник: вакансія #125…») не у форматі інших адмін-повідомлень.
+4. Mini App при перм-бані за неоплату — internal server error замість вікна оплати.
+
+### Що зроблено
+- **`work/models.py::PaymentConfig`** — singleton-модель для сервісного збору (default=100), редагується в Django admin розділ «Оплата». Міграція `work.0010_paymentconfig`.
+- **`vacancy/services/invoice.py::get_vacancy_invoice_amount`** — читає ціну з `PaymentConfig.get_fee()`, fallback 100.
+- **`vacancy/services/invoice.py::validate_invoice_data(vacancy)`** — гард проти аномалії «0 працівників в `awaiting_payment`». При спрацюванні: алерт адміну через `admin_broadcast` + Sentry + флаг `extra["anomaly_alerted"]` для ідемпотентності.
+- **Гарди в 3 точках переходу** в `STATUS_AWAITING_PAYMENT`:
+  - `vacancy/tasks/call.py::_escalate_rollcall` (~стр.155)
+  - `vacancy/views.py::vacancy_close_lifecycle` (~стр.1329)
+  - `vacancy/services/disputed_rollcall.py::finalize_rollcall`
+- **`vacancy/tasks/call.py::send_unpaid_reminders_task`** переписана:
+  - Сума з `get_vacancy_invoice_amount` (3 місця).
+  - Тексти нагадувань (1-24): «Нагадування про оплату рахунку. Вакансія — Адреса: {address}. Сума до сплати: {amount} грн. Нагадування N з 24.» — без кнопки.
+  - Фінальне повідомлення перм-бану — з адресою + кнопка `💳 Сплатити рахунок` (WebApp).
+  - Defense-in-depth: `validate_invoice_data` в кожній ітерації.
+- **`vacancy/services/call_formatter.py`** — нові методи:
+  - `admin_employer_permanent_ban_unpaid(amount)` — 🚫 Замовника заблоковано на постійній основі за несплачений рахунок + адреса + сума + блок замовника + група.
+  - `admin_employer_payment_received(amount)` — ✅ Рахунок оплачено + **дата створення вакансії** (за вимогою, не дата оплати) + адреса + сума + блок замовника.
+- **`vacancy/views.py::vacancy_unpaid_invoice`** + **`vacancy/urls.py`** (`unpaid-invoice/`) + **`vacancy/templates/vacancy/unpaid_invoice.html`** — мінімалістична сторінка тільки з адресою + сумою + кнопкою оплати (без меню).
+- **`work/views/index.py`** — після перевірки phone_number: якщо `is_permanently_blocked AND reason=UNPAID` → redirect на `vacancy:unpaid_invoice`. Спрацьовує тільки при ПОСТІЙНОМУ бані, тимчасовий unpaid дозволяє звичайний ЛК з алертом (як раніше).
+- **`telegram/handlers/messages/commands.py::start`** — при перм-бані з `reason=UNPAID` шле повідомлення з адресою + сумою + кнопкою `💳 Сплатити рахунок` (WebApp). Інші причини перм-бану — стандартний текст.
+- **`payment/services.py::process_webhook`** — після успішної оплати додано `admin_broadcast` з `admin_employer_payment_received`. Авторозблокування unpaid через `BlockService.unblock_user` залишилось як було. Ручне розблокування адміном теж працює.
+
+### Архітектурні інваріанти (нові)
+- `get_vacancy_invoice_amount` — **єдине джерело правди** для суми рахунку. Не дублювати `payment_amount × people_count` у тасках/повідомленнях.
+- Перед `vacancy.status = STATUS_AWAITING_PAYMENT` ОБОВ'ЯЗКОВО викликати `validate_invoice_data(vacancy)`.
+- Перм-бан з `reason=UNPAID` блокує вхід в ЛК повністю (Mini App → unpaid_invoice, бот /start → повідомлення з кнопкою). Тимчасовий unpaid — лише блок створення нових (як раніше).
+
+### Тести
+`tests/test_session_20260609_invoice_amount_fix.py` — 8 тестів: PaymentConfig (default/custom/singleton), invoice amount (2 worker × 100 = 200, custom fee), validate_invoice_data (pass, fail+анолалія, ідемпотентність).
+
+### Деплой
+`makemigrations work` → `migrate work` → створення PaymentConfig запису → `collectstatic --clear --noinput` → restart gunicorn/celery-worker/celery-beat.

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from work.models import AgreementText, FaqItem, RatingConfig
+from work.models import AgreementText, FaqItem, PaymentConfig, RatingConfig
 
 
 @admin.register(AgreementText)
@@ -37,6 +37,17 @@ class RatingConfigAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         # Only one row allowed
         return not RatingConfig.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PaymentConfig)
+class PaymentConfigAdmin(admin.ModelAdmin):
+    list_display = ("service_fee_per_worker",)
+
+    def has_add_permission(self, request):
+        return not PaymentConfig.objects.exists()
 
     def has_delete_permission(self, request, obj=None):
         return False
