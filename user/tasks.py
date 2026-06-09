@@ -127,8 +127,21 @@ def cleanup_inactive_users_task():
 
 @shared_task(name="user.tasks.cleanup_unregistered_users_task")
 def cleanup_unregistered_users_task():
-    """Daily task: delete users who pressed /start but never completed registration within 7 days."""
+    """Daily task: delete users who pressed /start but never completed registration within 1 day.
+
+    By design these users have is_completed=False and no role/city → they
+    cannot create vacancies or join vacancy groups. If a candidate for
+    deletion DOES have such links, it indicates a data integrity bug
+    elsewhere (e.g. wizard finished without setting is_completed=True).
+    In that case we skip the deletion and alert admins for manual review,
+    so no real user data is ever lost to a faulty cleanup.
+
+    History: cleanup_inactive_users wiped @Nephrite_u (31.05) and
+    @ParaibaUA (08.06) due to faulty Telegram API check; this is the
+    related task hardened with the same fail-open philosophy.
+    """
     from user.models import User
+    from vacancy.models import Vacancy, VacancyUser
 
     cutoff = timezone.now() - timedelta(days=UNREGISTERED_DAYS)
 
@@ -139,14 +152,68 @@ def cleanup_unregistered_users_task():
         date_joined__lt=cutoff,
     ).select_related("work_profile")
 
-    count = 0
+    deleted = 0
+    anomalies = []  # users we refused to delete due to unexpected links
+
     for user in users:
         profile = getattr(user, "work_profile", None)
-        if not profile or not profile.is_completed:
-            username = user.username
-            user_id = user.id
-            user.delete()
-            count += 1
-            logger.info(f"Deleted unregistered user: {user_id} (@{username})")
+        if profile and profile.is_completed:
+            continue  # fully registered
 
-    logger.info(f"Unregistered cleanup complete: {count} users removed")
+        # Anomaly guard: an unregistered user should have NO vacancy links.
+        # If they do, something else in the code is leaving is_completed=False
+        # for a real user. Refuse deletion and alert admins.
+        owned = Vacancy.objects.filter(owner=user).count()
+        vu_links = VacancyUser.objects.filter(user=user).count()
+        if owned or vu_links:
+            anomalies.append(
+                {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "phone_number": user.phone_number,
+                    "role": getattr(profile, "role", None),
+                    "vacancies_owned": owned,
+                    "vacancy_user_links": vu_links,
+                }
+            )
+            logger.warning(
+                f"Cleanup ANOMALY (skip+alert): unregistered user has vacancy data — "
+                f"user_id={user.id} @{user.username} phone={user.phone_number} "
+                f"role={getattr(profile, 'role', None)} "
+                f"owned_vacancies={owned} vacancy_user_links={vu_links}"
+            )
+            continue
+
+        # Pre-delete diagnostic log
+        logger.info(
+            f"Deleting unregistered user: user_id={user.id} @{user.username} "
+            f"phone={user.phone_number} "
+            f"date_joined={user.date_joined.isoformat()} "
+            f"has_profile={profile is not None} "
+            f"role={getattr(profile, 'role', None)} "
+            f"is_completed={getattr(profile, 'is_completed', None)}"
+        )
+        user.delete()
+        deleted += 1
+
+    logger.info(f"Unregistered cleanup complete: {deleted} users removed, {len(anomalies)} anomalies")
+
+    # Alert admins about anomalies — they signal a data bug elsewhere
+    if anomalies:
+        try:
+            from service.broadcast_service import TelegramBroadcastService
+            from service.notifications_impl import TelegramNotifier
+            from telegram.handlers.bot_instance import bot
+
+            lines = ["⚠️ Cleanup anomaly: незареєстровані юзери з вакансіями (НЕ видалені):"]
+            for a in anomalies:
+                lines.append(
+                    f"• user_id={a['user_id']} @{a['username']} "
+                    f"phone={a['phone_number']} role={a['role']} "
+                    f"owned={a['vacancies_owned']} vu_links={a['vacancy_user_links']}"
+                )
+            lines.append("Потрібне ручне розслідування — десь is_completed=True не виставлено.")
+            broadcast = TelegramBroadcastService(notifier=TelegramNotifier(bot))
+            broadcast.admin_broadcast(text="\n".join(lines))
+        except Exception as e:
+            logger.error(f"Failed to send cleanup anomaly alert: {e}")
