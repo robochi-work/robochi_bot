@@ -2556,3 +2556,34 @@ vacancy_factory(date=target_local.date(), start_time=target_local.time())
 - Сейчас в БД у всех 8 юзеров is_completed=True — пока безопасно.
 - Риск: если где-то `UserWorkProfile.objects.get_or_create(...)` создаёт профиль без последующего is_completed=True → жертва через сутки.
 - Action item на следующую сессию: пройтись по всем местам get_or_create профиля.
+
+### 09.06.2026 (продолжение) — cleanup hardening + Telegram status check
+
+#### cleanup_unregistered_users_task — anomaly detector
+- Срок 1 день оставлен (это by design — чистка мусорных /start без регистрации).
+- Добавлен охранник: если у кандидата на удаление есть Vacancy.owner или VacancyUser.user — это аномалия (такое невозможно у незарегистрированного по дизайну). Skip + alert админам, deletion отменяется.
+- Подробное логирование каждого решения cleanup.
+- Tests: tests/test_session_20260609_cleanup_unregistered_anomaly.py (7 кейсов).
+
+#### check_telegram_status — комбинированная проверка статуса Telegram-аккаунта
+- 4 статуса: ALIVE / DELETED / BOT_BLOCKED / UNKNOWN.
+- Шаг 1: bot.get_chat_member(city_channel, user.id) — точно когда юзер в канале, работает даже если бот заблокирован в приватном чате.
+- Шаг 2 (fallback): bot.get_chat(user.id) для не-подписчиков канала.
+- Ошибки «blocked by user» / «chat not found» / «forbidden» → BOT_BLOCKED (не deleted).
+- Прочие ошибки API → UNKNOWN (fail-open).
+- Старая check_telegram_deleted оставлена как legacy shim для обратной совместимости тестов.
+
+#### cleanup_inactive_users_task — две фазы
+- Pass 0: пересмотр существующих BOT_BLOCKED записей. ALIVE → BlockService.unblock_user (авто-снятие, когда юзер разблокировал бота). DELETED → удалить юзера. Иначе — оставить блок.
+- Pass 1: все юзеры. DELETED → delete. BOT_BLOCKED → бессрочный TEMPORARY-блок (blocked_until=None). UNKNOWN → skip. ALIVE → проверка 180 дней.
+- Добавлен BlockReason.BOT_BLOCKED + миграция user.0021.
+
+#### Архитектурный нюанс
+- Telegram Bot API **не присылает** chat_member события для подписчиков каналов (только для групп/супергрупп). Event-driven детектор Deleted Account невозможен. Опрос get_chat_member раз в сутки — единственный путь.
+
+#### Tests
+- tests/test_session_20260609_telegram_status_combined.py — 17 тестов (4 + 5 + 4 + 4 для unit-функций и обоих pass-ов).
+- tests/test_user_cleanup.py — обновлены 6 декораторов @patch с check_telegram_deleted на check_telegram_status.
+
+#### Принцип, на который опираемся
+Все деструктивные операции теперь fail-open: при любой неопределённости задача НЕ удаляет/НЕ блокирует. Лучше пропустить итерацию и попробовать завтра, чем стереть живого юзера каскадом.
