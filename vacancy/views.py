@@ -818,7 +818,7 @@ def vacancy_detail(request, pk):
         from telegram.models import UserInGroup
 
         owner_in_group = UserInGroup.objects.filter(
-            user=vacancy.owner, group=vacancy.group, status=_TgStatus.MEMBER
+            user=vacancy.owner, group=vacancy.group, status=_TgStatus.OWNER
         ).exists()
 
     # Stage 6.A: "Триває добір" banner state

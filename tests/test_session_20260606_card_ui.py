@@ -26,17 +26,34 @@ from vacancy.services.call_markup import (
 
 
 @pytest.mark.django_db
-def test_owner_in_group_true_when_owner_is_member(client, vacancy_factory, employer_factory, group_factory):
+def test_owner_in_group_true_when_owner_status(client, vacancy_factory, employer_factory, group_factory):
+    """Vacancy owner joins their group -> chat_member handler writes Status.OWNER.
+    The owner_in_group flag must be True for that status.
+    Regression: 09.06.2026 - previous code checked Status.MEMBER and missed owners."""
     employer = employer_factory()
     group = group_factory()
     vacancy = vacancy_factory(owner=employer, status=STATUS_APPROVED, group=group)
     assert vacancy.group is not None
-    UserInGroup.objects.create(user=employer, group=vacancy.group, status=Status.MEMBER)
+    UserInGroup.objects.create(user=employer, group=vacancy.group, status=Status.OWNER)
 
     client.force_login(employer)
     resp = client.get(reverse("vacancy:detail", kwargs={"pk": vacancy.pk}))
     assert resp.status_code == 200
     assert resp.context["owner_in_group"] is True
+
+
+@pytest.mark.django_db
+def test_owner_in_group_false_when_owner_is_member(client, vacancy_factory, employer_factory, group_factory):
+    """MEMBER status is for workers, not for owners. Owners must have OWNER."""
+    employer = employer_factory()
+    group = group_factory()
+    vacancy = vacancy_factory(owner=employer, status=STATUS_APPROVED, group=group)
+    UserInGroup.objects.create(user=employer, group=vacancy.group, status=Status.MEMBER)
+
+    client.force_login(employer)
+    resp = client.get(reverse("vacancy:detail", kwargs={"pk": vacancy.pk}))
+    assert resp.status_code == 200
+    assert resp.context["owner_in_group"] is False
 
 
 @pytest.mark.django_db

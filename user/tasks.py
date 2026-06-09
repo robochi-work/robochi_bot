@@ -16,16 +16,23 @@ TELEGRAM_API_DELAY = 0.05
 
 
 def check_telegram_deleted(telegram_id: int) -> bool:
-    """Check if Telegram account is deleted. Returns True if deleted."""
+    """Check if Telegram account is deleted. Returns True if deleted.
+
+    SAFETY: On ANY API error (rate limit, timeout, bot blocked, chat not found)
+    we return False so the cleanup task does NOT delete a live user.
+    Telegram errors are temporary; user deletion is irreversible and cascades
+    to Vacancy (owner=CASCADE) and VacancyUser (user=CASCADE).
+    """
     try:
         chat = bot.get_chat(telegram_id)
-        first_name = getattr(chat, "first_name", "") or ""
-        first_name = first_name.lower().strip()
-        if not first_name or first_name in ["deleted account", "deleted"]:
-            return True
+    except Exception as e:
+        logger.warning(f"check_telegram_deleted: API error for {telegram_id}, skipping delete: {e}")
         return False
-    except Exception:
+    first_name = getattr(chat, "first_name", "") or ""
+    first_name = first_name.lower().strip()
+    if not first_name or first_name in ["deleted account", "deleted"]:
         return True
+    return False
 
 
 def get_last_worker_activity_date(user):

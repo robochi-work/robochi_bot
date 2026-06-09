@@ -198,9 +198,14 @@ class TestCheckTelegramDeleted:
         assert check_telegram_deleted(123456) is False
 
     @patch("user.tasks.bot")
-    def test_api_error_treated_as_deleted(self, mock_bot):
+    def test_api_error_does_not_treat_as_deleted(self, mock_bot):
+        """Fail-open: API errors must NOT mark a user as deleted.
+
+        Regression 09.06.2026: previous behaviour returned True on ANY
+        exception, which deleted live users (@Nephrite_u on 31.05,
+        @ParaibaUA on 08.06). Cascade wiped their Vacancy too."""
         mock_bot.get_chat.side_effect = Exception("Bad Request: chat not found")
 
         from user.tasks import check_telegram_deleted
 
-        assert check_telegram_deleted(123456) is True
+        assert check_telegram_deleted(123456) is False
