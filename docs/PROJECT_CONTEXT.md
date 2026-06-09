@@ -2523,3 +2523,36 @@ vacancy_factory(date=target_local.date(), start_time=target_local.time())
 
 ### Дата та автор
 Сесія 07.06.2026 завершена о 2026-06-07 17:17 EEST. Гілка `feature/continue-after-first-rollcall` смержена в `develop` (commit 36d043a + merge 8131a78); `fix/flaky-date-boundary` смержена в `develop`. Деплой: `collectstatic` + рестарт `gunicorn.service` + `celery-worker.service`. Підтверджено: таска `finalize_continue_after_rollcall_task` зареєстрована.
+
+## 09.06.2026 — Critical cleanup fail-open + owner_in_group fix
+
+### Bug 1: cleanup_inactive_users_task удалял живых пользователей
+- `user/tasks.py::check_telegram_deleted` возвращал True на ЛЮБОЕ исключение `bot.get_chat()` (rate limit, timeout, network error)
+- Каскад: User.delete() → Vacancy.owner CASCADE → Vacancy удалена → VacancyUser удалены каскадно
+- Реально удалённые жертвы из логов journalctl:
+  * 31.05.2026 03:00:11 — @Nephrite_u (worker, пересоздался через 14ч)
+  * 08.06.2026 03:00:11 — @ParaibaUA (employer, vacancy id=126 утрачена навсегда)
+- Симптом 08.06: бот при /start снова спрашивает телефон + WEBAPP попытка зайти на /vacancy/126/detail/ → 404
+- Fix: на исключение return False (fail-open) + warning лог
+
+### Bug 2: кнопка «Группа» пропала из карточки вакансии заказчика
+- `vacancy/views.py:820` фильтровал UserInGroup по `Status.MEMBER`
+- Но в `telegram/handlers/member/user/group.py:308` для владельца ставится `Status.OWNER`
+- Условие никогда не выполнялось → owner_in_group=False → кнопка скрыта (Stage 2 регрессия 06.06)
+- Fix: фильтр по `Status.OWNER`
+
+### Tests
+- `tests/test_session_20260609_cleanup_failopen.py` — 5 тестов
+- `tests/test_session_20260609_owner_in_group.py` — статическая проверка кода
+- Обновлены 2 старых теста, закреплявших баговое поведение:
+  * `test_user_cleanup.py::test_api_error_treated_as_deleted` → `test_api_error_does_not_treat_as_deleted`
+  * `test_session_20260606_card_ui.py::test_owner_in_group_true_when_owner_is_member` → split на 2 теста (OWNER=True, MEMBER=False)
+
+### Что НЕ требует фикса
+- «Нет переклички за 2ч + пустая Моя робота» — прямое следствие Bug 1 (вакансия удалена → before_start_call не находит, snapshot пуст). После Патча А не повторится.
+
+### Известная вторая мина (tech debt)
+- `cleanup_unregistered_users_task` тоже удаляет users (через 1 день при `is_completed=False`).
+- Сейчас в БД у всех 8 юзеров is_completed=True — пока безопасно.
+- Риск: если где-то `UserWorkProfile.objects.get_or_create(...)` создаёт профиль без последующего is_completed=True → жертва через сутки.
+- Action item на следующую сессию: пройтись по всем местам get_or_create профиля.
