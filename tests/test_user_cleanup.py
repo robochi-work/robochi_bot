@@ -82,7 +82,7 @@ class TestCleanupUnregisteredUsers:
 class TestCleanupInactiveWorker:
     """Task 3: workers inactive for 180 days get deleted."""
 
-    @patch("user.tasks.check_telegram_deleted", return_value=False)
+    @patch("user.tasks.check_telegram_status", return_value="alive")
     def test_deletes_inactive_worker(self, mock_tg):
         from tests.factories import WorkerFactory
         from user.models import User
@@ -92,7 +92,7 @@ class TestCleanupInactiveWorker:
         cleanup_inactive_users_task()
         assert not User.objects.filter(id=900000010).exists()
 
-    @patch("user.tasks.check_telegram_deleted", return_value=False)
+    @patch("user.tasks.check_telegram_status", return_value="alive")
     def test_keeps_worker_with_recent_vacancy(self, mock_tg):
         from tests.factories import EmployerFactory, WorkerFactory
         from user.models import User
@@ -111,7 +111,7 @@ class TestCleanupInactiveWorker:
 class TestCleanupInactiveEmployer:
     """Task 5: employers inactive for 180 days get deleted."""
 
-    @patch("user.tasks.check_telegram_deleted", return_value=False)
+    @patch("user.tasks.check_telegram_status", return_value="alive")
     def test_deletes_inactive_employer(self, mock_tg):
         from tests.factories import EmployerFactory
         from user.models import User
@@ -121,7 +121,7 @@ class TestCleanupInactiveEmployer:
         cleanup_inactive_users_task()
         assert not User.objects.filter(id=900000020).exists()
 
-    @patch("user.tasks.check_telegram_deleted", return_value=False)
+    @patch("user.tasks.check_telegram_status", return_value="alive")
     def test_keeps_employer_with_recent_vacancy(self, mock_tg):
         from tests.factories import EmployerFactory
         from user.models import User
@@ -137,7 +137,7 @@ class TestCleanupInactiveEmployer:
 class TestCleanupDeletedTelegramAccount:
     """Task 4: users with deleted Telegram accounts get deleted from DB."""
 
-    @patch("user.tasks.check_telegram_deleted", return_value=True)
+    @patch("user.tasks.check_telegram_status", return_value="deleted")
     def test_deletes_user_with_deleted_telegram(self, mock_tg):
         from tests.factories import WorkerFactory
         from user.models import User
@@ -146,7 +146,7 @@ class TestCleanupDeletedTelegramAccount:
         cleanup_inactive_users_task()
         assert not User.objects.filter(id=900000030).exists()
 
-    @patch("user.tasks.check_telegram_deleted", return_value=False)
+    @patch("user.tasks.check_telegram_status", return_value="alive")
     def test_keeps_user_with_active_telegram(self, mock_tg):
         from tests.factories import WorkerFactory
         from user.models import User

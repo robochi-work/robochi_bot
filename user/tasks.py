@@ -66,36 +66,182 @@ def get_last_employer_activity_date(user):
     return last_date
 
 
+# Status constants returned by check_telegram_status
+TG_STATUS_ALIVE = "alive"  # account works, normal user
+TG_STATUS_DELETED = "deleted"  # Telegram account was deleted (sure)
+TG_STATUS_BOT_BLOCKED = "bot_blocked"  # user blocked the bot — block in our system, do NOT delete
+TG_STATUS_UNKNOWN = "unknown"  # transient API error or no data — DO NOTHING
+
+
+def _check_via_channel(user):
+    """Step 1 — check via city channel where bot is admin.
+
+    Returns one of TG_STATUS_* or None if cannot determine (no city, no channel,
+    user not subscribed, API error).
+    """
+    profile = getattr(user, "work_profile", None)
+    if not profile or not profile.city:
+        return None
+    from telegram.models import Channel
+
+    channel = Channel.objects.filter(city=profile.city).first()
+    if not channel:
+        return None
+
+    try:
+        member = bot.get_chat_member(channel.id, user.id)
+    except Exception as e:
+        logger.warning(f"_check_via_channel: API error user_id={user.id} channel={channel.id}: {e}")
+        return None
+
+    status = getattr(member, "status", "")
+    member_user = getattr(member, "user", None)
+    first_name = ""
+    if member_user is not None:
+        first_name = (getattr(member_user, "first_name", "") or "").lower().strip()
+
+    if status not in ("left", "kicked"):
+        if not first_name or first_name in ("deleted account", "deleted"):
+            return TG_STATUS_DELETED
+        return TG_STATUS_ALIVE
+
+    # left/kicked — cannot tell from channel alone (non-subscribers also look like this)
+    return None
+
+
+def _check_via_private_chat(user_id: int) -> str:
+    """Step 2 — check via private chat with the bot. Returns one of TG_STATUS_*."""
+    try:
+        chat = bot.get_chat(user_id)
+    except Exception as e:
+        msg = str(e).lower()
+        if "blocked" in msg or "chat not found" in msg or "forbidden" in msg:
+            logger.info(f"_check_via_private_chat: user_id={user_id} bot is blocked or no chat: {e}")
+            return TG_STATUS_BOT_BLOCKED
+        logger.warning(f"_check_via_private_chat: API error user_id={user_id}: {e}")
+        return TG_STATUS_UNKNOWN
+
+    first_name = (getattr(chat, "first_name", "") or "").lower().strip()
+    if not first_name or first_name in ("deleted account", "deleted"):
+        return TG_STATUS_DELETED
+    return TG_STATUS_ALIVE
+
+
+def check_telegram_status(user) -> str:
+    """Combined Telegram-account status check.
+
+    Returns TG_STATUS_ALIVE / TG_STATUS_DELETED / TG_STATUS_BOT_BLOCKED / TG_STATUS_UNKNOWN.
+
+    Strategy:
+        1) If user has city, try city channel. Works even if user blocked the bot.
+        2) Otherwise fall back to private chat.
+
+    On any unrecognised API error → TG_STATUS_UNKNOWN (fail-open).
+    """
+    channel_result = _check_via_channel(user)
+    if channel_result in (TG_STATUS_ALIVE, TG_STATUS_DELETED):
+        return channel_result
+    return _check_via_private_chat(user.id)
+
+
 @shared_task(name="user.tasks.cleanup_inactive_users_task")
 def cleanup_inactive_users_task():
-    """Daily task: delete users with deleted Telegram accounts and inactive workers/employers (180 days)."""
-    from user.models import User
+    """Daily task at 03:00. Three responsibilities, all fail-open.
+
+    Pass 0 (re-evaluate existing BOT_BLOCKED holders):
+        ALIVE   → user unblocked the bot → remove the block.
+        DELETED → Telegram account was deleted → delete the user (the
+                  block is removed automatically via CASCADE).
+        BOT_BLOCKED / UNKNOWN → keep the block.
+
+    Pass 1 (every regular user):
+        DELETED     → delete (positive evidence required from channel or chat).
+        BOT_BLOCKED → create an indefinite temporary block (blocked_until=None).
+                      The block is auto-released next time check finds the user
+                      ALIVE (handled in Pass 0). User is NOT deleted — they
+                      simply can\'t receive system messages while bot is blocked.
+        UNKNOWN     → skip this round.
+        ALIVE       → fall through to the 180-day inactivity check.
+
+    History: 31.05 @Nephrite_u and 08.06 @ParaibaUA were wrongly deleted
+    by an over-eager fail-closed Telegram API check. Everything here is
+    fail-open: when in doubt — do nothing.
+    """
+    from user.choices import BlockReason, BlockType
+    from user.models import User, UserBlock
+    from user.services import BlockService
     from work.choices import WorkProfileRole
 
+    # ── Pass 0: re-evaluate existing BOT_BLOCKED blocks ───────────────────
+    active_bot_blocks = list(
+        UserBlock.objects.filter(
+            is_active=True,
+            reason=BlockReason.BOT_BLOCKED,
+        ).select_related("user", "user__work_profile", "user__work_profile__city")
+    )
+
+    auto_unblocked = 0
+    bot_blocked_deleted = 0
+    for block in active_bot_blocks:
+        status = check_telegram_status(block.user)
+        time.sleep(TELEGRAM_API_DELAY)
+
+        if status == TG_STATUS_ALIVE:
+            BlockService.unblock_user(block.id)
+            auto_unblocked += 1
+            logger.info(f"Auto-unblock: bot is no longer blocked by user_id={block.user_id} @{block.user.username}")
+        elif status == TG_STATUS_DELETED:
+            uid = block.user_id
+            username = block.user.username
+            block.user.delete()
+            bot_blocked_deleted += 1
+            logger.info(f"Deleted (was bot-blocked, now Telegram-deleted): {uid} (@{username})")
+        # BOT_BLOCKED or UNKNOWN — keep the block
+
+    # ── Pass 1: scan every regular user ───────────────────────────────────
     cutoff = timezone.now() - timedelta(days=INACTIVE_DAYS)
     user_ids = list(User.objects.filter(is_staff=False, is_superuser=False).values_list("id", flat=True))
 
     deleted_count = 0
     inactive_count = 0
+    blocked_count = 0
     total = len(user_ids)
 
-    logger.info(f"Cleanup started: checking {total} users")
+    logger.info(f"Cleanup started: re-evaluated {len(active_bot_blocks)} bot-blocked, now checking {total} users")
 
     for i, user_id in enumerate(user_ids):
         try:
-            user = User.objects.select_related("work_profile").get(id=user_id)
+            user = User.objects.select_related("work_profile", "work_profile__city").get(id=user_id)
 
-            # 1. Check if Telegram account is deleted
-            if user.telegram_id:
-                if check_telegram_deleted(user.telegram_id):
-                    username = user.username
-                    user.delete()
-                    deleted_count += 1
-                    logger.info(f"Deleted user with deleted Telegram account: {user_id} (@{username})")
-                    continue
-                time.sleep(TELEGRAM_API_DELAY)
+            status = check_telegram_status(user)
+            time.sleep(TELEGRAM_API_DELAY)
 
-            # 2. Check inactivity (180 days) - workers and employers
+            if status == TG_STATUS_DELETED:
+                username = user.username
+                user.delete()
+                deleted_count += 1
+                logger.info(f"Deleted user with deleted Telegram account: {user_id} (@{username})")
+                continue
+
+            if status == TG_STATUS_BOT_BLOCKED:
+                already_blocked = user.blocks.filter(is_active=True, reason=BlockReason.BOT_BLOCKED).exists()
+                if not already_blocked:
+                    BlockService.block_user(
+                        user=user,
+                        block_type=BlockType.TEMPORARY,
+                        reason=BlockReason.BOT_BLOCKED,
+                        blocked_until=None,  # indefinite — auto-released on next ALIVE check
+                        comment="Бот заблокований користувачем (виявлено автоматично)",
+                    )
+                    blocked_count += 1
+                    logger.info(f"Temp-blocked (indefinite, bot blocked): {user_id} (@{user.username})")
+                continue
+
+            if status == TG_STATUS_UNKNOWN:
+                logger.info(f"Cleanup skip (unknown TG status): user_id={user_id} @{user.username}")
+                continue
+
+            # status == TG_STATUS_ALIVE → check 180-day inactivity
             profile = getattr(user, "work_profile", None)
             if profile and profile.role == WorkProfileRole.WORKER:
                 last_activity = get_last_worker_activity_date(user)
@@ -122,7 +268,13 @@ def cleanup_inactive_users_task():
         if (i + 1) % 500 == 0:
             logger.info(f"Cleanup progress: {i + 1}/{total}")
 
-    logger.info(f"Cleanup complete: {deleted_count} deleted accounts removed, {inactive_count} inactive users removed")
+    logger.info(
+        f"Cleanup complete: {deleted_count} TG-deleted, "
+        f"{inactive_count} inactive removed, "
+        f"{blocked_count} newly bot-blocked, "
+        f"{auto_unblocked} auto-unblocked, "
+        f"{bot_blocked_deleted} bot-blocked + TG-deleted"
+    )
 
 
 @shared_task(name="user.tasks.cleanup_unregistered_users_task")

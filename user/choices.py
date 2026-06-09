@@ -22,4 +22,5 @@ class BlockReason(models.TextChoices):
     UNPAID = "unpaid", _("Неоплачений рахунок")
     EMPLOYER_NO_GROUP = "employer_no_group", _("Замовник не зайшов у групу вакансії")
     EMPLOYER_ROLLCALL_FAIL = "employer_rollcall_fail", _("Замовник не пройшов перекличку")
+    BOT_BLOCKED = "bot_blocked", _("Бот заблоковано користувачем")
     OTHER = "other", _("Інше")
