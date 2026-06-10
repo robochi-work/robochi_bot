@@ -1,10 +1,13 @@
 from collections import defaultdict
+from datetime import timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.handlers.wsgi import WSGIRequest
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone as _tz
 from django.utils.translation import gettext as _
 
 from telegram.choices import CallStatus, CallType
@@ -46,12 +49,15 @@ def vacancy_create(request):
     if request.method == "POST":
         vacancy_form = VacancyForm(request.POST, work_profile=work_profile)
         if vacancy_form.is_valid():
-            # Защита от двойного создания: проверяем дубль за последние 60 секунд
+            # Защита от двойного создания: кэш-локер на пользователя + расширенный дедуп по БД
+            _lock_key = f"vacancy_create_lock:{request.user.id}"
+            if not cache.add(_lock_key, 1, timeout=10):
+                return redirect("index")
+            _dedup_date = vacancy_form.cleaned_data.get("date") or vacancy_form.cleaned_data.get("date_choice")
             recent = Vacancy.objects.filter(
                 owner=request.user,
-                status=STATUS_PENDING,
-                address=vacancy_form.cleaned_data.get("address", ""),
-                date=vacancy_form.cleaned_data.get("date") or vacancy_form.cleaned_data.get("date_choice"),
+                status__in=[STATUS_PENDING, STATUS_APPROVED],
+                date=_dedup_date,
                 start_time=vacancy_form.cleaned_data.get("start_time"),
             ).first()
             if recent:
@@ -342,6 +348,39 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                 parse_mode="HTML",
                 reply_markup=get_admin_check_rollcall_markup(vacancy, CallType.START),
             )
+            # Stage 6.B: DM to employer mirroring 2nd-rollcall blocked-message pattern
+            try:
+                from django.conf import settings as _settings_v
+                from django.urls import reverse as _reverse_v
+                from telebot.types import InlineKeyboardButton as _Btn_v
+                from telebot.types import InlineKeyboardMarkup as _Kb_v
+                from telebot.types import WebAppInfo as _Wa_v
+
+                _detail_url = (
+                    _settings_v.BASE_URL.rstrip("/")
+                    + _reverse_v("vacancy:detail", args=[vacancy.id])
+                    + "?focus=rollcall"
+                )
+                _kb_v = _Kb_v()
+                _kb_v.row(_Btn_v("До переклички", web_app=_Wa_v(url=_detail_url)))
+                _kb_v.row(_Btn_v("Зв'язатися з адміністратором", url="https://t.me/robochi_work_admin"))
+                _sent_v = _bot.send_message(
+                    chat_id=vacancy.owner.id,
+                    text=(
+                        "Ви заблоковані! Пройдіть першу перекличку повторно "
+                        "або зв'яжіться з Адміністратором для розблокування."
+                    ),
+                    reply_markup=_kb_v,
+                )
+                if _sent_v and hasattr(_sent_v, "message_id"):
+                    if vacancy.extra is None:
+                        vacancy.extra = {}
+                    vacancy.extra["first_call_block_msg_id"] = _sent_v.message_id
+                    vacancy.save(update_fields=["extra"])
+            except Exception:
+                import sentry_sdk
+
+                sentry_sdk.capture_exception()
             vacancy_publisher.notify(VACANCY_START_CALL_FAIL, data={"vacancy": vacancy})
         elif rejected_users > 0:
             if call_type == CallType.START:
@@ -357,6 +396,15 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                 vacancy_publisher.notify(VACANCY_AFTER_START_CALL_SUCCESS, data={"vacancy": vacancy})
 
                 # Scenario B: not enough workers after confirmed rollcall
+        # Stage 6.B: handle "Підтвердити + шукати ще" submit (search_more=1)
+        if call_type == CallType.START and request.POST.get("search_more") == "1" and len(selected_users) >= 1:
+            from vacancy.services.continue_after_rollcall import is_in_continue_mode
+            from vacancy.services.continue_offer import start_continue_search
+
+            if not is_in_continue_mode(vacancy):
+                start_continue_search(vacancy)
+                return redirect("vacancy:detail", pk=vacancy.pk)
+
         if call_type == CallType.START and len(selected_users) < vacancy.people_count:
             try:
                 from service.broadcast_service import TelegramBroadcastService
@@ -374,6 +422,24 @@ def vacancy_check_call(request: WSGIRequest, form: VacancyCallForm, vacancy: Vac
                 )
             except Exception:
                 pass
+
+            # Stage 6.B: DM offer to employer if they DIDN'T press "search more" button
+            # and at least 1 worker confirmed (else scenario В handles it)
+            if request.POST.get("search_more") != "1" and len(selected_users) >= 1:
+                try:
+                    from datetime import datetime as _dt_b
+                    from datetime import timedelta as _td_b
+
+                    from django.utils import timezone as _tz_b
+
+                    from vacancy.services.continue_offer import send_continue_offer_dm
+
+                    _tz_local = _tz_b.get_current_timezone()
+                    _shift_start = _tz_b.make_aware(_dt_b.combine(vacancy.date, vacancy.start_time), _tz_local)
+                    if _tz_b.now() < _shift_start + _td_b(hours=1):
+                        send_continue_offer_dm(vacancy)
+                except Exception:
+                    pass
         # Send bot notification about rollcall result
         try:
             from telegram.handlers.bot_instance import bot as _bot
@@ -567,8 +633,6 @@ def vacancy_my_list(request):
 
             active_block = BlockService.get_active_block(target_user)
 
-    from datetime import timedelta
-
     from django.db.models import Q
     from django.utils import timezone as _tz
 
@@ -627,7 +691,6 @@ def vacancy_my_list(request):
 
 def _build_members_context(vacancy, request):
     """Build context for members section embedded in vacancy detail."""
-    from datetime import timedelta
 
     from django.utils import timezone
 
@@ -920,8 +983,6 @@ def vacancy_continue_search(request, pk):
     from datetime import datetime as _dt
     from datetime import timedelta as _td
 
-    from django.utils import timezone as _tz
-
     vacancy = get_object_or_404(Vacancy, pk=pk, owner=request.user)
 
     # Stage 6.A: "Підтвердити наявних + шукати ще" from 1st rollcall page.
@@ -1028,8 +1089,6 @@ def _continue_search_after_first_rollcall(request, vacancy):
     """
     from datetime import datetime as _dt
     from datetime import timedelta as _td
-
-    from django.utils import timezone as _tz
 
     from vacancy.choices import STATUS_APPROVED
     from vacancy.services.observers.events import VACANCY_APPROVED as _VACANCY_APPROVED
@@ -1202,6 +1261,9 @@ def vacancy_resume_search(request, pk):
             _reset_pre_call_resume(vacancy)
             from vacancy.services.auto_approve import try_auto_approve
 
+            _resume_lock_key = f"vacancy_resume_lock:{vacancy.pk}"
+            if not cache.add(_resume_lock_key, 1, timeout=10):
+                return redirect("vacancy:detail", pk=pk)
             if try_auto_approve(vacancy):
                 vacancy_publisher.notify(events.VACANCY_APPROVED, data={"vacancy": vacancy})
             else:

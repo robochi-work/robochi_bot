@@ -1,4 +1,5 @@
 from .call import bot  # noqa: F401
+from .continue_offer import bot  # noqa: F811
 from .disputed_rollcall import bot  # noqa: F811
 from .group_join import bot  # noqa: F811
 from .phone_confirm import bot  # noqa: F811

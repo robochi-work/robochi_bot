@@ -847,6 +847,20 @@ def finalize_continue_after_rollcall_task(vacancy_id: int):
     return result
 
 
+@shared_task
+def delete_continue_offer_task(vacancy_id: int):
+    """Stage 6.B: delete 'continue offer' DM at shift_start + 1h (auto cleanup)."""
+    connection.close()
+    try:
+        vacancy = Vacancy.objects.get(pk=vacancy_id)
+    except Vacancy.DoesNotExist:
+        return {"action": "not_found"}
+    from vacancy.services.continue_offer import delete_continue_offer_msg
+
+    delete_continue_offer_msg(vacancy)
+    return {"action": "deleted", "vacancy_id": vacancy_id}
+
+
 @shared_task(name="vacancy.tasks.call.test_heartbeat")
 def test_heartbeat():
     logger.warning("✅ test_heartbeat work")

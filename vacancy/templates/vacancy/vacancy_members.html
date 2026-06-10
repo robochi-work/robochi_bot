@@ -81,7 +81,7 @@
     {% endfor %}
    </div>
 
-   {% if can_search and scenario == "B" %}
+   {% if can_search and scenario in "BC" %}
    <div style="margin-top:8px;margin-bottom:72px;">
     <a href="{% url 'vacancy:continue_search' pk=vacancy.pk %}?confirm_rollcall=1" class="worker-btn">
      <span class="worker-btn__text">
@@ -98,6 +98,30 @@
       <span class="worker-btn__title">Підтвердити</span>
      </span>
     </button>
+    {% if can_search %}
+    <button type="submit" name="search_more" value="1"
+     id="btn-confirm-and-search" hidden
+     class="worker-btn rollcall-submit-btn"
+     style="border:none;cursor:pointer;margin-top:8px;">
+     <span class="worker-btn__text">
+      <span class="worker-btn__title">Підтвердити + шукати ще</span>
+     </span>
+    </button>
+    <script>
+     (function () {
+      var btn = document.getElementById("btn-confirm-and-search");
+      if (!btn) return;
+      var checkboxes = document.querySelectorAll(".members-cards--rollcall input[type=checkbox]");
+      function update() {
+       var anyUnchecked = false;
+       checkboxes.forEach(function (cb) { if (!cb.checked) anyUnchecked = true; });
+       btn.hidden = !anyUnchecked;
+      }
+      checkboxes.forEach(function (cb) { cb.addEventListener("change", update); });
+      update();
+     })();
+    </script>
+    {% endif %}
    </div>
   </form>
   {% endif %}
