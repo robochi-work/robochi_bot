@@ -22,6 +22,11 @@ def load_handlers_once():
     try:
         from telegram.handlers.messages import commands  # noqa
         from telegram.handlers.contact import user_phone_number  # noqa
+
+        # global_buttons ПЕРЕД worker_phone щоб ловив текст кнопок раніше
+        from telegram.handlers.messages import global_buttons as global_buttons_handler  # noqa
+        from telegram.handlers.messages import admin_reply as admin_reply_handler  # noqa
+        from telegram.handlers.callback import admin_help_callbacks  # noqa
         from telegram.handlers.member.bot import channel as bot_channel  # noqa
         from telegram.handlers.member.bot import group as bot_group  # noqa
         from telegram.handlers.member.user import group as user_group  # noqa

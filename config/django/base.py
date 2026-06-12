@@ -299,3 +299,7 @@ MONOBANK_API_TOKEN = os.environ.get("MONOBANK_API_TOKEN", "")
 
 # Rating: Bayesian average threshold (virtual votes for newcomers)
 RATING_THRESHOLD = 5
+
+# Service group for admin help requests
+ADMIN_HELP_CHAT_ID = os.environ.get("ADMIN_HELP_CHAT_ID")
+TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "robochi_bot")

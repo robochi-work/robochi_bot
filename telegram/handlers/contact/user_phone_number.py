@@ -61,10 +61,12 @@ def contact(message: types.Message, user: User, **kwargs: dict[str, Any]) -> Non
                 provider_uid=phone,
                 defaults={"user": user},
             )
+            from telegram.handlers.keyboards import main_persistent_keyboard
+
             bot.send_message(
                 chat_id=message.chat.id,
                 text=_("Welcome to our service!"),
-                reply_markup=ReplyKeyboardRemove(),
+                reply_markup=main_persistent_keyboard(),
             )
             logger.warning(f"CONTACT SAVED: phone={phone}")
             # Notify admins with complete user data
