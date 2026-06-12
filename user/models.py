@@ -180,3 +180,55 @@ class WorkerVoluntaryExit(models.Model):
 
     def __str__(self):
         return f"{self.user} — {self.created_at}"
+
+
+class AdminHelpRequest(models.Model):
+    """Запит користувача на допомогу адміністратора."""
+
+    STATUS_PENDING = "pending"
+    STATUS_OPEN = "open"
+    STATUS_CLOSED = "closed"
+    STATUS_TIMEOUT = "timeout"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, _("Pending")),
+        (STATUS_OPEN, _("Open")),
+        (STATUS_CLOSED, _("Closed")),
+        (STATUS_TIMEOUT, _("Timeout")),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="help_requests",
+        verbose_name=_("User"),
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True,
+        verbose_name=_("Status"),
+    )
+    message_text = models.TextField(blank=True, default="", verbose_name=_("Message"))
+    admin_chat_message_id = models.BigIntegerField(null=True, blank=True, verbose_name=_("Admin chat message id"))
+    media_message_ids = models.JSONField(default=list, blank=True, verbose_name=_("Media message ids"))
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="closed_help_requests",
+        verbose_name=_("Closed by"),
+    )
+
+    class Meta:
+        db_table = "user_admin_help_request"
+        ordering = ["-created_at"]
+        verbose_name = _("Admin help request")
+        verbose_name_plural = _("Admin help requests")
+
+    def __str__(self) -> str:
+        return f"AdminHelpRequest#{self.pk} user={self.user_id} status={self.status}"

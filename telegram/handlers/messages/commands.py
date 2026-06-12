@@ -63,8 +63,9 @@ def ask_phone(message: Message, user: User, **kwargs):
         bot.delete_my_commands(scope=types.BotCommandScopeChat(chat_id=message.chat.id))
     except Exception as e:
         logger.error(f"RESET_MENU_BUTTON FAILED: {e}")
-    markup = types.ReplyKeyboardMarkup(one_time_keyboard=True, resize_keyboard=True)
-    markup.add(types.KeyboardButton(_("Надіслати номер телефону"), request_contact=True))
+    from telegram.handlers.keyboards import registration_keyboard
+
+    markup = registration_keyboard()
     logger.warning(f"ASK_PHONE CALLED: chat_id={message.chat.id}, user={user.pk}")
     try:
         bot.send_message(
@@ -91,6 +92,25 @@ def default_start(message: Message, user: User, **kwargs):
         logger.error(f"SET_MENU_BUTTON FAILED: {e}", exc_info=True)
 
     bot.send_message(message.chat.id, _("Вітаємо у нашому сервісі!\nНатискайте кнопку ПОЧАТИ нижче."))
+    _ensure_main_keyboard(user, message.chat.id)
+
+
+def _ensure_main_keyboard(user: User, chat_id: int) -> None:
+    """Лінива міграція: один раз на юзера дошлемо постійну 2-кнопкову клавіатуру."""
+    from django.core.cache import cache
+
+    from telegram.handlers.keyboards import main_persistent_keyboard
+
+    if not user.phone_number:
+        return
+    key = f"main_kb_sent:{user.id}"
+    if cache.get(key):
+        return
+    try:
+        get_bot().send_message(chat_id, "·", reply_markup=main_persistent_keyboard())
+        cache.set(key, True, timeout=60 * 60 * 24 * 365)
+    except Exception:
+        logger.warning(f"ensure_main_keyboard failed for user={user.id}")
 
 
 def encode_start_param(data: dict) -> str:
@@ -456,6 +476,14 @@ def process_start_payload(payload: str, message) -> bool:
         elif data.get("type") == "info":
             send_info(message)
             return True
+
+        elif data.get("type") == "help":
+            from user.services.admin_help import AdminHelpService
+
+            user = User.objects.filter(id=message.from_user.id).first()
+            if user:
+                AdminHelpService.start_request(user, source="deeplink")
+            return True
         else:
             return False
 
@@ -500,23 +528,41 @@ def start(query: Message | CallbackQuery, user: User, **kwargs: dict[str, Any]) 
 
 @bot.message_handler(commands=["help"])
 def admin_help(message):
+    """Уніфікований /help. У групі → запускає флоу у особистих."""
+    from user.services.admin_help import AdminHelpService
+
     logger.info("help_command", extra={"user_id": message.from_user.id})
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton(text="Написати адміністратору", url="https://t.me/robochi_work_admin"))
-    # In groups: reply to user privately, delete command message
+    user = User.objects.filter(id=message.from_user.id).first()
+    if not user:
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton(text="Написати адміністратору", url="https://t.me/robochi_work_admin"))
+        bot.send_message(message.chat.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup)
+        return
+
     if message.chat.type in ["group", "supergroup"]:
         try:
-            bot.send_message(
-                message.from_user.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup
-            )
             bot.delete_message(message.chat.id, message.message_id)
         except Exception:
-            # User hasn't started bot privately — send in group
-            bot.send_message(
-                message.chat.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup
-            )
+            pass
+        mention = f"@{user.username}" if user.username else (user.full_name or "користувач")
+        try:
+            AdminHelpService.start_request(user, source=f"group:{message.chat.id}")
+        except Exception:
+            payload = encode_start_param({"type": "help"})
+            bot_username = getattr(settings, "TELEGRAM_BOT_USERNAME", "robochi_bot")
+            url = f"https://t.me/{bot_username}?start={payload}"
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton(text="▶️ Відкрити бота", url=url))
+            try:
+                bot.send_message(
+                    message.chat.id,
+                    f"{mention}, для зв'язку з адміном відкрийте бота:",
+                    reply_markup=markup,
+                )
+            except Exception:
+                pass
     else:
-        bot.send_message(message.chat.id, "Натисніть кнопку нижче для зв'язку з адміністратором:", reply_markup=markup)
+        AdminHelpService.start_request(user, source="private")
 
 
 @bot.message_handler(commands=["info"])

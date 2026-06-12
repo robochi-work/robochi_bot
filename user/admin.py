@@ -263,3 +263,23 @@ class UserFeedbackAdmin(admin.ModelAdmin):
     @admin.display(description="Текст")
     def short_text(self, obj):
         return obj.text[:50] if obj.text else "-"
+
+
+from user.models import AdminHelpRequest  # noqa: E402
+
+
+@admin.register(AdminHelpRequest)
+class AdminHelpRequestAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "status", "created_at", "closed_at")
+    list_filter = ("status",)
+    search_fields = ("user__username", "user__full_name", "message_text")
+    readonly_fields = (
+        "user",
+        "status",
+        "message_text",
+        "admin_chat_message_id",
+        "media_message_ids",
+        "created_at",
+        "closed_at",
+        "closed_by",
+    )
