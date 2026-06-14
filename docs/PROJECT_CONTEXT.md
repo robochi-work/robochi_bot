@@ -2637,3 +2637,34 @@ vacancy_factory(date=target_local.date(), start_time=target_local.time())
 
 #### Принцип, на который опираемся
 Все деструктивные операции теперь fail-open: при любой неопределённости задача НЕ удаляет/НЕ блокирует. Лучше пропустить итерацию и попробовать завтра, чем стереть живого юзера каскадом.
+
+## 14.06.2026 — Admin Help button + persistent reply keyboard
+
+**Що зроблено:**
+- Reply-клавіатура: 3 кнопки на етапі реєстрації (контакт + договір + допомога), 2 постійні після (`is_persistent=True`). Кнопка «Договір оферти» — WebApp на публічну сторінку `/work/legal/offer/` напряму, бо initData у reply WebApp передається лише через sendData, не URL hash.
+- Модель `AdminHelpRequest` (`user/models.py`, db_table `user_admin_help_request`, міграція user.0022) — pending/open/closed/timeout, FK на User, JSONField media_message_ids.
+- Сервіс `user/services/admin_help.py`: `start_request` / `submit_request` / `cancel_request` / `close_request` / `_build_card`. COOLDOWN_KEY 5 хв, CACHE_KEY 10 хв, admin_help_pending_msg:{uid}.
+- Картка адміну: TG ID, role, місто, тел, рейтинг Bayesian, активні блокування, активні вакансії (address замість city — у Vacancy немає FK на City). Кнопки: 🔗 Адмінка / 💬 Написати юзеру / ✅ Закрити звернення.
+- Глобальний хендлер `telegram/handlers/messages/global_buttons.py` ловить кліки кнопок у всіх станах. Матчер у всіх локалях через `override(lang_code)`. Зареєстрований у `telegram/handlers/messages/__init__.py` ПЕРЕД `worker_phone` (інакше worker_phone з'їсть текст). Файл `__init__.py` помічено `# ruff: noqa: I001,F401,F811`.
+- Реплай-хендлер `admin_reply.py`: реплай адміна у групі `ADMIN_HELP_CHAT_ID=-1003987159270` → бот пересилає юзеру з префіксом `↪️ <Імя> (адміністратор):` + реакція ✅.
+- Уніфікація `/help`: у групах вакансій бот видаляє команду й запускає флоу у особистих (через `start_request`), fallback — deep-link з payload `{"type": "help"}`.
+- Stub `telegram/_translation_stubs.py` для makemessages (тексти кнопок через змінні + multi-line склеєні рядки не підхоплюються без літерала).
+- Celery таски: `cleanup_stale_admin_help` (countdown=600, переводить pending→timeout та видаляє «Опишіть проблему»). `auto_close_admin_help` (beat-schedule 1 година, OPEN > 24h → CLOSED). Обидві у `user/tasks.py`, розклад у `config/settings/celery.py`.
+- **Django CACHES → Redis** (`django_redis.cache.RedisCache`, DB 1). Раніше Django використовував LocMemCache — окремий на кожен gunicorn worker, тому cache-флаги між викликами губилися. Тепер спільний Redis. Залежність: `django-redis>=5.4.0`.
+- Reorg `user/services`: був файл `user/services.py` → пакет з `core.py` (старе ядро) + `admin_help.py`. `__init__.py` реекспортує BlockService, get_or_create_user_from_telegram, find_user_by_phone, admin_mark_vacancies_paid.
+- Lazy-migration: при `default_start` старі юзери одноразово отримують клавіатуру разом з вітанням (не «·» окремим повідомленням).
+- Кнопка «Назад» на `legal_offer.html` тепер закриває WebApp через `Telegram.WebApp.close()` (фолбек `history.back()`).
+- Локалізація uk/ru через `polib`: 26+1 ключів. Запис у БД `Group(-1003987159270)` помічено status=deactivated щоб не потрапляла в integrity-check `_check_groups`.
+- Регресійні тести `tests/test_session_20260611_admin_help.py` (11 тестів) — усі зелені.
+
+**Ключеві learnings:**
+- Django default cache = LocMemCache, НЕ розшарюється між gunicorn workers. Будь-який `cache.set` у webhook-handler може потім не знайтися. Якщо потрібен спільний стейт — обов'язково Redis.
+- `makemessages` НЕ підхоплює `_(VAR)` де VAR — змінна. Потрібен stub-файл з явними літералами.
+- pyTelegramBotAPI використовує порядок реєстрації хендлерів. Якщо `__init__.py` пакета `messages` імпортує `worker_phone` ДО нашого `global_buttons` — текст кнопок з'їдається.
+- Ruff агресивно reformatує/схлопує блоки → assert-anchors часто не знаходяться після `ruff format`. Кращий підхід — або робити патчі ДО format, або polib для .po.
+- WebApp у reply-кнопці отримує initData лише через `Telegram.WebApp.sendData()`, у URL hash його немає. Тому `check-web-app` обгортка не працює — публічну сторінку відкриваємо напряму.
+- `Vacancy` НЕ має FK на `City` — лише `address: CharField`. У картці виводимо address.
+
+**Бэклог:**
+- Privacy mode off + ІІ-аналіз чатів — у бэклог.
+- Кнопки у групах вакансій — не лізли.
