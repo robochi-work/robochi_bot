@@ -254,3 +254,37 @@ class CallVacancyTelegramTextFormatter:
                 f"На завтра підтвердили участь більше людей, ніж потрібно. "
                 f"Видаліть {excess} зайвих працівників або збільшіть кількість місць у вакансії."
             )
+
+    def admin_employer_permanent_ban_unpaid(self, amount: int) -> str:
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        with override("uk"):
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            return (
+                f"🚫 Замовника заблоковано на постійній основі за несплачений рахунок\n\n"
+                f"Адреса: {self.vacancy.address}\n"
+                f"Сума до сплати: {amount} грн\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}"
+            )
+
+    def admin_employer_payment_received(self, amount: int) -> str:
+        from django.utils import timezone
+
+        from vacancy.services.admin_format import format_group_link, format_user_block_with_contact
+
+        with override("uk"):
+            owner_block = format_user_block_with_contact(self.vacancy.owner, self.vacancy)
+            group = format_group_link(self.vacancy)
+            # Дата СТВОРЕННЯ вакансії (за вимогою), не дата оплати
+            created = self.vacancy.created_at.astimezone(timezone.get_current_timezone())
+            created_str = created.strftime("%d.%m.%Y")
+            return (
+                f"✅ Рахунок оплачено\n\n"
+                f"Вакансія створена: {created_str}\n"
+                f"Адреса: {self.vacancy.address}\n"
+                f"Сума: {amount} грн\n\n"
+                f"Замовник:\n{owner_block}"
+                f"{group}"
+            )

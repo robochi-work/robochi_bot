@@ -134,10 +134,19 @@ def finalize_rollcall(
 
     # Update vacancy state
     vacancy.second_rollcall_passed = True
-    vacancy.status = STATUS_AWAITING_PAYMENT
-    vacancy.search_active = False
     vacancy.extra["calls"] = vacancy.extra.get("calls") or {}
     vacancy.extra["calls"][CallType.AFTER_START] = list(final_ids)
+
+    # Гард на аномалію: якщо після присвоєння after_start список все ще порожній — алерт і вихід
+    from vacancy.services.invoice import validate_invoice_data as _validate_invoice
+
+    if not _validate_invoice(vacancy):
+        vacancy.save(update_fields=["second_rollcall_passed", "extra"])
+        clear_disputed(vacancy)
+        return 0
+
+    vacancy.status = STATUS_AWAITING_PAYMENT
+    vacancy.search_active = False
     vacancy.save(update_fields=["second_rollcall_passed", "status", "search_active", "extra"])
 
     # Unblock the employer (if blocked for rollcall fail)

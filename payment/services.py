@@ -161,4 +161,23 @@ def process_webhook(*, invoice_id: str, webhook_data: dict) -> MonobankPayment |
 
             sentry_sdk.capture_exception()
 
+        # Notify admins
+        try:
+            from service.broadcast_service import TelegramBroadcastService
+            from service.notifications_impl import TelegramNotifier
+            from telegram.handlers.bot_instance import bot as _bot_admin
+            from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
+            from vacancy.services.invoice import get_vacancy_invoice_amount
+
+            if vacancy:
+                _amount_grn = get_vacancy_invoice_amount(vacancy)
+                _text = CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_employer_payment_received(
+                    amount=_amount_grn
+                )
+                TelegramBroadcastService(notifier=TelegramNotifier(_bot_admin)).admin_broadcast(text=_text)
+        except Exception:
+            import sentry_sdk
+
+            sentry_sdk.capture_exception()
+
     return payment

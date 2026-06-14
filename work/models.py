@@ -143,3 +143,33 @@ class RatingConfig(models.Model):
         if obj:
             return obj.rating_threshold
         return 5
+
+
+class PaymentConfig(models.Model):
+    """Singleton config for service-fee settings, editable in Django admin."""
+
+    service_fee_per_worker = models.PositiveIntegerField(
+        default=100,
+        verbose_name="Сервісний збір за одного працівника (грн)",
+        help_text="Сума, яку платформа стягує з замовника за кожного фактично відпрацьованого працівника.",
+    )
+
+    class Meta:
+        verbose_name = "Оплата"
+        verbose_name_plural = "Оплата"
+
+    def __str__(self):
+        return f"Збір: {self.service_fee_per_worker} грн/працівник"
+
+    def save(self, *args, **kwargs):
+        if not self.pk and PaymentConfig.objects.exists():
+            existing = PaymentConfig.objects.first()
+            self.pk = existing.pk
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_fee(cls) -> int:
+        obj = cls.objects.first()
+        if obj:
+            return int(obj.service_fee_per_worker)
+        return 100

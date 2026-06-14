@@ -155,7 +155,11 @@ def _escalate_rollcall(vacancy: Vacancy, call_label: str) -> None:
         # After auto-confirm of 2nd rollcall: issue invoice and block employer
         if vacancy.second_rollcall_passed and vacancy.first_rollcall_passed:
             from vacancy.choices import STATUS_AWAITING_PAYMENT
-            from vacancy.services.invoice import send_vacancy_invoice
+            from vacancy.services.invoice import send_vacancy_invoice, validate_invoice_data
+
+            if not validate_invoice_data(vacancy):
+                logger.warning("escalate_rollcall_aborted_anomaly", extra={"vacancy_id": vacancy.pk})
+                return
 
             vacancy.status = STATUS_AWAITING_PAYMENT
             vacancy.search_active = False
@@ -988,16 +992,16 @@ def auto_confirm_ignored_rollcall_task():
 
 @shared_task
 def send_unpaid_reminders_task():
-    """Stage 5.D: send hourly unpaid-invoice reminders, max 24 per vacancy.
+    """Stage 5.D + bugfix 09.06.2026: hourly unpaid-invoice reminders, max 24.
 
-    For each vacancy in STATUS_AWAITING_PAYMENT (not paid, not yet at 24),
-    sends a reminder if the last one was sent more than 1 hour ago.
-    After the 24th, stops here — Stage 5.E permanently blocks the employer.
+    Сума береться з get_vacancy_invoice_amount(vacancy) = факт.працівників × ціна з PaymentConfig.
+    Гард-захист: якщо amount<=0 — аномалія, шлемо одноразовий алерт адміну і пропускаємо.
     """
     logger.info("task_started", extra={"task": "send_unpaid_reminders_task"})
     connection.close()
 
     from vacancy.choices import STATUS_AWAITING_PAYMENT as _AWAITING
+    from vacancy.services.invoice import get_vacancy_invoice_amount, validate_invoice_data
 
     UNPAID_INTERVAL = timedelta(hours=1)
     UNPAID_MAX = 24
@@ -1009,47 +1013,70 @@ def send_unpaid_reminders_task():
         extra = vacancy.extra or {}
         if extra.get("is_paid"):
             continue
+
+        # Defense-in-depth: захист від аномалії (0 працівників в awaiting_payment)
+        if not validate_invoice_data(vacancy):
+            continue
+
+        final_amount = get_vacancy_invoice_amount(vacancy)
         sent_count = int(extra.get("unpaid_reminders", 0))
+
         if sent_count >= UNPAID_MAX:
-            # Stage 5.E: after 24 reminders -> permanent ban + final messages
+            # Постійний бан + фінальні повідомлення
             if extra.get("permanent_ban_done"):
                 continue
             try:
+                from django.conf import settings
+                from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
                 from service.broadcast_service import TelegramBroadcastService
                 from service.notifications_impl import TelegramNotifier
                 from telegram.handlers.bot_instance import bot as _bot_e
                 from user.choices import BlockReason, BlockType
                 from user.services import BlockService
+                from vacancy.services.call_formatter import CallVacancyTelegramTextFormatter
 
                 BlockService.block_user(
                     user=vacancy.owner,
                     block_type=BlockType.PERMANENT,
                     reason=BlockReason.UNPAID,
                 )
-                final_amount = vacancy.payment_amount * vacancy.people_count
+
+                # Повідомлення замовнику з кнопкою Сплатити рахунок
                 try:
+                    payment_url = f"{settings.BASE_URL}/vacancy/{vacancy.pk}/payment/"
+                    markup = InlineKeyboardMarkup()
+                    markup.row(
+                        InlineKeyboardButton(
+                            "💳 Сплатити рахунок",
+                            web_app=WebAppInfo(url=payment_url),
+                        )
+                    )
                     _bot_e.send_message(
                         chat_id=vacancy.owner.id,
                         text=(
-                            f"Вас заблоковано на постійній основі за несплачений рахунок "
-                            f"за вакансією #{vacancy.id}.\n"
+                            f"Вас заблоковано на постійній основі за несплачений рахунок.\n"
+                            f"Вакансія — Адреса: {vacancy.address}\n"
                             f"Сума до сплати: {final_amount} грн.\n"
-                            f"Для розблокування зв'яжіться з адміністратором: @robochi_work_admin"
+                            f"Для розблокування сплатіть рахунок та зв'яжіться з "
+                            f"адміністратором: @robochi_work_admin"
                         ),
+                        reply_markup=markup,
                     )
                 except Exception:
                     sentry_sdk.capture_exception()
+
+                # Повідомлення адміну в єдиному форматі
                 try:
                     bc = TelegramBroadcastService(notifier=TelegramNotifier(_bot_e))
                     bc.admin_broadcast(
-                        text=(
-                            f"\u26a0\ufe0f Боржник: вакансія #{vacancy.id}, "
-                            f"замовник #{vacancy.owner_id}, сума {final_amount} грн. "
-                            f"Постійний бан виставлено."
+                        text=CallVacancyTelegramTextFormatter(vacancy=vacancy).admin_employer_permanent_ban_unpaid(
+                            amount=final_amount
                         ),
                     )
                 except Exception:
                     sentry_sdk.capture_exception()
+
                 vacancy.extra = dict(extra)
                 vacancy.extra["permanent_ban_done"] = True
                 vacancy.save(update_fields=["extra"])
@@ -1066,14 +1093,16 @@ def send_unpaid_reminders_task():
             except (TypeError, ValueError):
                 pass
 
+        # Нагадування (тільки текст, без кнопок)
         try:
             from telegram.handlers.bot_instance import bot as _bot
 
             _bot.send_message(
                 chat_id=vacancy.owner.id,
                 text=(
-                    f"Нагадування про оплату вакансії #{vacancy.id}.\n"
-                    f"Сума: {vacancy.payment_amount * vacancy.people_count} грн.\n"
+                    f"Нагадування про оплату рахунку.\n"
+                    f"Вакансія — Адреса: {vacancy.address}\n"
+                    f"Сума до сплати: {final_amount} грн.\n"
                     f"Нагадування {sent_count + 1} з {UNPAID_MAX}."
                 ),
             )
