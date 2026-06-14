@@ -14,7 +14,14 @@
     {% endif %}
 
     <div class="page-back-wrapper">
-        <a href="javascript:history.back()" class="page-back-btn">{% trans "Back" %}</a>
+        <a href="#" id="legal-back-btn" class="page-back-btn">{% trans "Back" %}</a>
+        <script>
+          document.getElementById("legal-back-btn").addEventListener("click", function(e) {
+            e.preventDefault();
+            var tg = window.Telegram && window.Telegram.WebApp;
+            if (tg && tg.close) { tg.close(); } else { history.back(); }
+          });
+        </script>
     </div>
 </div>
 {% endblock %}

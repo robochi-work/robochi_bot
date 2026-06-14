@@ -369,3 +369,57 @@ def cleanup_unregistered_users_task():
             broadcast.admin_broadcast(text="\n".join(lines))
         except Exception as e:
             logger.error(f"Failed to send cleanup anomaly alert: {e}")
+
+
+@shared_task(name="user.tasks.cleanup_stale_admin_help")
+def cleanup_stale_admin_help_task(req_id):
+    """Через 10 хв після start_request:
+    якщо юзер не відправив повідомлення — видаляємо запит «Опишіть проблему»
+    та переводимо заявку в TIMEOUT."""
+    from django.core.cache import cache
+    from django.utils import timezone
+
+    from telegram.handlers.bot_instance import get_bot
+    from user.models import AdminHelpRequest
+    from user.services.admin_help import CACHE_KEY
+
+    try:
+        req = AdminHelpRequest.objects.get(id=req_id)
+    except AdminHelpRequest.DoesNotExist:
+        return
+
+    if req.status != AdminHelpRequest.STATUS_PENDING:
+        return
+
+    user_id = req.user_id
+    pending_msg_id = cache.get(f"admin_help_pending_msg:{user_id}")
+    if pending_msg_id:
+        try:
+            get_bot().delete_message(user_id, pending_msg_id)
+        except Exception:
+            pass
+        cache.delete(f"admin_help_pending_msg:{user_id}")
+
+    cache.delete(CACHE_KEY.format(user_id=user_id))
+
+    req.status = AdminHelpRequest.STATUS_TIMEOUT
+    req.closed_at = timezone.now()
+    req.save(update_fields=["status", "closed_at"])
+
+
+@shared_task(name="user.tasks.auto_close_admin_help")
+def auto_close_admin_help_task():
+    """Авто-закриття OPEN-заявок старіше 24 годин.
+    Запускається celery-beat раз на годину."""
+    from django.utils import timezone
+
+    from user.models import AdminHelpRequest
+
+    threshold = timezone.now() - timedelta(hours=24)
+    qs = AdminHelpRequest.objects.filter(
+        status=AdminHelpRequest.STATUS_OPEN,
+        created_at__lt=threshold,
+    )
+    count = qs.update(status=AdminHelpRequest.STATUS_CLOSED, closed_at=timezone.now())
+    if count:
+        logging.getLogger(__name__).info(f"auto_close_admin_help: closed {count} stale requests")

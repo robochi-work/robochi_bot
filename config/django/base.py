@@ -303,3 +303,15 @@ RATING_THRESHOLD = 5
 # Service group for admin help requests
 ADMIN_HELP_CHAT_ID = os.environ.get("ADMIN_HELP_CHAT_ID")
 TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "robochi_bot")
+
+# Cache: Redis (used by AdminHelp pending state, main_kb_sent flag, etc.)
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": f"redis://:{os.getenv('REDIS_PASSWORD')}@localhost:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "TIMEOUT": 3600,
+    }
+}

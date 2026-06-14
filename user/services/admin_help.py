@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 PENDING_TTL = 600  # 10 хвилин
+COOLDOWN_TTL = 300  # 5 хвилин між натисканнями
+COOLDOWN_KEY = "admin_help_cooldown:{user_id}"
 CACHE_KEY = "admin_help_pending:{user_id}"
 ADMIN_DEEPLINK = "https://t.me/robochi_work_admin"
 
@@ -52,6 +54,18 @@ class AdminHelpService:
     def start_request(cls, user: User, source: str = "private") -> None:
         from user.models import AdminHelpRequest
 
+        # Rate-limit: не частіше 1 разу на 5 хвилин
+        if cache.get(COOLDOWN_KEY.format(user_id=user.id)):
+            try:
+                cls._get_bot().send_message(
+                    user.id,
+                    _("Ви тіки що зверталися до Адміністратора! Дочекайтеся відповіді або спробуйте пізніше!"),
+                )
+            except Exception:
+                pass
+            return
+        cache.set(COOLDOWN_KEY.format(user_id=user.id), True, timeout=COOLDOWN_TTL)
+
         AdminHelpRequest.objects.filter(user=user, status=AdminHelpRequest.STATUS_PENDING).update(
             status=AdminHelpRequest.STATUS_TIMEOUT, closed_at=timezone.now()
         )
@@ -68,7 +82,12 @@ class AdminHelpService:
             "⏱ Маєте 10 хвилин."
         )
         try:
-            cls._get_bot().send_message(user.id, text, reply_markup=markup)
+            sent = cls._get_bot().send_message(user.id, text, reply_markup=markup)
+            cache.set(f"admin_help_pending_msg:{user.id}", sent.message_id, timeout=PENDING_TTL)
+            # Планируем автоудаление через 10 хв якщо юзер не напише
+            from user.tasks import cleanup_stale_admin_help_task
+
+            cleanup_stale_admin_help_task.apply_async(args=[req.id], countdown=PENDING_TTL)
         except Exception as e:
             logger.warning(f"admin_help.start_request: send to user {user.id} failed: {e}")
 
@@ -77,6 +96,7 @@ class AdminHelpService:
         from user.models import AdminHelpRequest
 
         cache.delete(CACHE_KEY.format(user_id=user.id))
+        cache.delete(f"admin_help_pending_msg:{user.id}")
         AdminHelpRequest.objects.filter(id=req_id, user=user, status=AdminHelpRequest.STATUS_PENDING).update(
             status=AdminHelpRequest.STATUS_CLOSED, closed_at=timezone.now()
         )
@@ -136,8 +156,15 @@ class AdminHelpService:
         req.save()
         cache.delete(CACHE_KEY.format(user_id=user.id))
 
-        confirm_markup = InlineKeyboardMarkup()
-        confirm_markup.add(InlineKeyboardButton(text=_("💬 Direct DM admin"), url=ADMIN_DEEPLINK))
+        # Видаляємо запит «Опишіть проблему»
+        pending_msg_id = cache.get(f"admin_help_pending_msg:{user.id}")
+        if pending_msg_id:
+            try:
+                bot.delete_message(user.id, pending_msg_id)
+            except Exception:
+                pass
+            cache.delete(f"admin_help_pending_msg:{user.id}")
+
         try:
             bot.send_message(
                 user.id,
@@ -146,7 +173,6 @@ class AdminHelpService:
                     "Адміністратор отримав ваше повідомлення "
                     "та зв'яжеться з вами найближчим часом."
                 ),
-                reply_markup=confirm_markup,
             )
         except Exception:
             pass
@@ -246,12 +272,12 @@ class AdminHelpService:
                 vus = VacancyUser.objects.filter(
                     user=user,
                     status__in=[Status.MEMBER.value, Status.PENDING_CONFIRM.value],
-                ).select_related("vacancy", "vacancy__city")[:10]
+                ).select_related("vacancy")[:10]
                 for vu in vus:
                     v = vu.vacancy
                     title = (v.title or "")[:40]
-                    city = v.city.name if v.city_id else "?"
-                    lines_vac.append(f"  • #{v.id} «{title}» ({city}) — {vu.status}")
+                    addr = (v.address or "")[:40]
+                    lines_vac.append(f"  • #{v.id} «{title}» — {addr} [{vu.status}]")
         except Exception:
             logger.exception("admin_help.card: vacancy block failed")
 

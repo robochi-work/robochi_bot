@@ -91,26 +91,14 @@ def default_start(message: Message, user: User, **kwargs):
     except Exception as e:
         logger.error(f"SET_MENU_BUTTON FAILED: {e}", exc_info=True)
 
-    bot.send_message(message.chat.id, _("Вітаємо у нашому сервісі!\nНатискайте кнопку ПОЧАТИ нижче."))
-    _ensure_main_keyboard(user, message.chat.id)
-
-
-def _ensure_main_keyboard(user: User, chat_id: int) -> None:
-    """Лінива міграція: один раз на юзера дошлемо постійну 2-кнопкову клавіатуру."""
-    from django.core.cache import cache
-
     from telegram.handlers.keyboards import main_persistent_keyboard
 
-    if not user.phone_number:
-        return
-    key = f"main_kb_sent:{user.id}"
-    if cache.get(key):
-        return
-    try:
-        get_bot().send_message(chat_id, "·", reply_markup=main_persistent_keyboard())
-        cache.set(key, True, timeout=60 * 60 * 24 * 365)
-    except Exception:
-        logger.warning(f"ensure_main_keyboard failed for user={user.id}")
+    welcome_kb = main_persistent_keyboard() if user.phone_number else None
+    bot.send_message(
+        message.chat.id,
+        _("Вітаємо у нашому сервісі!\nНатискайте кнопку ПОЧАТИ нижче."),
+        reply_markup=welcome_kb,
+    )
 
 
 def encode_start_param(data: dict) -> str:

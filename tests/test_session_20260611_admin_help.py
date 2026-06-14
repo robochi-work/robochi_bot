@@ -6,7 +6,7 @@ import pytest
 from django.core.cache import cache
 
 from user.models import AdminHelpRequest
-from user.services.admin_help import CACHE_KEY, AdminHelpService
+from user.services.admin_help import CACHE_KEY, COOLDOWN_KEY, AdminHelpService
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +31,8 @@ def test_start_request_supersedes_previous_pending(worker_factory):
     user = worker_factory()
     with patch("telegram.handlers.bot_instance.bot.send_message"):
         AdminHelpService.start_request(user)
+        # Между вызовами очищаем cooldown — иначе второй start_request будет отбит rate-limit'ом
+        cache.delete(COOLDOWN_KEY.format(user_id=user.id))
         AdminHelpService.start_request(user)
     assert AdminHelpRequest.objects.filter(user=user, status=AdminHelpRequest.STATUS_TIMEOUT).count() == 1
     assert AdminHelpRequest.objects.filter(user=user, status=AdminHelpRequest.STATUS_PENDING).count() == 1
@@ -142,3 +144,15 @@ def test_button_matches_without_emoji():
 
     assert is_admin_help_click("Допомога Адміністратора") is True
     assert is_offer_click("Договір оферти") is True
+
+
+@pytest.mark.django_db
+def test_cooldown_blocks_repeat_within_5_minutes(worker_factory):
+    """Повторне натискання у межах 5 хв НЕ створює новий запит."""
+    user = worker_factory()
+    with patch("telegram.handlers.bot_instance.bot.send_message"):
+        AdminHelpService.start_request(user)
+        # Друге натискання — cooldown активний, новий request не створюється
+        AdminHelpService.start_request(user)
+    # Має бути рівно 1 запит (другий заблокувався cooldown'ом)
+    assert AdminHelpRequest.objects.filter(user=user).count() == 1

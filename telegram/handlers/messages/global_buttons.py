@@ -15,7 +15,6 @@ from telegram.handlers.bot_instance import bot
 from telegram.handlers.keyboards import (
     BTN_ADMIN_HELP_KEY,
     BTN_OFFER_KEY,
-    main_persistent_keyboard,
 )
 from user.models import User
 from user.services.admin_help import AdminHelpService
@@ -105,10 +104,6 @@ def global_private_handler(message: Message) -> None:
         text = message.text or message.caption or ""
         if is_offer_click(text):
             _send_offer_link(message.chat.id)
-            try:
-                bot.send_message(message.chat.id, "·", reply_markup=main_persistent_keyboard())
-            except Exception:
-                pass
             return
         if is_admin_help_click(text):
             AdminHelpService.start_request(user)
